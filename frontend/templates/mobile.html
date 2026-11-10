@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} - 手机端</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 10px;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1em;
+        }
+        
+        .upload-section {
+            margin-bottom: 30px;
+        }
+        
+        .upload-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .upload-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .form-section {
+            display: none;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+        
+        .submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .submit-btn:hover {
+            background: #229954;
+        }
+        
+        .submit-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .preview-section {
+            margin-top: 20px;
+        }
+        
+        .preview-image {
+            width: 100%;
+            max-width: 300px;
+            border-radius: 10px;
+            margin: 10px auto;
+            display: block;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .back-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #2c3e50;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
+        .history-section {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .history-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .history-item h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .history-item p {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <button class="back-btn" onclick="location.href='/'">返回首页</button>
+    
+    <div class="container">
+        <div class="header">
+            <h1>{{ app_name }}</h1>
+            <p>{{ version }} - 手机作业上传</p>
+        </div>
+        
+        <div id="status-message" class="status info" style="display: none;"></div>
+        
+        <div class="upload-section">
+            <button id="upload-btn" class="upload-btn" onclick="document.getElementById('file-input').click()">
+                📷 拍照或选择图片
+            </button>
+            <input type="file" id="file-input" accept="image/*" style="display: none;" onchange="handleFileSelect(event)">
+        </div>
+        
+        <div id="form-section" class="form-section">
+            <div class="form-group">
+                <label for="assignment-name">作业名称</label>
+                <input type="text" id="assignment-name" placeholder="例如：数学作业第3课">
+            </div>
+            
+            <div class="form-group">
+                <label for="stage">学段</label>
+                <select id="stage">
+                    <option value="小学">小学</option>
+                    <option value="中学">中学</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="subject">学科</label>
+                <select id="subject">
+                    <option value="数学">数学</option>
+                    <option value="语文">语文</option>
+                    <option value="英语">英语</option>
+                </select>
+            </div>
+            
+            <button id="submit-btn" class="submit-btn" onclick="submitAssignment()">
+                提交作业
+            </button>
+        </div>
+        
+        <div id="preview-section" class="preview-section">
+            <h3>图片预览</h3>
+            <img id="preview-image" class="preview-image" alt="预览图片">
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            正在上传...
+        </div>
+        
+        <div id="history-section" class="history-section">
+            <h3>历史记录</h3>
+            <div id="history-list"></div>
+        </div>
+    </div>
+    
+    <script>
+        let selectedFile = null;
+        let teacherId = 1; // 默认教师ID
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedFile = file;
+                
+                // 显示预览
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewImage = document.getElementById('preview-image');
+                    previewImage.src = e.target.result;
+                    
+                    // 显示表单
+                    document.getElementById('form-section').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        async function submitAssignment() {
+            if (!selectedFile) {
+                showStatus('请先选择图片', 'error');
+                return;
+            }
+            
+            const assignmentName = document.getElementById('assignment-name').value;
+            const stage = document.getElementById('stage').value;
+            const subject = document.getElementById('subject').value;
+            
+            if (!assignmentName) {
+                showStatus('请输入作业名称', 'error');
+                return;
+            }
+            
+            // 显示加载状态
+            document.getElementById('upload-btn').disabled = true;
+            document.getElementById('form-section').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('assignment_name', assignmentName);
+            formData.append('stage', stage);
+            formData.append('subject', subject);
+            formData.append('teacher_id', teacherId);
+            
+            try {
+                const response = await fetch('/api/mobile/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('作业上传成功！', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    showStatus(result.message || '上传失败', 'error');
+                }
+            } catch (error) {
+                showStatus('网络错误，请重试', 'error');
+                console.error('上传失败:', error);
+            } finally {
+                document.getElementById('upload-btn').disabled = false;
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+        
+        // 获取历史记录
+        async function getHistory() {
+            try {
+                const response = await fetch('/api/mobile/history');
+                const result = await response.json();
+                
+                if (result.success && result.history) {
+                    const historyList = document.getElementById('history-list');
+                    historyList.innerHTML = '';
+                    
+                    result.history.forEach(item => {
+                        const historyItem = document.createElement('div');
+                        historyItem.className = 'history-item';
+                        historyItem.innerHTML = `
+                            <h4>${item.assignment_name}</h4>
+                            <p>时间: ${item.created_at} | 状态: ${item.status}</p>
+                        `;
+                        historyList.appendChild(historyItem);
+                    });
+                    
+                    document.getElementById('history-section').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('获取历史记录失败:', error);
+            }
+        }
+        
+        // 检查系统状态
+        fetch('/health')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    console.log('系统运行正常');
+                }
+            })
+            .catch(error => {
+                console.error('系统状态检查失败:', error);
+            });
+    </script>
+</body>
+</html>
