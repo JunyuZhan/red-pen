@@ -2,7 +2,7 @@
 学情分析路由：错误类型分布、逐题正确率、学生表现
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from collections import Counter, defaultdict
 
@@ -54,7 +54,7 @@ async def analytics(db: Session = Depends(get_db)):
 
     # 置信度偏低的题目（需要老师复核）
     needs_review = [
-        {"submission_id": r.submission_id, "question_no": r.question_no,
+        {"id": r.id, "submission_id": r.submission_id, "question_no": r.question_no,
          "judgement": r.judgement_final, "confidence": r.confidence_final}
         for r in results
         if r.confidence_final is not None and r.confidence_final < 0.6
@@ -69,3 +69,35 @@ async def analytics(db: Session = Depends(get_db)):
         "needs_review_count": len(needs_review),
         "needs_review": needs_review[:20],
     }
+
+
+VALID_JUDGEMENTS = ("correct", "wrong", "partial")
+
+
+@router.post("/override")
+async def teacher_override(payload: dict, db: Session = Depends(get_db)):
+    """教师复核修正：改写判定并记录 teacher_override（保留原始判定 judgement_raw）"""
+
+    qr_id = payload.get("question_result_id")
+    judgement = payload.get("judgement")
+    error_type = payload.get("error_type")
+
+    if not qr_id:
+        raise HTTPException(status_code=400, detail="缺少 question_result_id")
+    if judgement not in VALID_JUDGEMENTS:
+        raise HTTPException(status_code=400, detail=f"判定必须是 {'/'.join(VALID_JUDGEMENTS)} 之一")
+
+    qr = db.query(QuestionResult).filter(QuestionResult.id == qr_id).first()
+    if not qr:
+        raise HTTPException(status_code=404, detail="题目结果不存在")
+
+    qr.judgement_final = judgement
+    qr.teacher_override = judgement
+    if error_type is not None:
+        if error_type not in ("concept", "calculation", "reading", "format", ""):
+            raise HTTPException(status_code=400, detail="error_type 取值非法")
+        qr.error_type = error_type or None
+    db.commit()
+
+    return {"success": True, "id": qr.id, "judgement_final": qr.judgement_final,
+            "teacher_override": qr.teacher_override, "error_type": qr.error_type}

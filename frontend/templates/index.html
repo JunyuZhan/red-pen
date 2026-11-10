@@ -203,7 +203,10 @@ async function loadAnalytics() {
   }).join("");
   const review = d.needs_review || [];
   const reviewRows = review.map(r =>
-    `<tr><td>提交 #${r.submission_id}</td><td>第${r.question_no}题</td><td>${r.judgement || "-"}</td><td>${r.confidence == null ? "-" : (r.confidence*100).toFixed(0) + "%"}</td></tr>`
+    `<tr id="rev-${r.id}"><td>提交 #${r.submission_id}</td><td>第${r.question_no}题</td><td>${r.judgement || "-"}</td><td>${r.confidence == null ? "-" : (r.confidence*100).toFixed(0) + "%"}</td><td>` +
+    ["correct", "wrong", "partial"].map(j =>
+      `<button style="margin-right:4px;" onclick="overrideQuestion(${r.id},'${j}')">${j === "correct" ? "✓对" : j === "wrong" ? "✗错" : "◐部分"}</button>`
+    ).join("") + `</td></tr>`
   ).join("");
   body.innerHTML = `
     <p style="margin:0 0 10px;font-size:14px;">共批改 <b>${d.total_questions}</b> 题 ·
@@ -218,9 +221,22 @@ async function loadAnalytics() {
     </table>
     <p style="margin:0 0 6px;font-size:14px;"><b>待复核题目（置信度 &lt; 60%）</b></p>
     <table>
-      <thead><tr><th>提交</th><th>题号</th><th>判定</th><th>置信度</th></tr></thead>
-      <tbody>${reviewRows || `<tr><td colspan="4" class="hint">没有需要复核的题目 🎉</td></tr>`}</tbody>
+      <thead><tr><th>提交</th><th>题号</th><th>判定</th><th>置信度</th><th>复核修正</th></tr></thead>
+      <tbody>${reviewRows || `<tr><td colspan="5" class="hint">没有需要复核的题目 🎉</td></tr>`}</tbody>
     </table>`;
+}
+
+// 教师复核修正：改写判定，写入 teacher_override 后刷新面板
+async function overrideQuestion(qrId, judgement) {
+  const r = await fetch("/api/analytics/override", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({question_result_id: qrId, judgement: judgement})
+  });
+  if (!r.ok) { alert("复核修正失败: " + r.status); return; }
+  const row = document.getElementById("rev-" + qrId);
+  if (row) row.remove();
+  loadAnalytics();
 }
 
 // ---------- 管理员 PIN 解锁 ----------
