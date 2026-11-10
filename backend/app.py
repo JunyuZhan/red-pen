@@ -44,6 +44,15 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads"
 # 模板引擎
 templates = Jinja2Templates(directory="frontend/templates")
 
+import inspect as _inspect
+
+def _render(template_name: str, request, **ctx):
+    """兼容新旧 starlette 的 TemplateResponse 参数顺序"""
+    params = list(_inspect.signature(templates.TemplateResponse).parameters)
+    if params and params[0] == "request":  # starlette >= 0.29
+        return templates.TemplateResponse(request, template_name, {"request": request, **ctx})
+    return templates.TemplateResponse(template_name, {"request": request, **ctx})
+
 # 包含路由
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
 app.include_router(upload.router, prefix="/api/upload", tags=["上传"])
@@ -57,18 +66,16 @@ from fastapi import Request
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    return templates.TemplateResponse(request, "index.html", {
-        "app_name": settings.APP_NAME,
-        "version": settings.VERSION
-    })
+    return _render("index.html", request,
+        app_name=settings.APP_NAME,
+        version=settings.VERSION)
 
 # 手机端页面
 @app.get("/mobile", response_class=HTMLResponse)
 async def mobile_page(request: Request):
-    return templates.TemplateResponse(request, "mobile.html", {
-        "app_name": settings.APP_NAME,
-        "version": settings.VERSION
-    })
+    return _render("mobile.html", request,
+        app_name=settings.APP_NAME,
+        version=settings.VERSION)
 
 # 设置页面
 @app.get("/settings", response_class=HTMLResponse)
