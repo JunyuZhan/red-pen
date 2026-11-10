@@ -81,6 +81,12 @@ jobs:
 
         r = client.get("/")
         assert r.status_code == 200, r.text
+        # 手机端 5 秒预览倒计时（PRD 第五节）
+        r = client.get("/mobile")
+        assert r.status_code == 200, r.text
+        for token in ["preview_ctl", "startCountdown", "cancelShot", "撤销重拍", "立即上传", "秒后自动上传"]:
+            assert token in r.text, f"mobile 页缺少 {token}"
+        print("✅ /mobile 预览倒计时元素齐全")
         r = client.get("/settings")
         assert r.status_code == 200, r.text
         assert "手机连接引导" in r.text, "设置页缺少手机连接引导卡片"

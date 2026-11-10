@@ -40,8 +40,13 @@
     <input type="text" id="subject" value="数学">
     <input type="file" id="file" accept="image/*" capture="environment" style="width:100%; margin:12px 0;">
     <img id="preview" class="shot" alt="预览">
-    <button onclick="upload()">上传并批改</button>
-  </div>
+    <div id="preview_ctl" style="display:none;">
+      <div id="countdown" style="text-align:center; color:#c0392b; font-size:14px; margin:4px 0;"></div>
+      <button class="secondary" onclick="cancelShot()">撤销重拍</button>
+      <button onclick="upload()">立即上传</button>
+    </div>
+    <button id="pick_btn" onclick="document.getElementById('file').click()" style="background:#eee; color:#c0392b;">📷 拍照 / 选图</button>
+    </div>
 
   <div id="status"></div>
 
@@ -98,13 +103,41 @@ function fillStudents() {
 $("class_sel").addEventListener("change", fillStudents);
 loadClasses();
 
+let cdTimer = null, cdLeft = 0;
+
 $("file").addEventListener("change", e => {
   const f = e.target.files[0];
   if (!f) return;
   const p = $("preview");
   p.src = URL.createObjectURL(f);
   p.style.display = "block";
+  $("pick_btn").style.display = "none";
+  $("preview_ctl").style.display = "block";
+  startCountdown();
 });
+
+function startCountdown() {
+  clearInterval(cdTimer);
+  cdLeft = 5;
+  const el = $("countdown");
+  const tick = () => { el.textContent = `${cdLeft} 秒后自动上传…`; };
+  tick();
+  cdTimer = setInterval(() => {
+    cdLeft--;
+    if (cdLeft <= 0) { clearInterval(cdTimer); upload(); }
+    else tick();
+  }, 1000);
+}
+
+function cancelShot() {
+  clearInterval(cdTimer);
+  $("file").value = "";
+  $("preview").style.display = "none";
+  $("preview_ctl").style.display = "none";
+  $("pick_btn").style.display = "block";
+  $("countdown").textContent = "";
+  setStatus("");
+}
 
 function setStatus(t) { $("status").textContent = t; }
 
@@ -121,6 +154,9 @@ async function upload() {
   if (sid) fd.append("student_id", sid);
 
   setStatus("上传中…");
+  clearInterval(cdTimer);
+  $("preview_ctl").style.display = "none";
+  $("countdown").textContent = "";
   try {
     const r = await fetch("/api/upload/upload-mobile", { method: "POST", body: fd });
     const d = await r.json();
@@ -172,6 +208,9 @@ function reset() {
   $("uploadForm").style.display = "block";
   $("file").value = "";
   $("preview").style.display = "none";
+  $("preview_ctl").style.display = "none";
+  $("pick_btn").style.display = "block";
+  $("countdown").textContent = "";
   $("questions").innerHTML = "";
   setStatus("");
 }
