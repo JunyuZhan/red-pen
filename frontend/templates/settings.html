@@ -76,6 +76,17 @@
   <div class="msg ok" id="est_msg" style="min-height:22px;">—</div>
 </div>
 
+<!-- 数据合规提示（PRD 4.2/第五节） -->
+<div class="card" style="margin-top:20px;border-left:4px solid #e67e22">
+  <h1 style="font-size:16px">🛡️ 数据合规提示</h1>
+  <div style="font-size:13px;color:#555;line-height:1.9;margin-top:10px">
+    1. <b>图片出机说明</b>：批改时，学生作业照片会随题目一起发送给你配置的模型服务商（如阿里云/智谱）进行识别与批改，请确认所选服务商的服务条款可以接受。<br>
+    2. <b>建议关闭训练授权</b>：请在模型服务商控制台检查并关闭“数据用于模型训练”类授权，避免学生作业内容被用于训练。<br>
+    3. <b>敏感信息遮盖</b>：拍照前建议遮盖试卷上的学生姓名、学号等个人信息，AI 批改只需要题目内容。<br>
+    4. <b>本地存储</b>：API Key、批改结果、成绩均保存在本机数据库中，不会上传到本程序作者或任何第三方；可通过下方备份功能自行导出管理。
+  </div>
+</div>
+
 <!-- 手机连接引导（PRD 第三节） -->
 <div class="card" style="margin-top:20px">
   <h1>手机连接引导</h1>
