@@ -53,10 +53,11 @@ class Class(Base):
 
 class Student(Base):
     __tablename__ = "student"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     class_id = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class Assignment(Base):
     __tablename__ = "assignment"
@@ -77,6 +78,9 @@ class Submission(Base):
     original_image_path = Column(String(500), nullable=False)
     annotated_image_path = Column(String(500), nullable=True)
     grading_summary = Column(Text, nullable=True)
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    cost_estimate = Column(Float, nullable=True)
     quality_flags = Column(JSON, nullable=True)
     quality_override = Column(Boolean, default=False)
     status = Column(String(20), default="uploaded")  # uploaded, processing, completed, failed

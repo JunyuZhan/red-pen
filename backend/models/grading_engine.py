@@ -123,6 +123,33 @@ def _parse_llm_json(text: str) -> Optional[dict]:
         return None
 
 
+def get_cost_config() -> Dict[str, float]:
+    """读取单价配置（元/1K tokens），默认给个通义 qwen-vl-plus 的近似价"""
+    db = SessionLocal()
+    try:
+        rows = db.query(AppConfig).filter(
+            AppConfig.key.in_(["cost_input_per_1k", "cost_output_per_1k"])).all()
+        stored = {r.key: r.value for r in rows}
+    finally:
+        db.close()
+    try:
+        inp = float(stored.get("cost_input_per_1k", 0.8))
+    except ValueError:
+        inp = 0.8
+    try:
+        out = float(stored.get("cost_output_per_1k", 2.0))
+    except ValueError:
+        out = 2.0
+    return {"input": inp, "output": out}
+
+
+def estimate_cost(prompt_tokens: int, completion_tokens: int) -> Dict[str, Any]:
+    cfg = get_cost_config()
+    cost = prompt_tokens / 1000 * cfg["input"] + completion_tokens / 1000 * cfg["output"]
+    return {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
+            "cost": round(cost, 4)}
+
+
 class GradingEngine:
     """基于 OpenAI 兼容 Chat Completions 接口的批改引擎（三家服务商均兼容）"""
 
@@ -176,6 +203,11 @@ class GradingEngine:
     def _parse_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
         try:
             content = response["choices"][0]["message"]["content"]
+            usage = response.get("usage") or {}
+            usage_info = {
+                "prompt_tokens": usage.get("input_tokens") or usage.get("prompt_tokens") or 0,
+                "completion_tokens": usage.get("output_tokens") or usage.get("completion_tokens") or 0,
+            }
             parsed = _parse_llm_json(content)
             if parsed and parsed.get("questions"):
                 questions = parsed.get("questions", [])
@@ -191,6 +223,7 @@ class GradingEngine:
                     "confidence": round(sum(confidences) / len(confidences), 2) if confidences else 0.5,
                     "analysis": parsed.get("summary") or content,
                     "questions": questions,
+                    **usage_info,
                 }
             # 无法结构化时降级为原始文本
             return {
@@ -199,6 +232,7 @@ class GradingEngine:
                 "judgement": "unclear",
                 "confidence": 0.5,
                 "analysis": content,
+                **usage_info,
             }
         except Exception as e:
             return {"success": False, "error": str(e), "raw_output": response}

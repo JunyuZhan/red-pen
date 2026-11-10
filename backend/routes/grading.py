@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..database import get_db, Submission, QuestionResult
-from ..models.grading_engine import grading_manager
+from ..models.grading_engine import grading_manager, estimate_cost
 from ..models.annotator import annotate_image
 
 router = APIRouter()
@@ -68,6 +68,13 @@ async def start_grading(submission_id: int, db: Session = Depends(get_db)):
                                result.get("analysis", ""))
     submission.annotated_image_path = annotated
     submission.grading_summary = result.get("analysis")
+
+    # 成本估算
+    cost = estimate_cost(result.get("prompt_tokens", 0), result.get("completion_tokens", 0))
+    submission.prompt_tokens = cost["prompt_tokens"]
+    submission.completion_tokens = cost["completion_tokens"]
+    submission.cost_estimate = cost["cost"]
+
     submission.status = "completed"
     db.commit()
 

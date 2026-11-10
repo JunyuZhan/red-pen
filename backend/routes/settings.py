@@ -18,6 +18,38 @@ class LLMConfigIn(BaseModel):
     api_key: Optional[str] = None       # 留空 = 不修改已有 Key
 
 
+class CostConfigIn(BaseModel):
+    cost_input_per_1k: float
+    cost_output_per_1k: float
+
+
+@router.get("/cost")
+async def get_cost_settings():
+    from ..models.grading_engine import get_cost_config
+    cfg = get_cost_config()
+    return {"success": True, **cfg}
+
+
+@router.post("/cost")
+async def update_cost_settings(config: CostConfigIn):
+    from ..models.grading_engine import get_cost_config
+    from ..database import AppConfig, SessionLocal
+    db = SessionLocal()
+    try:
+        for key, value in [("cost_input_per_1k", config.cost_input_per_1k),
+                           ("cost_output_per_1k", config.cost_output_per_1k)]:
+            row = db.query(AppConfig).filter(AppConfig.key == key).first()
+            if row:
+                row.value = str(value)
+            else:
+                db.add(AppConfig(key=key, value=str(value)))
+        db.commit()
+    finally:
+        db.close()
+    cfg = get_cost_config()
+    return {"success": True, "message": "单价已保存", **cfg}
+
+
 @router.get("/llm")
 async def get_llm_settings():
     """读取当前 LLM 配置（Key 脱敏返回）"""

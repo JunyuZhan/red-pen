@@ -14,6 +14,7 @@ import os
 
 # 导入路由
 from .routes import auth, upload, grading, dashboard, mobile, settings as settings_routes
+from .routes import manage, analytics
 from .database import init_db
 from .config import settings
 
@@ -60,6 +61,8 @@ app.include_router(grading.router, prefix="/api/grading", tags=["批改"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["看板"])
 app.include_router(mobile.router, prefix="/api/mobile", tags=["手机端"])
 app.include_router(settings_routes.router, prefix="/api/settings", tags=["设置"])
+app.include_router(manage.router, prefix="/api/manage", tags=["班级学生"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["学情分析"])
 
 # 根路径
 from fastapi import Request
