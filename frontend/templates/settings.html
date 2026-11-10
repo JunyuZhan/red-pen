@@ -76,6 +76,33 @@
   <div class="msg ok" id="est_msg" style="min-height:22px;">—</div>
 </div>
 
+<!-- 备用引擎（PRD 第三节：主 provider 失败自动切备用） -->
+<div class="card" style="margin-top:20px">
+  <h1>备用引擎（自动切换）</h1>
+  <div class="sub">主服务商批改失败或限流时，自动降级到备用引擎重试一次；不填服务商即关闭备用切换。</div>
+
+  <label>备用服务商</label>
+  <select id="fb_provider" onchange="onFallbackChange()">
+    <option value="">不启用备用切换</option>
+    <option value="qwen">通义千问（阿里云百炼）</option>
+    <option value="glm">智谱 GLM（bigmodel）</option>
+    <option value="custom">自定义（OpenAI 兼容接口）</option>
+  </select>
+
+  <label>备用 API Base URL</label>
+  <input id="fb_base_url" placeholder="选服务商后自动填充">
+
+  <label>备用模型名称</label>
+  <input id="fb_model" placeholder="选服务商后自动填充">
+
+  <label>备用 API Key</label>
+  <input id="fb_api_key" type="password" placeholder="">
+  <div class="hint" id="fb_key_hint"></div>
+
+  <button onclick="saveFallback()">保存备用配置</button>
+  <div class="msg" id="fb_msg"></div>
+</div>
+
 <!-- 数据合规提示（PRD 4.2/第五节） -->
 <div class="card" style="margin-top:20px;border-left:4px solid #e67e22">
   <h1 style="font-size:16px">🛡️ 数据合规提示</h1>
@@ -238,6 +265,49 @@ function calcEstimate() {
     "（按 " + vals.est_questions + " 题/份、每题 " + vals.est_in_tok + "+" + vals.est_out_tok + " tokens 估算）";
 }
 
+async function loadFallback() {
+  const r = await fetch("/api/settings/fallback");
+  const d = await r.json();
+  if (!d.success) return;
+  document.getElementById("fb_provider").value = d.provider || "";
+  if (d.provider) {
+    document.getElementById("fb_base_url").value = d.base_url;
+    document.getElementById("fb_model").value = d.model;
+  }
+  document.getElementById("fb_key_hint").textContent =
+    d.has_api_key ? "已保存 Key：" + d.api_key_masked + "（留空即不修改）" : "尚未配置备用 Key";
+}
+
+function onFallbackChange() {
+  const p = document.getElementById("fb_provider").value;
+  if (p && defaults[p]) {
+    document.getElementById("fb_base_url").value = defaults[p].base_url;
+    document.getElementById("fb_model").value = defaults[p].model;
+  }
+}
+
+async function saveFallback() {
+  const msg = document.getElementById("fb_msg");
+  const body = {
+    provider: document.getElementById("fb_provider").value,
+    base_url: document.getElementById("fb_base_url").value,
+    model: document.getElementById("fb_model").value,
+    api_key: document.getElementById("fb_api_key").value
+  };
+  try {
+    const r = await fetch("/api/settings/fallback", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ " + d.message;
+    document.getElementById("fb_api_key").value = "";
+    loadFallback();
+  } catch (e) {
+    msg.className = "msg err"; msg.textContent = "❌ " + e.message;
+  }
+}
+
 // ---------- 管理员 PIN 解锁 ----------
 async function ensureAdmin() {
   const s = await (await fetch("/api/auth/pin-status")).json();
@@ -289,7 +359,7 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadCost().then(loadEstimateInputs); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); } });
 </script>
 </body>
 </html>

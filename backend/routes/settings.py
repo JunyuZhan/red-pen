@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from ..models.grading_engine import get_llm_config, save_llm_config, PROVIDER_DEFAULTS
+from ..models.grading_engine import (get_llm_config, save_llm_config,
+                                     get_fallback_config, save_fallback_config, PROVIDER_DEFAULTS)
 
 router = APIRouter()
 
@@ -16,6 +17,13 @@ class LLMConfigIn(BaseModel):
     base_url: Optional[str] = None      # custom 时必填
     model: Optional[str] = None         # custom 时必填
     api_key: Optional[str] = None       # 留空 = 不修改已有 Key
+
+
+class FallbackConfigIn(BaseModel):
+    provider: Optional[str] = None        # qwen / glm / custom / None(关闭备用)
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None         # 留空 = 不修改已有 Key
 
 
 class CostConfigIn(BaseModel):
@@ -48,6 +56,53 @@ async def update_cost_settings(config: CostConfigIn):
         db.close()
     cfg = get_cost_config()
     return {"success": True, "message": "单价已保存", **cfg}
+
+
+@router.get("/fallback")
+async def get_fallback_settings():
+    """读取备用引擎配置（Key 脱敏返回）"""
+    cfg = get_fallback_config()
+    key = cfg["api_key"]
+    masked = (key[:4] + "****" + key[-4:]) if len(key) > 8 else ("已设置" if key else "")
+    return {
+        "success": True,
+        "provider": cfg["provider"],
+        "base_url": cfg["base_url"],
+        "model": cfg["model"],
+        "api_key_masked": masked,
+        "has_api_key": bool(key),
+    }
+
+
+@router.post("/fallback")
+async def update_fallback_settings(config: FallbackConfigIn):
+    """保存备用引擎配置；provider 为空表示关闭备用切换"""
+    provider = (config.provider or "").strip() or None
+    if provider and provider not in PROVIDER_DEFAULTS:
+        raise HTTPException(status_code=400, detail=f"不支持的备用服务商: {provider}（可选 qwen/glm/custom）")
+
+    current = get_fallback_config()
+    if provider:
+        defaults = PROVIDER_DEFAULTS[provider]
+        base_url = (config.base_url or "").strip() or defaults["base_url"]
+        model = (config.model or "").strip() or defaults["model"]
+        if provider == "custom" and (not base_url or not model):
+            raise HTTPException(status_code=400, detail="自定义备用服务商必须填写 Base URL 和模型名称")
+        update_key = bool((config.api_key or "").strip())
+        save_fallback_config(provider, base_url, model,
+                             api_key=(config.api_key or "").strip(), update_key=update_key)
+    else:
+        save_fallback_config(None, "", "")
+
+    saved = get_fallback_config()
+    return {
+        "success": True,
+        "message": "已关闭备用切换" if not saved["provider"] else "备用配置已保存",
+        "provider": saved["provider"],
+        "base_url": saved["base_url"],
+        "model": saved["model"],
+        "has_api_key": bool(saved["api_key"]) or bool(current["api_key"]),
+    }
 
 
 @router.get("/llm")

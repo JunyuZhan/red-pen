@@ -15,7 +15,8 @@ from ..database import AppConfig, SessionLocal
 
 # ---------- 配置存取 ----------
 
-CONFIG_KEYS = ["llm_provider", "llm_base_url", "llm_model", "llm_api_key"]
+CONFIG_KEYS = ["llm_provider", "llm_base_url", "llm_model", "llm_api_key",
+               "llm_fallback_provider", "llm_fallback_base_url", "llm_fallback_model", "llm_fallback_api_key"]
 
 PROVIDER_DEFAULTS = {
     # OpenAI 兼容 Chat Completions 接口
@@ -65,6 +66,58 @@ def save_llm_config(provider: str, base_url: str, model: str, api_key: Optional[
         }
         if update_key and api_key:
             values["llm_api_key"] = api_key
+        for key, value in values.items():
+            row = db.query(AppConfig).filter(AppConfig.key == key).first()
+            if row:
+                row.value = value
+            else:
+                db.add(AppConfig(key=key, value=value))
+        db.commit()
+    finally:
+        db.close()
+
+
+def get_fallback_config() -> Dict[str, Any]:
+    # 读取备用引擎配置；未配置时 provider 为 None（不启用备用切换）
+    db = SessionLocal()
+    try:
+        rows = db.query(AppConfig).filter(AppConfig.key.in_(CONFIG_KEYS)).all()
+        stored = {r.key: r.value for r in rows}
+    finally:
+        db.close()
+
+    provider = stored.get("llm_fallback_provider") or None
+    cfg: Dict[str, Any] = {"provider": None, "base_url": "", "model": "", "api_key": ""}
+    if provider:
+        defaults = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["custom"])
+        cfg = {
+            "provider": provider,
+            "base_url": stored.get("llm_fallback_base_url") or defaults["base_url"],
+            "model": stored.get("llm_fallback_model") or defaults["model"],
+            "api_key": stored.get("llm_fallback_api_key") or "",
+        }
+    return cfg
+
+
+def save_fallback_config(provider, base_url: str, model: str,
+                         api_key=None, update_key: bool = True) -> None:
+    # 保存备用引擎配置。provider 为空/None 表示不启用备用切换
+    keys = ["llm_fallback_provider", "llm_fallback_base_url",
+            "llm_fallback_model", "llm_fallback_api_key"]
+    db = SessionLocal()
+    try:
+        if not provider:
+            for key in keys:
+                db.query(AppConfig).filter(AppConfig.key == key).delete()
+            db.commit()
+            return
+        values = {
+            "llm_fallback_provider": provider,
+            "llm_fallback_base_url": base_url,
+            "llm_fallback_model": model,
+        }
+        if update_key and api_key:
+            values["llm_fallback_api_key"] = api_key
         for key, value in values.items():
             row = db.query(AppConfig).filter(AppConfig.key == key).first()
             if row:
@@ -267,13 +320,37 @@ class GradingManager:
                 "provider": cfg["provider"],
             }
 
-        engine = GradingEngine(cfg["api_key"], cfg["model"], cfg["base_url"])
-        try:
+        async def _run(provider_name: str, api_key: str, model_name: str, base_url: str) -> Dict[str, Any]:
+            engine = GradingEngine(api_key, model_name, base_url)
             result = await engine.grade(image_path, question_type, subject, answers=answers)
-            result.setdefault("provider", cfg["provider"])
+            result.setdefault("provider", provider_name)
             return result
+
+        try:
+            result = await _run(cfg["provider"], cfg["api_key"], cfg["model"], cfg["base_url"])
         except Exception as e:
-            return {"success": False, "error": str(e), "provider": cfg["provider"]}
+            result = {"success": False, "error": str(e), "provider": cfg["provider"]}
+
+        # PRD 第三节：主 provider 失败自动切备用
+        if not result.get("success"):
+            fb = get_fallback_config()
+            if fb["provider"] and fb["api_key"] and fb["base_url"] and fb["model"]:
+                try:
+                    fb_result = await _run(fb["provider"], fb["api_key"], fb["model"], fb["base_url"])
+                except Exception as e:
+                    fb_result = {"success": False, "error": str(e), "provider": fb["provider"]}
+                if fb_result.get("success"):
+                    fb_result["fallback_used"] = True
+                    fb_result["main_provider"] = cfg["provider"]
+                    fb_result["main_error"] = result.get("error")
+                    return fb_result
+                return {
+                    "success": False,
+                    "error": "主用(%s)与备用(%s)均失败: %s / %s" % (
+                        cfg["provider"], fb["provider"], result.get("error"), fb_result.get("error")),
+                    "provider": cfg["provider"],
+                }
+        return result
 
 
 # 全局批改管理器实例

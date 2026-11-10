@@ -92,7 +92,24 @@ jobs:
         assert "手机连接引导" in r.text, "设置页缺少手机连接引导卡片"
         for token in ["数据合规提示", "数据用于模型训练", "敏感信息遮盖", "本地存储"]:
             assert token in r.text, f"设置页缺少合规提示内容：{token}"
+        for token in ["备用引擎（自动切换）", "备用服务商", "saveFallback"]:
+            assert token in r.text, f"设置页缺少备用引擎卡片：{token}"
+        print("✅ 设置页备用引擎卡片齐全")
         print("✅ 设置页数据合规提示卡片齐全")
+        # 主备 provider 自动切换（PRD 第三节）
+        r = client.get("/api/settings/fallback")
+        assert r.status_code == 200 and r.json()["success"] and r.json()["provider"] is None, r.text
+        r = client.post("/api/settings/fallback", json={"provider": "glm", "api_key": "fb-ci-0001"})
+        assert r.status_code == 200 and r.json()["success"], r.text
+        d = client.get("/api/settings/fallback").json()
+        assert d["provider"] == "glm" and d["base_url"] == "https://open.bigmodel.cn/api/paas/v4" and d["model"] == "glm-4v", d
+        assert d["has_api_key"], d
+        r = client.post("/api/settings/fallback", json={"provider": "bad"})
+        assert r.status_code == 400, r.text
+        r = client.post("/api/settings/fallback", json={"provider": ""})
+        assert r.status_code == 200 and "关闭" in r.json()["message"], r.text
+        print("✅ /api/settings/fallback 主备 provider 配置")
+
         print("✅ 页面路由 / 与 /settings")
 
         r = client.get("/api/grading/failed")
