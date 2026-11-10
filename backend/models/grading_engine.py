@@ -78,7 +78,7 @@ def save_llm_config(provider: str, base_url: str, model: str, api_key: Optional[
 
 # ---------- 批改引擎 ----------
 
-def _build_prompt(question_type: str, subject: str) -> str:
+def _build_prompt(question_type: str, subject: str, answers: Optional[Dict[str, str]] = None) -> str:
     """构建批改提示词，要求模型输出结构化 JSON"""
     base = (
         f"你是一位{subject}老师。请仔细分析这张作业图片，逐题批改。\n"
@@ -102,7 +102,15 @@ def _build_prompt(question_type: str, subject: str) -> str:
         "chinese": f"{base}\n学科: 语文",
         "english": f"{base}\n学科: 英语",
     }
-    return prompts.get(question_type, base)
+    prompt = prompts.get(question_type, base)
+    if answers:
+        lines = "\n".join(f"第{no}题：{ans}" for no, ans in answers.items())
+        prompt += (
+            f"\n\n以下是教师提供的参考答案，判题时必须以参考答案为准：\n{lines}\n"
+            "若学生答案与参考答案语义等价（数值相等、选项一致）判 correct；"
+            "正确答案（correct_answer）字段请填写参考答案。"
+        )
+    return prompt
 
 
 def _parse_llm_json(text: str) -> Optional[dict]:
@@ -163,7 +171,8 @@ class GradingEngine:
             return self.base_url
         return f"{self.base_url}/chat/completions"
 
-    async def grade(self, image_path: str, question_type: str, subject: str) -> Dict[str, Any]:
+    async def grade(self, image_path: str, question_type: str, subject: str,
+                    answers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """批改作业图片"""
         with open(image_path, "rb") as f:
             image_base64 = base64.b64encode(f.read()).decode()
@@ -176,7 +185,7 @@ class GradingEngine:
                     "role": "user",
                     "content": [
                         {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_base64}"}},
-                        {"type": "text", "text": _build_prompt(question_type, subject)},
+                        {"type": "text", "text": _build_prompt(question_type, subject, answers)},
                     ],
                 }
             ],
@@ -241,7 +250,8 @@ class GradingEngine:
 class GradingManager:
     """批改管理器：根据老师配置选择服务商"""
 
-    async def grade(self, image_path: str, question_type: str, subject: str) -> Dict[str, Any]:
+    async def grade(self, image_path: str, question_type: str, subject: str,
+                    answers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         cfg = get_llm_config()
 
         if not cfg["api_key"]:
@@ -259,7 +269,7 @@ class GradingManager:
 
         engine = GradingEngine(cfg["api_key"], cfg["model"], cfg["base_url"])
         try:
-            result = await engine.grade(image_path, question_type, subject)
+            result = await engine.grade(image_path, question_type, subject, answers=answers)
             result.setdefault("provider", cfg["provider"])
             return result
         except Exception as e:

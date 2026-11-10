@@ -90,6 +90,24 @@ jobs:
         assert r.status_code == 200 and r.json()["success"] and r.json()["max_retry"] == 3, r.text
         print("✅ /api/grading/failed 失败队列接口")
 
+        # 答案模板（PRD 4.4）：未登录 401，登录后可增删查
+        r = client.post("/api/auth/pin-logout")
+        assert r.status_code == 200, r.text
+        r = client.get("/api/grading/answer-templates")
+        assert r.status_code == 401, r.text
+        client.post("/api/auth/pin-login", json={"pin": "123456"})
+        r = client.post("/api/grading/answer-templates",
+                        json={"title": "CI模板", "answers": {"1": "3/4", "2": "B"}})
+        assert r.status_code == 200 and r.json()["success"], r.text
+        tid = r.json()["id"]
+        r = client.get("/api/grading/answer-templates")
+        assert any(t["id"] == tid for t in r.json()["templates"]), r.text
+        r = client.post("/api/grading/answer-templates", json={"title": "空", "answers": {}})
+        assert r.status_code == 400, r.text
+        r = client.delete(f"/api/grading/answer-templates/{tid}")
+        assert r.status_code == 200, r.text
+        print("✅ /api/grading/answer-templates 答案模板增删查")
+
         r = client.get("/api/network/info")
         assert r.status_code == 200 and r.json()["success"], r.text
         d = r.json()

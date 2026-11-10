@@ -88,6 +88,17 @@ class Submission(Base):
     retry_count = Column(Integer, default=0)        # 已重试次数
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class AnswerTemplate(Base):
+    """答案模板（PRD 4.4/M4）：同一练习册答案存一次，之后复用"""
+    __tablename__ = "answer_template"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    subject = Column(String(50), nullable=False, default="数学")
+    answers = Column(JSON, nullable=False, default=dict)  # {"1": "答案", ...}
+    usage_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class QuestionResult(Base):
     __tablename__ = "question_result"
     

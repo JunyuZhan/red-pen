@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
+from pydantic import BaseModel
 
-from ..database import get_db, Submission, QuestionResult
+from ..database import get_db, Submission, QuestionResult, AnswerTemplate
 from ..models.grading_engine import grading_manager, estimate_cost
 from ..models.annotator import annotate_image
+from .auth import require_admin
 
 router = APIRouter()
 
@@ -17,8 +20,15 @@ MAX_RETRY = 3  # PRD 4.4：最多自动/手动重试 3 次
 
 
 @router.post("/start/{submission_id}")
-async def start_grading(submission_id: int, db: Session = Depends(get_db)):
-    """对一份提交执行 AI 批改"""
+async def start_grading(submission_id: int, template_id: Optional[int] = None,
+                        db: Session = Depends(get_db)):
+    """对一份提交执行 AI 批改（可选携带答案模板，PRD 4.4 答案复用）"""
+
+    template = None
+    if template_id:
+        template = db.query(AnswerTemplate).filter(AnswerTemplate.id == template_id).first()
+        if not template:
+            raise HTTPException(status_code=404, detail="答案模板不存在")
 
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
@@ -40,6 +50,7 @@ async def start_grading(submission_id: int, db: Session = Depends(get_db)):
             image_path=submission.original_image_path,
             question_type="default",
             subject="数学",
+            answers=(template.answers if template else None),
         )
     except Exception as e:
         submission.status = "failed"
@@ -87,6 +98,8 @@ async def start_grading(submission_id: int, db: Session = Depends(get_db)):
     submission.cost_estimate = cost["cost"]
 
     submission.status = "completed"
+    if template:
+        template.usage_count = (template.usage_count or 0) + 1
     db.commit()
 
     return {
@@ -109,7 +122,7 @@ async def retry_grading(submission_id: int, db: Session = Depends(get_db)):
     if submission.status != "failed":
         raise HTTPException(status_code=400, detail=f"仅失败状态可重试，当前状态: {submission.status}")
 
-    return await start_grading(submission_id, db)
+    return await start_grading(submission_id, db=db)
 
 
 @router.get("/failed")
@@ -169,3 +182,52 @@ async def get_result(submission_id: int, db: Session = Depends(get_db)):
             for r in results
         ],
     }
+
+
+# ============ 答案模板（PRD 4.4/M4：同一练习册答案存一次，之后复用） ============
+
+class TemplateIn(BaseModel):
+    title: str
+    subject: str = "数学"
+    answers: dict  # {"1": "答案", "2": "B", ...}
+
+
+@router.get("/answer-templates")
+async def list_templates(db: Session = Depends(get_db), _: None = Depends(require_admin)):
+    templates = db.query(AnswerTemplate).order_by(AnswerTemplate.id.desc()).all()
+    return {
+        "success": True,
+        "templates": [
+            {"id": t.id, "title": t.title, "subject": t.subject,
+             "answers": t.answers or {}, "usage_count": t.usage_count or 0}
+            for t in templates
+        ],
+    }
+
+
+@router.post("/answer-templates")
+async def create_template(data: TemplateIn, db: Session = Depends(get_db),
+                          _: None = Depends(require_admin)):
+    if not data.title.strip():
+        raise HTTPException(status_code=400, detail="模板名称不能为空")
+    cleaned = {str(k).strip(): str(v).strip() for k, v in data.answers.items()
+               if str(k).strip() and str(v).strip()}
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="参考答案不能为空（格式：题号=答案，每行一条）")
+    t = AnswerTemplate(title=data.title.strip(), subject=data.subject.strip() or "数学",
+                       answers=cleaned)
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return {"success": True, "id": t.id}
+
+
+@router.delete("/answer-templates/{template_id}")
+async def delete_template(template_id: int, db: Session = Depends(get_db),
+                          _: None = Depends(require_admin)):
+    t = db.query(AnswerTemplate).filter(AnswerTemplate.id == template_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="答案模板不存在")
+    db.delete(t)
+    db.commit()
+    return {"success": True}
