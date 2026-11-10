@@ -53,19 +53,19 @@ app.include_router(mobile.router, prefix="/api/mobile", tags=["手机端"])
 app.include_router(settings_routes.router, prefix="/api/settings", tags=["设置"])
 
 # 根路径
+from fastapi import Request
+
 @app.get("/", response_class=HTMLResponse)
-async def root():
-    return templates.TemplateResponse("index.html", {
-        "request": {},
+async def root(request: Request):
+    return templates.TemplateResponse(request, "index.html", {
         "app_name": settings.APP_NAME,
         "version": settings.VERSION
     })
 
 # 手机端页面
 @app.get("/mobile", response_class=HTMLResponse)
-async def mobile_page():
-    return templates.TemplateResponse("mobile.html", {
-        "request": {},
+async def mobile_page(request: Request):
+    return templates.TemplateResponse(request, "mobile.html", {
         "app_name": settings.APP_NAME,
         "version": settings.VERSION
     })
