@@ -78,6 +78,18 @@
   </div>
 </div>
 
+<!-- 管理员 PIN 解锁浮层 -->
+<div id="pinGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:28px;width:300px;box-shadow:0 8px 30px rgba(0,0,0,.2);">
+    <h2 style="font-size:17px;margin:0 0 6px;color:#c0392b;">🔒 需要管理员 PIN</h2>
+    <p class="hint" style="margin:0 0 14px;">管理功能已加锁保护，请输入管理员 PIN 解锁。</p>
+    <input id="pinInput" type="password" inputmode="numeric" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:15px;"
+           placeholder="管理员 PIN" onkeydown="if(event.key==='Enter')pinUnlock()">
+    <button onclick="pinUnlock()" style="width:100%;margin-top:14px;padding:11px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;">解锁</button>
+    <p id="pinMsg" class="hint" style="min-height:16px;margin:10px 0 0;color:#c0392b;"></p>
+  </div>
+</div>
+
 <script>
 const $ = id => document.getElementById(id);
 
@@ -211,7 +223,34 @@ async function loadAnalytics() {
     </table>`;
 }
 
-load(); loadRows(); loadManage(); loadAnalytics();
+// ---------- 管理员 PIN 解锁 ----------
+async function ensureAdmin() {
+  const s = await (await fetch("/api/auth/pin-status")).json();
+  if (s.unlocked) return true;
+  const gate = $("pinGate");
+  gate.style.display = "flex";
+  setTimeout(() => $("pinInput").focus(), 50);
+  return false;
+}
+
+async function pinUnlock() {
+  const msg = $("pinMsg");
+  const pin = $("pinInput").value;
+  if (!pin) { msg.textContent = "请输入 PIN"; return; }
+  const r = await fetch("/api/auth/pin-login", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ pin })
+  });
+  if (r.ok) {
+    $("pinGate").style.display = "none";
+    location.reload();
+  } else {
+    msg.textContent = (await r.json()).detail || "PIN 错误";
+  }
+}
+
+load(); loadRows();
+ensureAdmin().then(ok => { if (ok) { loadManage(); loadAnalytics(); } });
 </script>
 </body>
 </html>

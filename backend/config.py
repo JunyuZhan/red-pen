@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ADMIN_PIN: str = "123456"  # 管理员 PIN，可用环境变量 ADMIN_PIN 覆盖
     
     # 默认配置
     DEFAULT_STAGE: str = "小学"

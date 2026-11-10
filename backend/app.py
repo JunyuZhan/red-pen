@@ -15,6 +15,8 @@ import os
 # 导入路由
 from .routes import auth, upload, grading, dashboard, mobile, settings as settings_routes
 from .routes import manage, analytics, backup
+from .routes.auth import require_admin
+from fastapi import Depends
 from .database import init_db
 from .config import settings
 
@@ -60,10 +62,14 @@ app.include_router(upload.router, prefix="/api/upload", tags=["上传"])
 app.include_router(grading.router, prefix="/api/grading", tags=["批改"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["看板"])
 app.include_router(mobile.router, prefix="/api/mobile", tags=["手机端"])
-app.include_router(settings_routes.router, prefix="/api/settings", tags=["设置"])
-app.include_router(manage.router, prefix="/api/manage", tags=["班级学生"])
-app.include_router(analytics.router, prefix="/api/analytics", tags=["学情分析"])
-app.include_router(backup.router, prefix="/api/backup", tags=["备份恢复"])
+app.include_router(settings_routes.router, prefix="/api/settings", tags=["设置"],
+                   dependencies=[Depends(require_admin)])
+app.include_router(manage.router, prefix="/api/manage", tags=["班级学生"],
+                   dependencies=[Depends(require_admin)])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["学情分析"],
+                   dependencies=[Depends(require_admin)])
+app.include_router(backup.router, prefix="/api/backup", tags=["备份恢复"],
+                   dependencies=[Depends(require_admin)])
 
 # 根路径
 from fastapi import Request

@@ -50,15 +50,34 @@ jobs:
         assert r.status_code == 200 and r.json()["status"] == "ok", r.text
         print("✅ /health")
 
+        # 管理接口已加 PIN 保护：未登录应 401
+        r = client.get("/api/settings/llm")
+        assert r.status_code == 401, (r.status_code, r.text)
+        print("✅ /api/settings/llm 未登录返回 401（PIN 保护生效）")
+
+        r = client.post("/api/auth/pin-login", json={"pin": "0000"})
+        assert r.status_code == 401, r.text
+        r = client.post("/api/auth/pin-login", json={"pin": "123456"})
+        assert r.status_code == 200 and r.json()["success"], r.text
+        print("✅ PIN 登录：错误 PIN 拒绝 / 正确 PIN 通过")
+
         r = client.get("/api/settings/llm")
         assert r.status_code == 200 and r.json()["success"], r.text
-        print("✅ /api/settings/llm GET")
+        print("✅ /api/settings/llm GET（登录后）")
 
-        r = client.post("/api/settings/llm", json={"provider": "qwen", "api_key": "sk-ci-test-0000000000"})
+        r = client.post("/api/settings/llm", json={"provider": "qwen", "api_key": "sk-ci-...0000"})
         assert r.status_code == 200 and r.json()["success"], r.text
         r = client.get("/api/settings/llm")
         assert r.json()["has_api_key"], r.text
         print("✅ /api/settings/llm POST + 回读")
+
+        r = client.get("/api/auth/pin-status")
+        assert r.status_code == 200 and r.json()["unlocked"], r.text
+        r = client.post("/api/auth/pin-logout")
+        assert r.status_code == 200, r.text
+        r = client.get("/api/manage/classes")
+        assert r.status_code == 401, r.text
+        print("✅ 登出后管理接口恢复 401")
 
         r = client.get("/")
         assert r.status_code == 200, r.text

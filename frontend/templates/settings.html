@@ -59,6 +59,18 @@
   <div class="msg" id="cost_msg"></div>
 </div>
 
+<!-- 管理员 PIN 解锁浮层 -->
+<div id="pinGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:28px;width:300px;box-shadow:0 8px 30px rgba(0,0,0,.2);">
+    <h1 style="font-size:17px;margin:0 0 6px;">🔒 需要管理员 PIN</h1>
+    <div class="hint" style="margin:0 0 14px;">设置页已加锁保护，请输入管理员 PIN 解锁。</div>
+    <input id="pinInput" type="password" inputmode="numeric" placeholder="管理员 PIN"
+           onkeydown="if(event.key==='Enter')pinUnlock()">
+    <button onclick="pinUnlock()">解锁</button>
+    <div class="hint" id="pinMsg" style="min-height:16px;margin-top:10px;color:#c0392b;"></div>
+  </div>
+</div>
+
 <script>
 const defaults = {
   qwen:   { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-vl-plus" },
@@ -136,8 +148,32 @@ async function saveCost() {
   }
 }
 
-load();
-loadCost();
+// ---------- 管理员 PIN 解锁 ----------
+async function ensureAdmin() {
+  const s = await (await fetch("/api/auth/pin-status")).json();
+  if (s.unlocked) return true;
+  $("pinGate").style.display = "flex";
+  setTimeout(() => $("pinInput").focus(), 50);
+  return false;
+}
+
+async function pinUnlock() {
+  const msg = $("pinMsg");
+  const pin = $("pinInput").value;
+  if (!pin) { msg.textContent = "请输入 PIN"; return; }
+  const r = await fetch("/api/auth/pin-login", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ pin })
+  });
+  if (r.ok) {
+    $("pinGate").style.display = "none";
+    location.reload();
+  } else {
+    msg.textContent = (await r.json()).detail || "PIN 错误";
+  }
+}
+
+ensureAdmin().then(ok => { if (ok) { load(); loadCost(); } });
 </script>
 </body>
 </html>
