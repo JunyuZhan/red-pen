@@ -73,11 +73,14 @@ class Submission(Base):
     id = Column(Integer, primary_key=True, index=True)
     assignment_id = Column(Integer, nullable=False)
     student_id = Column(Integer, nullable=False)
-    uploader_user_id = Column(Integer, nullable=False)
+    uploader_user_id = Column(Integer, nullable=True, default=1)
     original_image_path = Column(String(500), nullable=False)
+    annotated_image_path = Column(String(500), nullable=True)
+    grading_summary = Column(Text, nullable=True)
     quality_flags = Column(JSON, nullable=True)
     quality_override = Column(Boolean, default=False)
     status = Column(String(20), default="uploaded")  # uploaded, processing, completed, failed
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class QuestionResult(Base):
     __tablename__ = "question_result"

@@ -79,16 +79,48 @@ def save_llm_config(provider: str, base_url: str, model: str, api_key: Optional[
 # ---------- 批改引擎 ----------
 
 def _build_prompt(question_type: str, subject: str) -> str:
-    """构建批改提示词"""
-    prompts = {
-        "math": f"你是一位数学老师。请仔细分析这张数学作业图片，逐题判断对错，指出错误原因，并给出分数。学科: {subject}",
-        "chinese": f"你是一位语文老师。请仔细分析这张语文作业图片，逐题判断对错，指出错误原因，并给出分数。学科: {subject}",
-        "english": f"你是一位英语老师。请仔细分析这张英语作业图片，逐题判断对错，指出错误原因，并给出分数。学科: {subject}",
-    }
-    return prompts.get(
-        question_type,
-        f"请分析这张作业图片，逐题判断对错，指出错误原因，并给出分数。学科: {subject}",
+    """构建批改提示词，要求模型输出结构化 JSON"""
+    base = (
+        f"你是一位{subject}老师。请仔细分析这张作业图片，逐题批改。\n"
+        "严格按以下 JSON 格式输出，不要输出任何其他内容：\n"
+        "{\n"
+        '  "questions": [\n'
+        '    {"question_no": 1, "judgement": "correct|wrong|partial|unclear", '
+        '"error_type": "计算错误|概念错误|粗心|未作答|其他 或 null", '
+        '"student_answer": "学生答案摘要", '
+        '"correct_answer": "正确答案摘要", '
+        '"analysis": "简要分析", '
+        '"confidence": 0.0到1.0, '
+        '"bbox": [x1, y1, x2, y2] 或 null}\n'
+        "  ],\n"
+        '  "summary": "整体点评一句话"\n'
+        "}\n"
+        "bbox 是该题在图片中的大致位置（像素坐标，基于图片实际尺寸估计，拿不准就给 null）。"
     )
+    prompts = {
+        "math": f"{base}\n学科: 数学",
+        "chinese": f"{base}\n学科: 语文",
+        "english": f"{base}\n学科: 英语",
+    }
+    return prompts.get(question_type, base)
+
+
+def _parse_llm_json(text: str) -> Optional[dict]:
+    """从模型回复中鲁棒地提取 JSON（容忍 markdown 代码块等）"""
+    import json as _json
+    import re as _re
+    if not text:
+        return None
+    # 去掉 ```json ... ``` 包裹
+    m = _re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, _re.DOTALL)
+    raw = m.group(1) if m else text
+    start, end = raw.find("{"), raw.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        return _json.loads(raw[start:end + 1])
+    except Exception:
+        return None
 
 
 class GradingEngine:
@@ -144,11 +176,28 @@ class GradingEngine:
     def _parse_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
         try:
             content = response["choices"][0]["message"]["content"]
+            parsed = _parse_llm_json(content)
+            if parsed and parsed.get("questions"):
+                questions = parsed.get("questions", [])
+                judgement_counts: Dict[str, int] = {}
+                for q in questions:
+                    j = q.get("judgement", "unclear")
+                    judgement_counts[j] = judgement_counts.get(j, 0) + 1
+                confidences = [q.get("confidence") for q in questions if isinstance(q.get("confidence"), (int, float))]
+                return {
+                    "success": True,
+                    "raw_output": response,
+                    "judgement": "correct" if judgement_counts.get("wrong", 0) == 0 and judgement_counts.get("correct", 0) > 0 else ("wrong" if judgement_counts.get("wrong", 0) > 0 else "unclear"),
+                    "confidence": round(sum(confidences) / len(confidences), 2) if confidences else 0.5,
+                    "analysis": parsed.get("summary") or content,
+                    "questions": questions,
+                }
+            # 无法结构化时降级为原始文本
             return {
                 "success": True,
                 "raw_output": response,
-                "judgement": "correct",  # 默认；细粒度解析见后续版本
-                "confidence": 0.85,
+                "judgement": "unclear",
+                "confidence": 0.5,
                 "analysis": content,
             }
         except Exception as e:

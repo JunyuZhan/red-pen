@@ -34,26 +34,23 @@ async def upload_assignment(
             detail=f"不支持的文件类型: {file_extension}"
         )
     
-    # 验证文件大小
-    file_size = 0
-    for chunk in file.file:
-        file_size += len(chunk)
-        if file_size > settings.MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=400,
-                detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
-            )
-    
+    # 验证文件大小（一次性读入，避免流被耗尽）
+    data = file.file.read()
+    if len(data) > settings.MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
+        )
+
     # 生成文件名
     file_id = str(uuid.uuid4())
     filename = f"{file_id}.{file_extension}"
     file_path = settings.UPLOAD_DIR / filename
-    
+
     # 保存文件
     try:
         with open(file_path, "wb") as buffer:
-            for chunk in file.file:
-                buffer.write(chunk)
+            buffer.write(data)
         
         # 创建数据库记录
         submission = Submission(
@@ -105,15 +102,13 @@ async def upload_mobile(
             detail=f"不支持的文件类型: {file_extension}"
         )
     
-    # 验证文件大小
-    file_size = 0
-    for chunk in file.file:
-        file_size += len(chunk)
-        if file_size > settings.MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=400,
-                detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
-            )
+    # 验证文件大小（一次性读入，避免流被耗尽）
+    data = file.file.read()
+    if len(data) > settings.MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
+        )
     
     try:
         # 生成文件名
@@ -123,8 +118,7 @@ async def upload_mobile(
         
         # 保存文件
         with open(file_path, "wb") as buffer:
-            for chunk in file.file:
-                buffer.write(chunk)
+            buffer.write(data)
         
         # 获取或创建班级
         class_result = db.query(Class).filter(Class.name == f"{stage}{subject}班级").first()

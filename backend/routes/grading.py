@@ -5,9 +5,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+from pathlib import Path
 
 from ..database import get_db, Submission, QuestionResult
 from ..models.grading_engine import grading_manager
+from ..models.annotator import annotate_image
 
 router = APIRouter()
 
@@ -41,20 +43,33 @@ async def start_grading(submission_id: int, db: Session = Depends(get_db)):
         db.commit()
         return {"success": False, "error": result.get("error", "批改失败"), "provider": result.get("provider")}
 
-    # 保存批改结果
-    qr = QuestionResult(
-        submission_id=submission.id,
-        question_no=1,
-        question_type="default",
-        llm_raw_output=result.get("raw_output"),
-        judgement_raw=result.get("judgement"),
-        judgement_final=result.get("judgement"),
-        confidence_final=result.get("confidence"),
-    )
-    db.add(qr)
+    questions = result.get("questions", [])
+
+    # 保存逐题批改结果
+    for q in questions:
+        conf = q.get("confidence")
+        qr = QuestionResult(
+            submission_id=submission.id,
+            question_no=int(q.get("question_no") or 0) or 1,
+            question_type=q.get("question_type") or "default",
+            student_answer_text=q.get("student_answer"),
+            correct_answer_text=q.get("correct_answer"),
+            llm_raw_output=result.get("raw_output"),
+            judgement_raw=q.get("judgement"),
+            judgement_final=q.get("judgement"),
+            error_type=q.get("error_type"),
+            confidence_final=float(conf) if isinstance(conf, (int, float)) else None,
+            bbox_answer=q.get("bbox"),
+        )
+        db.add(qr)
+
+    # 红笔回显
+    annotated = annotate_image(submission.original_image_path, questions,
+                               result.get("analysis", ""))
+    submission.annotated_image_path = annotated
+    submission.grading_summary = result.get("analysis")
     submission.status = "completed"
     db.commit()
-    db.refresh(qr)
 
     return {
         "success": True,
@@ -75,18 +90,27 @@ async def get_result(submission_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="提交记录不存在")
 
     results = db.query(QuestionResult).filter(QuestionResult.submission_id == submission_id).all()
+
+    annotated_url = None
+    if submission.annotated_image_path:
+        annotated_url = f"/uploads/{Path(submission.annotated_image_path).name}"
+
     return {
         "success": True,
         "submission_id": submission_id,
         "status": submission.status,
+        "summary": submission.grading_summary,
+        "annotated_image_url": annotated_url,
         "results": [
             {
                 "id": r.id,
                 "question_no": r.question_no,
                 "question_type": r.question_type,
                 "judgement": r.judgement_final,
+                "error_type": r.error_type,
                 "confidence": r.confidence_final,
-                "raw_output": r.llm_raw_output,
+                "student_answer": r.student_answer_text,
+                "correct_answer": r.correct_answer_text,
             }
             for r in results
         ],

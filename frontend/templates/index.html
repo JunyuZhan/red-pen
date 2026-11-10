@@ -1,197 +1,108 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ app_name }} - 教师作业批改系统</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        
-        .header h1 {
-            color: #2c3e50;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            color: #7f8c8d;
-            font-size: 1.2em;
-        }
-        
-        .main-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            margin-top: 30px;
-        }
-        
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-        
-        .card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .card h3 {
-            color: #2c3e50;
-            font-size: 1.5em;
-            margin-bottom: 15px;
-        }
-        
-        .card p {
-            color: #7f8c8d;
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-        
-        .btn {
-            display: inline-block;
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 25px;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        .mobile-btn {
-            background: #27ae60;
-            margin-right: 15px;
-        }
-        
-        .status {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .status.success {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-        }
-        
-        .status.info {
-            background: #d1ecf1;
-            border: 1px solid #bee5eb;
-            color: #0c5460;
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-            
-            .card {
-                padding: 20px;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>红笔 · 教师工作台</title>
+<style>
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; background:#f5f6f8; margin:0; padding:24px; }
+  .wrap { max-width:960px; margin:0 auto; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+  h1 { font-size:22px; color:#c0392b; margin:0; }
+  a.btn { padding:9px 16px; background:#fff; color:#c0392b; border:1px solid #e5b7b1; border-radius:8px; text-decoration:none; font-size:14px; }
+  .stats { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+  .stat { flex:1; min-width:130px; background:#fff; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+  .stat b { font-size:24px; color:#c0392b; display:block; }
+  .stat span { color:#888; font-size:13px; }
+  .card { background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:20px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th,td { text-align:left; padding:10px 8px; border-bottom:1px solid #f0f0f0; }
+  th { color:#888; font-weight:normal; }
+  .pill { padding:3px 10px; border-radius:20px; font-size:12px; }
+  .pill.completed { background:#e8f5e9; color:#2e7d32; }
+  .pill.failed { background:#fdf3f2; color:#c0392b; }
+  .pill.processing, .pill.uploaded { background:#fff8e1; color:#b28704; }
+  .hint { color:#999; font-size:13px; }
+  img.result { max-width:100%; border:2px solid #f2c1bc; border-radius:10px; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>{{ app_name }}</h1>
-            <p>{{ version }} - 教师单机自用版作业批改系统</p>
-        </div>
-        
-        <div class="status info">
-            🎉 欢迎使用红笔系统！本系统专为教师设计，支持手机拍照上传作业，云端大模型自动批改。
-        </div>
-        
-        <div class="main-grid">
-            <div class="card">
-                <h3>📱 手机端使用</h3>
-                <p>使用手机拍照上传学生作业，自动获取批改结果。适合移动办公和现场批改。</p>
-                <a href="/mobile" class="btn mobile-btn">手机端使用</a>
-                <a href="#" class="btn" onclick="showQRCode()">获取二维码</a>
-            </div>
-            
-            <div class="card">
-                <h3>💻 电脑端管理</h3>
-                <p>在电脑上查看批改结果，进行教师修改，管理学生和作业信息。</p>
-                <a href="/dashboard" class="btn">进入管理面板</a>
-            </div>
-            
-            <div class="card">
-                <h3>📊 批改统计</h3>
-                <p>查看班级整体表现，分析学生掌握情况，生成详细的学情分析报告。</p>
-                <a href="/analytics" class="btn">查看统计</a>
-            </div>
-            
-            <div class="card">
-                <h3>🔧 系统设置</h3>
-                <p>配置学科、学段、AI模型等参数，自定义批改规则和标准。</p>
-                <a href="/settings" class="btn">系统设置</a>
-            </div>
-        </div>
-        
-        <div class="status success" style="margin-top: 30px; text-align: center;">
-            <strong>系统状态：</strong>运行正常 | 
-            <strong>已配置学科：</strong>数学 | 
-            <strong>支持格式：</strong>JPG, PNG | 
-            <strong>AI模型：</strong>通义千问
-        </div>
+<div class="wrap">
+  <header>
+    <h1>红笔 · 教师工作台</h1>
+    <div>
+      <a class="btn" href="/settings">⚙️ 批改引擎设置</a>
+      <a class="btn" href="/mobile">📱 手机上传</a>
     </div>
-    
-    <script>
-        function showQRCode() {
-            // 这里可以生成二维码并显示
-            alert('二维码生成功能即将推出！');
-        }
-        
-        // 检查系统状态
-        fetch('/health')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    console.log('系统运行正常');
-                }
-            })
-            .catch(error => {
-                console.error('系统状态检查失败:', error);
-            });
-    </script>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 12px;">提交记录</h2>
+    <table>
+      <thead><tr><th>ID</th><th>状态</th><th>总评</th><th>查看</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="hint">加载中…</td></tr></tbody>
+    </table>
+    <p class="hint" id="emptyHint" style="display:none;">暂无提交记录 —— 用手机端拍照上传开始批改</p>
+  </div>
+
+  <div class="card" id="detail" style="display:none;">
+    <h2 style="font-size:16px;margin:0 0 12px;">批改详情</h2>
+    <img id="detailImg" class="result" alt="红笔标注">
+    <div id="detailBody" style="margin-top:12px;font-size:14px;"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+async function load() {
+  const s = await (await fetch("/api/dashboard/summary")).json();
+  $("stats").innerHTML = `
+    <div class="stat"><b>${s.total_submissions}</b><span>总提交数</span></div>
+    <div class="stat"><b>${s.completed}</b><span>已批改</span></div>
+    <div class="stat"><b>${s.failed}</b><span>失败</span></div>
+    <div class="stat"><b>${s.total_questions}</b><span>批改题数</span></div>
+    <div class="stat"><b>${s.accuracy == null ? "-" : (s.accuracy*100).toFixed(0)+"%"}</b><span>正确率</span></div>`;
+}
+
+async function loadRows() {
+  const r = await fetch("/api/mobile/list");
+  const d = await r.json();
+  const rows = d.submissions || [];
+  $("emptyHint").style.display = rows.length ? "none" : "block";
+  $("rows").innerHTML = rows.map(x => `
+    <tr>
+      <td>${x.id}</td>
+      <td><span class="pill ${x.status}">${x.status}</span></td>
+      <td>${x.summary || "-"}</td>
+      <td>${x.status === "completed" ? `<a href="#" onclick="view(${x.id});return false;">查看详情</a>` : "-"}</td>
+    </tr>`).join("");
+}
+
+async function view(id) {
+  const d = await (await fetch("/api/grading/result/" + id)).json();
+  $("detail").style.display = "block";
+  if (d.annotated_image_url) {
+    $("detailImg").src = d.annotated_image_url + "?t=" + Date.now();
+    $("detailImg").style.display = "block";
+  } else $("detailImg").style.display = "none";
+  let html = `<p>📌 ${d.summary || "无总评"}</p>`;
+  (d.results || []).forEach(q => {
+    const tag = { correct:"✓", wrong:"✗", partial:"◐", unclear:"?" }[q.judgement] || "?";
+    html += `<p><b>${tag} 第${q.question_no}题</b>`
+      + (q.error_type ? ` · 错误类型：${q.error_type}` : "")
+      + (q.confidence != null ? ` · 置信度 ${(q.confidence*100).toFixed(0)}%` : "")
+      + (q.student_answer ? `<br>学生答案：${q.student_answer}` : "")
+      + (q.correct_answer ? `<br>参考答案：${q.correct_answer}` : "")
+      + `</p>`;
+  });
+  $("detailBody").innerHTML = html;
+  $("detail").scrollIntoView({ behavior: "smooth" });
+}
+
+load(); loadRows();
+</script>
 </body>
 </html>
