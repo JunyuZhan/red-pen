@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..database import get_db, Submission, Assignment, Class
-from config import settings
+from ..config import settings
 from ..models.grading_engine import grading_manager
 
 router = APIRouter()

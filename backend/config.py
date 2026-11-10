@@ -43,10 +43,10 @@ class Settings(BaseSettings):
 # 创建数据目录
 def create_directories():
     directories = [
-        Settings.DATA_DIR,
-        Settings.UPLOAD_DIR,
-        Settings.DATA_DIR / "images",
-        Settings.DATA_DIR / "backups"
+        settings.DATA_DIR,
+        settings.UPLOAD_DIR,
+        settings.DATA_DIR / "images",
+        settings.DATA_DIR / "backups"
     ]
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)

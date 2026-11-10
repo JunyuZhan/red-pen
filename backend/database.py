@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import sqlite3
 
-from config import settings
+from .config import settings
 
 # 创建数据库引擎
 engine = create_engine(

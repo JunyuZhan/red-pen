@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from ..database import get_db
-from config import settings
+from ..config import settings
 import bcrypt
 
 router = APIRouter()

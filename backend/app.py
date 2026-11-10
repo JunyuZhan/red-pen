@@ -13,7 +13,7 @@ from pathlib import Path
 import os
 
 # 导入路由
-from .routes import auth, upload, grading, dashboard, mobile
+from .routes import auth, upload, grading, dashboard, mobile, settings as settings_routes
 from .database import init_db
 from .config import settings
 
@@ -35,8 +35,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件
-app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+# 静态文件（目录可能尚不存在，不能让启动崩溃）
+from pathlib import Path as _Path
+if _Path("frontend/static").exists():
+    app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # 模板引擎
@@ -48,6 +50,7 @@ app.include_router(upload.router, prefix="/api/upload", tags=["上传"])
 app.include_router(grading.router, prefix="/api/grading", tags=["批改"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["看板"])
 app.include_router(mobile.router, prefix="/api/mobile", tags=["手机端"])
+app.include_router(settings_routes.router, prefix="/api/settings", tags=["设置"])
 
 # 根路径
 @app.get("/", response_class=HTMLResponse)
@@ -66,6 +69,12 @@ async def mobile_page():
         "app_name": settings.APP_NAME,
         "version": settings.VERSION
     })
+
+# 设置页面
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page():
+    with open("frontend/templates/settings.html", encoding="utf-8") as f:
+        return HTMLResponse(f.read())
 
 # 健康检查
 @app.get("/health")
