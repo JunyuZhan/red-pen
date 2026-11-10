@@ -28,6 +28,7 @@
   .mgr button { padding:7px 14px; border:1px solid #e5b7b1; background:#fff; color:#c0392b; border-radius:8px; cursor:pointer; font-size:13px; }
   .mgr select { padding:7px; border:1px solid #ddd; border-radius:8px; font-size:14px; }
   .cls-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0; }
+  .tag { display:inline-block; padding:3px 10px; border-radius:14px; background:#fdf3f2; color:#c0392b; font-size:13px; margin:2px 4px 2px 0; }
 </style>
 </head>
 <body>
@@ -63,6 +64,11 @@
       <select id="studentClassSel"></select>
       <button onclick="addStudent()">➕ 添加学生</button>
     </div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 12px;">学情分析</h2>
+    <div id="analyticsBody"><p class="hint">加载中…</p></div>
   </div>
 
   <div class="card" id="detail" style="display:none;">
@@ -169,7 +175,43 @@ async function addStudent() {
   loadManage();
 }
 
-load(); loadRows(); loadManage();
+// ---------- 学情分析 ----------
+async function loadAnalytics() {
+  const d = await (await fetch("/api/analytics/analytics")).json();
+  const body = $("analyticsBody");
+  if (!d.total_questions) {
+    body.innerHTML = `<p class="hint">暂无批改数据，批改完成后这里会展示学情分析</p>`;
+    return;
+  }
+  const errTags = Object.entries(d.error_type_distribution || {})
+    .map(([k, v]) => `<span class="tag">${k} × ${v}</span>`).join("") || `<span class="hint">暂无错误记录</span>`;
+  const stuRows = (d.students || []).map(s => {
+    const acc = s.accuracy == null ? "-" : (s.accuracy * 100).toFixed(0) + "%";
+    return `<tr><td>${s.name}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td></tr>`;
+  }).join("");
+  const review = d.needs_review || [];
+  const reviewRows = review.map(r =>
+    `<tr><td>提交 #${r.submission_id}</td><td>第${r.question_no}题</td><td>${r.judgement || "-"}</td><td>${r.confidence == null ? "-" : (r.confidence*100).toFixed(0) + "%"}</td></tr>`
+  ).join("");
+  body.innerHTML = `
+    <p style="margin:0 0 10px;font-size:14px;">共批改 <b>${d.total_questions}</b> 题 ·
+      判定分布：${Object.entries(d.judgement_distribution || {}).map(([k,v]) => `${k} ${v}`).join(" / ") || "-"} ·
+      待复核 <b style="color:#c0392b;">${d.needs_review_count}</b> 题</p>
+    <p style="margin:0 0 6px;font-size:14px;"><b>错误类型分布</b></p>
+    <div style="margin-bottom:14px;">${errTags}</div>
+    <p style="margin:0 0 6px;font-size:14px;"><b>学生正确率</b></p>
+    <table style="margin-bottom:14px;">
+      <thead><tr><th>学生</th><th>总题数</th><th>正确</th><th>正确率</th></tr></thead>
+      <tbody>${stuRows || `<tr><td colspan="4" class="hint">暂无数据</td></tr>`}</tbody>
+    </table>
+    <p style="margin:0 0 6px;font-size:14px;"><b>待复核题目（置信度 &lt; 60%）</b></p>
+    <table>
+      <thead><tr><th>提交</th><th>题号</th><th>判定</th><th>置信度</th></tr></thead>
+      <tbody>${reviewRows || `<tr><td colspan="4" class="hint">没有需要复核的题目 🎉</td></tr>`}</tbody>
+    </table>`;
+}
+
+load(); loadRows(); loadManage(); loadAnalytics();
 </script>
 </body>
 </html>
