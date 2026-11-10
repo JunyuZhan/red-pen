@@ -84,6 +84,8 @@ class Submission(Base):
     quality_flags = Column(JSON, nullable=True)
     quality_override = Column(Boolean, default=False)
     status = Column(String(20), default="uploaded")  # uploaded, processing, completed, failed
+    error_message = Column(Text, nullable=True)     # 失败原因（PRD 4.4）
+    retry_count = Column(Integer, default=0)        # 已重试次数
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class QuestionResult(Base):
@@ -131,7 +133,16 @@ def init_db():
     
     # 创建所有表
     Base.metadata.create_all(bind=engine)
-    
+
+    # 轻量迁移：为已存在的旧库补齐新增列（SQLite）
+    with engine.connect() as conn:
+        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(submission)")}
+        if "error_message" not in cols:
+            conn.exec_driver_sql("ALTER TABLE submission ADD COLUMN error_message TEXT")
+        if "retry_count" not in cols:
+            conn.exec_driver_sql("ALTER TABLE submission ADD COLUMN retry_count INTEGER DEFAULT 0")
+        conn.commit()
+
     # 插入默认数据
     insert_default_data()
     

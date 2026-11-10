@@ -21,6 +21,8 @@ async def list_submissions(db: Session = Depends(get_db)):
                 "id": s.id,
                 "status": s.status,
                 "summary": (s.grading_summary or "")[:30] or None,
+                "error_message": s.error_message,
+                "retry_count": s.retry_count or 0,
             }
             for s in subs
         ],
@@ -55,4 +57,6 @@ async def submission_status(submission_id: int, db: Session = Depends(get_db)):
         "success": True,
         "submission_id": submission_id,
         "status": submission.status,
+        "error_message": submission.error_message,
+        "retry_count": submission.retry_count or 0,
     }

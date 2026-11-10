@@ -13,6 +13,8 @@ from ..models.annotator import annotate_image
 
 router = APIRouter()
 
+MAX_RETRY = 3  # PRD 4.4：最多自动/手动重试 3 次
+
 
 @router.post("/start/{submission_id}")
 async def start_grading(submission_id: int, db: Session = Depends(get_db)):
@@ -23,8 +25,14 @@ async def start_grading(submission_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="提交记录不存在")
     if submission.status not in ("uploaded", "failed"):
         raise HTTPException(status_code=400, detail=f"当前状态不允许批改: {submission.status}")
+    if submission.status == "failed" and (submission.retry_count or 0) >= MAX_RETRY:
+        raise HTTPException(status_code=400, detail=f"重试次数已达上限（{MAX_RETRY} 次），请检查 API 配置后联系管理员处理")
+
+    if submission.status == "failed":
+        submission.retry_count = (submission.retry_count or 0) + 1
 
     submission.status = "processing"
+    submission.error_message = None
     db.commit()
 
     try:
@@ -35,13 +43,16 @@ async def start_grading(submission_id: int, db: Session = Depends(get_db)):
         )
     except Exception as e:
         submission.status = "failed"
+        submission.error_message = str(e)[:500]
         db.commit()
         raise HTTPException(status_code=500, detail=f"批改失败: {e}")
 
     if not result.get("success"):
         submission.status = "failed"
+        submission.error_message = str(result.get("error", "批改失败"))[:500]
         db.commit()
-        return {"success": False, "error": result.get("error", "批改失败"), "provider": result.get("provider")}
+        return {"success": False, "error": result.get("error", "批改失败"),
+                "provider": result.get("provider"), "retry_count": submission.retry_count}
 
     questions = result.get("questions", [])
 
@@ -88,6 +99,41 @@ async def start_grading(submission_id: int, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/retry/{submission_id}")
+async def retry_grading(submission_id: int, db: Session = Depends(get_db)):
+    """重试一份失败的提交（复用 start 的状态机，仅限 failed）"""
+
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="提交记录不存在")
+    if submission.status != "failed":
+        raise HTTPException(status_code=400, detail=f"仅失败状态可重试，当前状态: {submission.status}")
+
+    return await start_grading(submission_id, db)
+
+
+@router.get("/failed")
+async def list_failed(db: Session = Depends(get_db)):
+    """失败队列：含失败原因与重试次数，供工作台/手机端展示"""
+
+    subs = db.query(Submission).filter(Submission.status == "failed")\
+        .order_by(Submission.id.desc()).limit(100).all()
+    return {
+        "success": True,
+        "max_retry": MAX_RETRY,
+        "failed": [
+            {
+                "id": s.id,
+                "student_id": s.student_id,
+                "error_message": s.error_message,
+                "retry_count": s.retry_count or 0,
+                "created_at": str(s.created_at),
+            }
+            for s in subs
+        ],
+    }
+
+
 @router.get("/result/{submission_id}")
 async def get_result(submission_id: int, db: Session = Depends(get_db)):
     """获取批改结果"""
@@ -107,6 +153,7 @@ async def get_result(submission_id: int, db: Session = Depends(get_db)):
         "submission_id": submission_id,
         "status": submission.status,
         "summary": submission.grading_summary,
+        "error_message": submission.error_message,
         "annotated_image_url": annotated_url,
         "results": [
             {

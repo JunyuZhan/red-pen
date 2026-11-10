@@ -104,6 +104,19 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     init_db()
+    # 队列持久化恢复（PRD 4.4）：服务重启后，卡在 processing 的任务转回 failed，可重试
+    from .database import SessionLocal, Submission
+    db = SessionLocal()
+    try:
+        stuck = db.query(Submission).filter(Submission.status == "processing").all()
+        for s in stuck:
+            s.status = "failed"
+            s.error_message = "服务重启导致批改中断，请重试"
+        if stuck:
+            db.commit()
+            print(f"♻️ 恢复队列：{len(stuck)} 条中断任务已转回失败状态，可重试")
+    finally:
+        db.close()
     print("🗄️ 数据库初始化完成")
 
 if __name__ == "__main__":

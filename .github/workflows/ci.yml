@@ -86,6 +86,10 @@ jobs:
         assert "手机连接引导" in r.text, "设置页缺少手机连接引导卡片"
         print("✅ 页面路由 / 与 /settings")
 
+        r = client.get("/api/grading/failed")
+        assert r.status_code == 200 and r.json()["success"] and r.json()["max_retry"] == 3, r.text
+        print("✅ /api/grading/failed 失败队列接口")
+
         r = client.get("/api/network/info")
         assert r.status_code == 200 and r.json()["success"], r.text
         d = r.json()

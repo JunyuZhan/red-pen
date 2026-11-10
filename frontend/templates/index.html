@@ -111,10 +111,19 @@ async function loadRows() {
   $("rows").innerHTML = rows.map(x => `
     <tr>
       <td>${x.id}</td>
-      <td><span class="pill ${x.status}">${x.status}</span></td>
+      <td><span class="pill ${x.status}">${x.status}</span>${x.status === "failed" ? `<br><span class="hint">${(x.error_message || "").slice(0, 60) || "未知原因"}${(x.retry_count || 0) ? ` · 已重试 ${x.retry_count} 次` : ""}</span>` : ""}</td>
       <td>${x.summary || "-"}</td>
-      <td>${x.status === "completed" ? `<a href="#" onclick="view(${x.id});return false;">查看详情</a>` : "-"}</td>
+      <td>${x.status === "completed" ? `<a href="#" onclick="view(${x.id});return false;">查看详情</a>`
+        : x.status === "failed" ? `<a href="#" onclick="retry(${x.id});return false;">重试</a>` : "-"}</td>
     </tr>`).join("");
+}
+
+async function retry(id) {
+  if (!confirm(`确定重试第 ${id} 份提交？`)) return;
+  const r = await fetch(`/api/grading/retry/${id}`, { method: "POST" });
+  const d = await r.json();
+  if (!r.ok || d.success === false) return alert(d.detail || d.error || "重试失败");
+  loadRows(); load();
 }
 
 async function view(id) {

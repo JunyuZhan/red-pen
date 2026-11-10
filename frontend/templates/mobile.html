@@ -137,7 +137,10 @@ async function poll() {
     const r = await fetch("/api/grading/result/" + submissionId);
     const d = await r.json();
     if (d.status === "completed") { clearInterval(timer); show(d); }
-    else if (d.status === "failed") { clearInterval(timer); setStatus("❌ 批改失败，请检查设置页的 API Key"); }
+    else if (d.status === "failed") {
+      clearInterval(timer);
+      setStatus("❌ 批改失败" + (d.error_message ? `：${d.error_message}` : "，请检查设置页的 API Key")
+        + "，请联系教师在电脑端重试"); }
   } catch (e) { /* 忽略瞬时错误 */ }
 }
 
