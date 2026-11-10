@@ -30,6 +30,10 @@
   <div class="sub">拍下作业，AI 帮你逐题批改</div>
 
   <div id="uploadForm">
+    <label>班级</label>
+    <select id="class_sel" style="width:100%; box-sizing:border-box; padding:11px; border:1px solid #ddd; border-radius:10px; font-size:15px; margin-bottom:10px; background:#fff;"></select>
+    <label>学生</label>
+    <select id="student_sel" style="width:100%; box-sizing:border-box; padding:11px; border:1px solid #ddd; border-radius:10px; font-size:15px; margin-bottom:10px; background:#fff;"></select>
     <label>作业名称</label>
     <input type="text" id="assignment_name" placeholder="例：数学练习册 P23" value="随堂练习">
     <label>学科</label>
@@ -53,6 +57,46 @@
 <script>
 const $ = id => document.getElementById(id);
 let submissionId = null, timer = null;
+let classesData = [];
+
+async function loadClasses() {
+  try {
+    const r = await fetch("/api/mobile/classes-students");
+    const d = await r.json();
+    classesData = d.classes || [];
+  } catch (e) { classesData = []; }
+  const cs = $("class_sel"), ss = $("student_sel");
+  cs.innerHTML = "";
+  if (!classesData.length) {
+    cs.innerHTML = '<option value="">（暂无班级，工作台中创建）</option>';
+    ss.innerHTML = '<option value="">（未关联学生）</option>';
+    return;
+  }
+  classesData.forEach((c, i) => {
+    const o = document.createElement("option");
+    o.value = i;
+    o.textContent = c.name + "（" + c.students.length + "人）";
+    cs.appendChild(o);
+  });
+  fillStudents();
+}
+function fillStudents() {
+  const ss = $("student_sel");
+  const c = classesData[$("class_sel").value] || {students: []};
+  ss.innerHTML = "";
+  if (!c.students.length) {
+    ss.innerHTML = '<option value="">（该班暂无学生）</option>';
+    return;
+  }
+  c.students.forEach(s => {
+    const o = document.createElement("option");
+    o.value = s.id;
+    o.textContent = s.name;
+    ss.appendChild(o);
+  });
+}
+$("class_sel").addEventListener("change", fillStudents);
+loadClasses();
 
 $("file").addEventListener("change", e => {
   const f = e.target.files[0];
@@ -73,6 +117,8 @@ async function upload() {
   fd.append("stage", "小学");
   fd.append("subject", $("subject").value || "数学");
   fd.append("teacher_id", "1");
+  const sid = $("student_sel").value;
+  if (sid) fd.append("student_id", sid);
 
   setStatus("上传中…");
   try {

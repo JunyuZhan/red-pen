@@ -27,6 +27,22 @@ async def list_submissions(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/classes-students")
+async def classes_students(db: Session = Depends(get_db)):
+    """手机端上传用：班级及学生列表"""
+    from ..database import Class, Student
+    classes = db.query(Class).all()
+    result = []
+    for c in classes:
+        students = db.query(Student).filter(Student.class_id == c.id).order_by(Student.id).all()
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "students": [{"id": s.id, "name": s.name} for s in students],
+        })
+    return {"success": True, "classes": result}
+
+
 @router.get("/status/{submission_id}")
 async def submission_status(submission_id: int, db: Session = Depends(get_db)):
     """手机端查询批改进度"""

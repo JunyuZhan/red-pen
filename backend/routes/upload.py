@@ -2,6 +2,8 @@
 文件上传路由
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -90,6 +92,7 @@ async def upload_mobile(
     stage: str = Form(...),
     subject: str = Form(...),
     teacher_id: int = Form(...),
+    student_id: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
     """移动端上传作业"""
@@ -148,7 +151,7 @@ async def upload_mobile(
         # 创建提交记录
         submission = Submission(
             assignment_id=assignment.id,
-            student_id=1,  # 默认学生ID，实际需要从登录信息获取
+            student_id=student_id if student_id else 1,
             original_image_path=str(file_path),
             status="uploaded",
             created_at=datetime.utcnow()
