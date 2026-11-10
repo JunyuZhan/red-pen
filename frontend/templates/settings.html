@@ -57,6 +57,23 @@
 
   <button onclick="saveCost()">保存单价</button>
   <div class="msg" id="cost_msg"></div>
+
+  <h1 style="margin-top:18px;font-size:15px;">成本估算器</h1>
+  <div class="sub">按 PRD 4.3 公式估算：单份成本 ≈ 题目数 × (单题输入token × 输入单价 + 单题输出token × 输出单价)。厂商价格随时变，此处只给算法不给死价。</div>
+
+  <label>单题输入 tokens</label>
+  <input id="est_in_tok" type="number" step="10" min="0" value="600" oninput="calcEstimate()">
+
+  <label>单题输出 tokens</label>
+  <input id="est_out_tok" type="number" step="10" min="0" value="300" oninput="calcEstimate()">
+
+  <label>一份作业题目数</label>
+  <input id="est_questions" type="number" step="1" min="1" value="15" oninput="calcEstimate()">
+
+  <label>班级人数</label>
+  <input id="est_students" type="number" step="1" min="1" value="40" oninput="calcEstimate()">
+
+  <div class="msg ok" id="est_msg" style="min-height:22px;">—</div>
 </div>
 
 <!-- 管理员 PIN 解锁浮层 -->
@@ -146,6 +163,51 @@ async function saveCost() {
   } catch (e) {
     msg.className = "msg err"; msg.textContent = "❌ " + e.message;
   }
+  calcEstimate();
+}
+
+const EST_KEYS = ["est_in_tok", "est_out_tok", "est_questions", "est_students"];
+
+function loadEstimateInputs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("red_pen_estimator") || "{}");
+    for (const k of EST_KEYS) {
+      const el = document.getElementById(k);
+      if (el && saved[k] !== undefined) el.value = saved[k];
+    }
+  } catch (e) { /* 忽略损坏的本地存储 */ }
+  calcEstimate();
+}
+
+function calcEstimate() {
+  const out = document.getElementById("est_msg");
+  if (!out) return;
+  const vals = {};
+  for (const k of EST_KEYS) {
+    vals[k] = parseFloat(document.getElementById(k).value);
+    if (isNaN(vals[k]) || vals[k] < 0) {
+      out.className = "msg err";
+      out.textContent = "❌ 请填写不小于 0 的数字";
+      return;
+    }
+  }
+  try {
+    localStorage.setItem("red_pen_estimator", JSON.stringify(vals));
+  } catch (e) { /* localStorage 不可用时跳过持久化 */ }
+  const inp = parseFloat(document.getElementById("cost_input").value);
+  const outp = parseFloat(document.getElementById("cost_output").value);
+  if (isNaN(inp) || isNaN(outp) || inp < 0 || outp < 0) {
+    out.className = "msg err";
+    out.textContent = "❌ 请先在上方填写并保存有效的单价";
+    return;
+  }
+  const perQ = vals.est_in_tok / 1000 * inp + vals.est_out_tok / 1000 * outp;
+  const perSheet = perQ * vals.est_questions;
+  const perClass = perSheet * vals.est_students;
+  out.className = "msg ok";
+  out.textContent = "💰 单份约 " + perSheet.toFixed(2) + " 元、一个班（" +
+    vals.est_students + " 人）约 " + perClass.toFixed(2) + " 元" +
+    "（按 " + vals.est_questions + " 题/份、每题 " + vals.est_in_tok + "+" + vals.est_out_tok + " tokens 估算）";
 }
 
 // ---------- 管理员 PIN 解锁 ----------
@@ -173,7 +235,7 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadCost(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadCost().then(loadEstimateInputs); } });
 </script>
 </body>
 </html>
