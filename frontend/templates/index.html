@@ -24,6 +24,10 @@
   .pill.processing, .pill.uploaded { background:#fff8e1; color:#b28704; }
   .hint { color:#999; font-size:13px; }
   img.result { max-width:100%; border:2px solid #f2c1bc; border-radius:10px; }
+  .mgr input { padding:7px 10px; border:1px solid #ddd; border-radius:8px; font-size:14px; }
+  .mgr button { padding:7px 14px; border:1px solid #e5b7b1; background:#fff; color:#c0392b; border-radius:8px; cursor:pointer; font-size:13px; }
+  .mgr select { padding:7px; border:1px solid #ddd; border-radius:8px; font-size:14px; }
+  .cls-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0; }
 </style>
 </head>
 <body>
@@ -45,6 +49,20 @@
       <tbody id="rows"><tr><td colspan="4" class="hint">加载中…</td></tr></tbody>
     </table>
     <p class="hint" id="emptyHint" style="display:none;">暂无提交记录 —— 用手机端拍照上传开始批改</p>
+  </div>
+
+  <div class="card mgr">
+    <h2 style="font-size:16px;margin:0 0 12px;">班级 / 学生管理</h2>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <input id="newClassName" placeholder="新班级名称">
+      <button onclick="addClass()">➕ 添加班级</button>
+    </div>
+    <div id="classList"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <input id="newStudentName" placeholder="学生姓名">
+      <select id="studentClassSel"></select>
+      <button onclick="addStudent()">➕ 添加学生</button>
+    </div>
   </div>
 
   <div class="card" id="detail" style="display:none;">
@@ -102,7 +120,56 @@ async function view(id) {
   $("detail").scrollIntoView({ behavior: "smooth" });
 }
 
-load(); loadRows();
+// ---------- 班级/学生管理 ----------
+async function loadManage() {
+  const d = await (await fetch("/api/manage/classes")).json();
+  const classes = d.classes || [];
+  const sd = await (await fetch("/api/manage/students")).json();
+  const students = sd.students || [];
+  $("classList").innerHTML = classes.length ? classes.map(c => {
+    const names = students.filter(s => s.class_id === c.id).map(s => s.name).join("、");
+    return `<div class="cls-item">
+      <span><b>${c.name}</b> <span class="hint">（${c.student_count} 人）${names ? "：" + names : ""}</span></span>
+      <button onclick="delClass(${c.id})">删除班级</button>
+    </div>`;
+  }).join("") : `<p class="hint">暂无班级，先添加一个</p>`;
+  $("studentClassSel").innerHTML = classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")
+    || `<option value="">请先建班级</option>`;
+}
+
+async function addClass() {
+  const name = $("newClassName").value.trim();
+  if (!name) return alert("请输入班级名称");
+  const r = await fetch("/api/manage/classes", { method:"POST",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify({ name }) });
+  const d = await r.json();
+  if (!r.ok) return alert(d.detail || "添加失败");
+  $("newClassName").value = "";
+  loadManage();
+}
+
+async function delClass(id) {
+  if (!confirm("确定删除该班级？")) return;
+  const r = await fetch(`/api/manage/classes/${id}`, { method:"DELETE" });
+  const d = await r.json();
+  if (!r.ok) return alert(d.detail || "删除失败");
+  loadManage();
+}
+
+async function addStudent() {
+  const name = $("newStudentName").value.trim();
+  const class_id = parseInt($("studentClassSel").value);
+  if (!name) return alert("请输入学生姓名");
+  if (!class_id) return alert("请先选择班级");
+  const r = await fetch("/api/manage/students", { method:"POST",
+    headers:{"Content-Type":"application/json"}, body: JSON.stringify({ name, class_id }) });
+  const d = await r.json();
+  if (!r.ok) return alert(d.detail || "添加失败");
+  $("newStudentName").value = "";
+  loadManage();
+}
+
+load(); loadRows(); loadManage();
 </script>
 </body>
 </html>
