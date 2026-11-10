@@ -14,7 +14,7 @@ import os
 
 # 导入路由
 from .routes import auth, upload, grading, dashboard, mobile, settings as settings_routes
-from .routes import manage, analytics, backup
+from .routes import manage, analytics, backup, network
 from .routes.auth import require_admin
 from fastapi import Depends
 from .database import init_db
@@ -70,6 +70,8 @@ app.include_router(analytics.router, prefix="/api/analytics", tags=["学情分�
                    dependencies=[Depends(require_admin)])
 app.include_router(backup.router, prefix="/api/backup", tags=["备份恢复"],
                    dependencies=[Depends(require_admin)])
+# 网络信息：公开（不落敏感数据，仅本机局域网 IP/端口），手机端扫码前无需登录
+app.include_router(network.router, prefix="/api/network", tags=["网络"])
 
 # 根路径
 from fastapi import Request

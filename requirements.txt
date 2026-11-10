@@ -10,3 +10,4 @@ httpx==0.25.2
 sqlalchemy==2.0.23
 bcrypt==4.1.2
 python-jose[cryptography]==3.3.0
+qrcode==7.4.2

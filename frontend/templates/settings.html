@@ -76,6 +76,23 @@
   <div class="msg ok" id="est_msg" style="min-height:22px;">—</div>
 </div>
 
+<!-- 手机连接引导（PRD 第三节） -->
+<div class="card" style="margin-top:20px">
+  <h1>手机连接引导</h1>
+  <div class="sub">手机和电脑连同一个 WiFi，扫码或手动输入地址即可打开拍照批改页。</div>
+  <div id="netBody"><p class="hint">加载中…</p></div>
+  <details style="margin-top:14px">
+    <summary style="cursor:pointer;font-size:13px;color:#c0392b">查不到 IP？分系统查看方法</summary>
+    <div style="font-size:13px;color:#555;line-height:1.9;margin-top:8px">
+      <b>Windows 10</b>：设置 → 网络和 Internet → WLAN/以太网 → 点当前网络 → 属性 → 找 <b>IPv4 地址</b><br>
+      <b>Windows 11</b>：设置 → 网络和 Internet → WLAN → 点当前网络，直接看 <b>IPv4 地址</b>（备用：cmd 输入 ipconfig）<br>
+      <b>Mac</b>：系统设置 → 网络 → Wi-Fi → 详细信息 → TCP/IP → 看 <b>IP 地址</b><br>
+      <span style="color:#c0392b">注意：手机和电脑必须连同一个 WiFi；连不上时检查电脑防火墙是否放行本程序（8080 端口）。</span>
+    </div>
+  </details>
+</div>
+
+
 <!-- 管理员 PIN 解锁浮层 -->
 <div id="pinGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;padding:28px;width:300px;box-shadow:0 8px 30px rgba(0,0,0,.2);">
@@ -218,6 +235,32 @@ async function ensureAdmin() {
   setTimeout(() => $("pinInput").focus(), 50);
   return false;
 }
+
+
+async function loadNetwork() {
+  const body = $("netBody");
+  try {
+    const d = await (await fetch("/api/network/info")).json();
+    if (!d.success) throw new Error();
+    if (d.is_loopback) {
+      body.innerHTML = `<p class="hint">未检测到局域网 IP（当前只有本机回环地址），请确认电脑已连接 WiFi/网线后刷新本页。</p>`;
+      return;
+    }
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <img src="${d.qr}" alt="二维码" style="width:150px;height:150px;border:1px solid #eee;border-radius:8px">
+        <div>
+          <div style="font-size:16px;font-weight:bold;color:#c0392b">${d.url}</div>
+          <div class="hint" style="margin-top:6px">手机扫左侧二维码直达；扫不了码就在手机浏览器手动输入上面的地址。</div>
+          <button style="width:auto;padding:8px 16px;margin-top:10px;font-size:13px" onclick="location.reload()">刷新 IP</button>
+        </div>
+      </div>`;
+  } catch (e) {
+    body.innerHTML = `<p class="hint">获取网络信息失败，请刷新重试。</p>`;
+  }
+}
+loadNetwork();
+
 
 async function pinUnlock() {
   const msg = $("pinMsg");
