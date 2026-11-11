@@ -200,6 +200,19 @@
   <div id="rec_models" style="font-size:13px;line-height:1.8;margin-top:8px;color:#444"></div>
 </div>
 
+<!-- 运行日志 -->
+<div class="card" style="margin-top:20px;border-left:4px solid #f39c12">
+  <h1 style="font-size:16px">📋 运行日志</h1>
+  <div style="font-size:13px;color:#555;margin-top:10px">
+    排查问题时可把下面日志或日志文件夹发给开发者。日志存于程序 data/logs/redpen.log（自动滚动，最多 10MB）。
+    <div style="margin:10px 0">
+      <button onclick="loadLogs()" style="padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer">🔄 查看最近日志</button>
+      <button onclick="openLogFolder()" style="padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;margin-left:8px">📂 打开日志文件夹</button>
+    </div>
+    <pre id="logView" style="display:none;max-height:300px;overflow:auto;background:#f7f7f5;padding:10px;border-radius:8px;font-size:11px;white-space:pre-wrap;word-break:break-all"></pre>
+  </div>
+</div>
+
 <!-- 关于红笔（开发者署名与联系） -->
 <div class="card" style="margin-top:20px;border-left:4px solid #8B5CF6">
   <h1 style="font-size:16px">✍️ 关于红笔 RedPen</h1>
@@ -674,6 +687,20 @@ ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loa
 </script>
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });
+</script>
+<script>
+async function loadLogs(){
+  const r = await fetch("/api/logs/recent?n=150");
+  const d = await r.json();
+  const el = document.getElementById("logView");
+  el.style.display = "block";
+  el.textContent = (d.lines || []).join("\n") || "暂无日志";
+}
+async function openLogFolder(){
+  const r = await fetch("/api/logs/open-folder", {method:"POST"});
+  const d = await r.json();
+  if(!d.success) alert(d.path);
+}
 </script>
 </body>
 </html>

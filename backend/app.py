@@ -18,6 +18,7 @@ from .routes import manage, analytics, backup, network, setup as setup_routes
 from .routes.auth import require_admin
 from fastapi import Depends
 from .database import init_db
+from .logging_setup import get_logger, log_path, open_logs_folder, recent_lines
 from .config import settings
 
 # 创建FastAPI应用
@@ -110,8 +111,21 @@ async def health_check():
     return {"status": "ok", "message": "红笔系统运行正常"}
 
 # 启动时初始化数据库
+@app.get("/api/logs/recent")
+def api_logs_recent(n: int = 100):
+    return {"success": True, "lines": recent_lines(min(max(n, 10), 500))}
+
+
+@app.post("/api/logs/open-folder")
+def api_logs_open_folder():
+    d = open_logs_folder()
+    return {"success": not str(d).startswith("打开失败"), "path": d}
+
+
 @app.on_event("startup")
 async def startup_event():
+    logger = get_logger()
+    logger.info("红笔启动，日志文件: %s", log_path())
     init_db()
     # 队列持久化恢复（PRD 4.4）：服务重启后，卡在 processing 的任务转回 failed，可重试
     from .database import SessionLocal, Submission

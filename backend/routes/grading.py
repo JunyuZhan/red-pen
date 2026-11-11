@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 import asyncio
 import time
+from ..logging_setup import get_logger
 from pydantic import BaseModel
 
 from ..database import get_db, Submission, QuestionResult, AnswerTemplate, SessionLocal, AppConfig
@@ -74,6 +75,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             return {"success": False, "error": "提交记录不存在"}
 
         subject = template.subject if template else "数学"
+        get_logger().info("开始批改 submission=%s class=%s", submission.id, submission.class_id)
         try:
             result = await grading_manager.grade(
                 image_path=submission.original_image_path,
@@ -84,6 +86,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         except Exception as e:
             submission.status = "failed"
             submission.error_message = str(e)[:500]
+            get_logger().error("批改失败 submission=%s: %s", submission.id, str(e)[:300])
             submission.duration_seconds = round(time.monotonic() - t0, 2)
             db.commit()
             q.update(state="failed", error=str(e)[:200],
@@ -150,6 +153,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         duration = round(time.monotonic() - t0, 2)
         submission.duration_seconds = duration
         submission.status = "completed"
+        get_logger().info("批改完成 submission=%s 耗时%.1fs", submission.id, round(time.monotonic() - t0, 2))
         if template:
             template.usage_count = (template.usage_count or 0) + 1
         db.commit()
