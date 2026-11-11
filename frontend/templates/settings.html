@@ -240,6 +240,27 @@ async function loadCost() {
   }
 }
 
+async function loadConcurrency() {
+  const r = await fetch("/api/grading/concurrency");
+  const d = await r.json();
+  if (d.success) document.getElementById("concurrency_sel").value = d.concurrency;
+}
+
+async function saveConcurrency() {
+  const msg = document.getElementById("conc_msg");
+  try {
+    const r = await fetch("/api/grading/concurrency", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ value: parseInt(document.getElementById("concurrency_sel").value) })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ 并发路数已保存：" + d.concurrency;
+  } catch (e) {
+    msg.className = "msg err"; msg.textContent = "❌ " + e.message;
+  }
+}
+
 async function saveCost() {
   const msg = document.getElementById("cost_msg");
   const body = {
@@ -433,7 +454,7 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); loadConcurrency(); } });
 </script>
 </body>
 </html>

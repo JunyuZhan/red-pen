@@ -70,7 +70,7 @@ class Assignment(Base):
 
 class Submission(Base):
     __tablename__ = "submission"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     assignment_id = Column(Integer, nullable=False)
     student_id = Column(Integer, nullable=False)
@@ -83,6 +83,7 @@ class Submission(Base):
     cost_estimate = Column(Float, nullable=True)
     quality_flags = Column(JSON, nullable=True)
     quality_override = Column(Boolean, default=False)
+    duration_seconds = Column(Float, nullable=True)  # 单份批改耗时（秒）
     status = Column(String(20), default="uploaded")  # uploaded, processing, completed, failed
     error_message = Column(Text, nullable=True)     # 失败原因（PRD 4.4）
     retry_count = Column(Integer, default=0)        # 已重试次数
@@ -152,6 +153,8 @@ def init_db():
             conn.exec_driver_sql("ALTER TABLE submission ADD COLUMN error_message TEXT")
         if "retry_count" not in cols:
             conn.exec_driver_sql("ALTER TABLE submission ADD COLUMN retry_count INTEGER DEFAULT 0")
+        if "duration_seconds" not in cols:
+            conn.exec_driver_sql("ALTER TABLE submission ADD COLUMN duration_seconds REAL")
         conn.commit()
 
     # 插入默认数据

@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+import asyncio
+import time
 from pydantic import BaseModel
 
-from ..database import get_db, Submission, QuestionResult, AnswerTemplate
+from ..database import get_db, Submission, QuestionResult, AnswerTemplate, SessionLocal, AppConfig
 from ..models.grading_engine import grading_manager, estimate_cost
 from ..models.annotator import annotate_image
 from .auth import require_admin
@@ -18,17 +20,136 @@ router = APIRouter()
 
 MAX_RETRY = 3  # PRD 4.4：最多自动/手动重试 3 次
 
+# ============ 并发批改队列（PRD 待办 e） ============
+
+# 内存态队列状态：submission_id -> {state, duration_seconds, error}
+QUEUE: dict = {}
+_sem: Optional[asyncio.Semaphore] = None
+_sem_size = 0
+
+
+def get_concurrency() -> int:
+    """批改并发路数，存 AppConfig，默认 2，范围 1-4"""
+    db = SessionLocal()
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == "grading_concurrency").first()
+        n = int(row.value) if row else 2
+    except Exception:
+        n = 2
+    finally:
+        db.close()
+    return max(1, min(4, n))
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    global _sem, _sem_size
+    n = get_concurrency()
+    if _sem is None or _sem_size != n:
+        _sem, _sem_size = asyncio.Semaphore(n), n
+    return _sem
+
+
+async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> dict:
+    """批改单份提交（自带独立 DB 会话，可在线程/任务里安全调用），记录耗时与队列状态"""
+    db = SessionLocal()
+    q = QUEUE.setdefault(submission_id, {"state": "queued", "duration_seconds": None, "error": None})
+    q["state"] = "processing"
+    t0 = time.monotonic()
+    try:
+        template = None
+        if template_id:
+            template = db.query(AnswerTemplate).filter(AnswerTemplate.id == template_id).first()
+
+        submission = db.query(Submission).filter(Submission.id == submission_id).first()
+        if not submission:
+            q.update(state="failed", error="提交记录不存在")
+            return {"success": False, "error": "提交记录不存在"}
+
+        try:
+            result = await grading_manager.grade(
+                image_path=submission.original_image_path,
+                question_type="default",
+                subject="数学",
+                answers=(template.answers if template else None),
+            )
+        except Exception as e:
+            submission.status = "failed"
+            submission.error_message = str(e)[:500]
+            submission.duration_seconds = round(time.monotonic() - t0, 2)
+            db.commit()
+            q.update(state="failed", error=str(e)[:200],
+                     duration_seconds=round(time.monotonic() - t0, 2))
+            return {"success": False, "error": str(e)}
+
+        if not result.get("success"):
+            submission.status = "failed"
+            submission.error_message = str(result.get("error", "批改失败"))[:500]
+            submission.duration_seconds = round(time.monotonic() - t0, 2)
+            db.commit()
+            q.update(state="failed", error=str(result.get("error", "批改失败"))[:200],
+                     duration_seconds=round(time.monotonic() - t0, 2))
+            return {"success": False, "error": result.get("error", "批改失败")}
+
+        questions = result.get("questions", [])
+
+        # 保存逐题批改结果
+        first_qr = None
+        for qd in questions:
+            conf = qd.get("confidence")
+            qr = QuestionResult(
+                submission_id=submission.id,
+                question_no=int(qd.get("question_no") or 0) or 1,
+                question_type=qd.get("question_type") or "default",
+                student_answer_text=qd.get("student_answer"),
+                correct_answer_text=qd.get("correct_answer"),
+                llm_raw_output=result.get("raw_output"),
+                judgement_raw=qd.get("judgement"),
+                judgement_final=qd.get("judgement"),
+                error_type=qd.get("error_type"),
+                confidence_final=float(conf) if isinstance(conf, (int, float)) else None,
+                bbox_answer=qd.get("bbox"),
+            )
+            db.add(qr)
+            if first_qr is None:
+                first_qr = qr
+
+        # 红笔回显
+        annotated = annotate_image(submission.original_image_path, questions,
+                                   result.get("analysis", ""))
+        submission.annotated_image_path = annotated
+        submission.grading_summary = result.get("analysis")
+
+        # 成本估算
+        cost = estimate_cost(result.get("prompt_tokens", 0), result.get("completion_tokens", 0))
+        submission.prompt_tokens = cost["prompt_tokens"]
+        submission.completion_tokens = cost["completion_tokens"]
+        submission.cost_estimate = cost["cost"]
+
+        duration = round(time.monotonic() - t0, 2)
+        submission.duration_seconds = duration
+        submission.status = "completed"
+        if template:
+            template.usage_count = (template.usage_count or 0) + 1
+        db.commit()
+
+        q.update(state="completed", duration_seconds=duration, error=None)
+        return {
+            "success": True,
+            "submission_id": submission.id,
+            "result_id": first_qr.id if first_qr else None,
+            "judgement": result.get("judgement"),
+            "confidence": result.get("confidence"),
+            "analysis": result.get("analysis"),
+            "duration_seconds": duration,
+        }
+    finally:
+        db.close()
+
 
 @router.post("/start/{submission_id}")
 async def start_grading(submission_id: int, template_id: Optional[int] = None,
                         db: Session = Depends(get_db)):
     """对一份提交执行 AI 批改（可选携带答案模板，PRD 4.4 答案复用）"""
-
-    template = None
-    if template_id:
-        template = db.query(AnswerTemplate).filter(AnswerTemplate.id == template_id).first()
-        if not template:
-            raise HTTPException(status_code=404, detail="答案模板不存在")
 
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
@@ -45,71 +166,92 @@ async def start_grading(submission_id: int, template_id: Optional[int] = None,
     submission.error_message = None
     db.commit()
 
-    try:
-        result = await grading_manager.grade(
-            image_path=submission.original_image_path,
-            question_type="default",
-            subject="数学",
-            answers=(template.answers if template else None),
-        )
-    except Exception as e:
-        submission.status = "failed"
-        submission.error_message = str(e)[:500]
-        db.commit()
-        raise HTTPException(status_code=500, detail=f"批改失败: {e}")
+    result = await _grade_one(submission_id, template_id)
 
     if not result.get("success"):
-        submission.status = "failed"
-        submission.error_message = str(result.get("error", "批改失败"))[:500]
-        db.commit()
-        return {"success": False, "error": result.get("error", "批改失败"),
-                "provider": result.get("provider"), "retry_count": submission.retry_count}
+        raise HTTPException(status_code=500, detail=f"批改失败: {result.get('error')}")
 
-    questions = result.get("questions", [])
+    return result
 
-    # 保存逐题批改结果
-    for q in questions:
-        conf = q.get("confidence")
-        qr = QuestionResult(
-            submission_id=submission.id,
-            question_no=int(q.get("question_no") or 0) or 1,
-            question_type=q.get("question_type") or "default",
-            student_answer_text=q.get("student_answer"),
-            correct_answer_text=q.get("correct_answer"),
-            llm_raw_output=result.get("raw_output"),
-            judgement_raw=q.get("judgement"),
-            judgement_final=q.get("judgement"),
-            error_type=q.get("error_type"),
-            confidence_final=float(conf) if isinstance(conf, (int, float)) else None,
-            bbox_answer=q.get("bbox"),
-        )
-        db.add(qr)
 
-    # 红笔回显
-    annotated = annotate_image(submission.original_image_path, questions,
-                               result.get("analysis", ""))
-    submission.annotated_image_path = annotated
-    submission.grading_summary = result.get("analysis")
+class BatchIn(BaseModel):
+    submission_ids: Optional[list] = None   # 不传 = 全部待批（uploaded + 未超限的 failed）
+    template_id: Optional[int] = None
 
-    # 成本估算
-    cost = estimate_cost(result.get("prompt_tokens", 0), result.get("completion_tokens", 0))
-    submission.prompt_tokens = cost["prompt_tokens"]
-    submission.completion_tokens = cost["completion_tokens"]
-    submission.cost_estimate = cost["cost"]
 
-    submission.status = "completed"
-    if template:
-        template.usage_count = (template.usage_count or 0) + 1
-    db.commit()
+@router.post("/batch")
+async def start_batch(data: BatchIn, db: Session = Depends(get_db)):
+    """批量并发批改：按配置的并发路数排队执行，立即返回队列信息"""
+    if data.submission_ids:
+        subs = db.query(Submission).filter(Submission.id.in_(data.submission_ids)).all()
+    else:
+        subs = db.query(Submission).filter(
+            Submission.status.in_(["uploaded", "failed"])).all()
 
+    eligible = [s for s in subs
+                if s.status in ("uploaded", "failed")
+                and not (s.status == "failed" and (s.retry_count or 0) >= MAX_RETRY)]
+
+    sem = _get_semaphore()
+
+    async def worker(sid: int):
+        async with sem:
+            await _grade_one(sid, data.template_id)
+
+    queued_ids = []
+    for s in eligible:
+        QUEUE[s.id] = {"state": "queued", "duration_seconds": None, "error": None}
+        asyncio.create_task(worker(s.id))
+        queued_ids.append(s.id)
+
+    return {"success": True, "queued": queued_ids, "count": len(queued_ids),
+            "concurrency": get_concurrency()}
+
+
+@router.get("/queue-status")
+async def queue_status(db: Session = Depends(get_db)):
+    """工作台队列状态：排队/处理中/已完成/失败的份数与各份耗时"""
+    processing_db = db.query(Submission).filter(Submission.status == "processing").count()
+    items = [{"submission_id": sid, **info} for sid, info in sorted(QUEUE.items())]
+    counts = {"queued": 0, "processing": 0, "completed": 0, "failed": 0}
+    for it in items:
+        counts[it["state"]] = counts.get(it["state"], 0) + 1
+    durations = [it["duration_seconds"] for it in items
+                 if it["state"] == "completed" and it["duration_seconds"]]
     return {
         "success": True,
-        "submission_id": submission.id,
-        "result_id": qr.id,
-        "judgement": result.get("judgement"),
-        "confidence": result.get("confidence"),
-        "analysis": result.get("analysis"),
+        "concurrency": get_concurrency(),
+        "counts": counts,
+        "avg_duration_seconds": round(sum(durations) / len(durations), 2) if durations else None,
+        "items": items[-100:],
+        "db_processing": processing_db,
     }
+
+
+@router.get("/concurrency")
+async def read_concurrency():
+    return {"success": True, "concurrency": get_concurrency()}
+
+
+class ConcurrencyIn(BaseModel):
+    value: int
+
+
+@router.post("/concurrency")
+async def write_concurrency(data: ConcurrencyIn, _: None = Depends(require_admin)):
+    if not 1 <= data.value <= 4:
+        raise HTTPException(status_code=400, detail="并发路数只能是 1-4")
+    db = SessionLocal()
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == "grading_concurrency").first()
+        if row:
+            row.value = str(data.value)
+        else:
+            db.add(AppConfig(key="grading_concurrency", value=str(data.value)))
+        db.commit()
+    finally:
+        db.close()
+    return {"success": True, "concurrency": get_concurrency()}
 
 
 @router.post("/retry/{submission_id}")
