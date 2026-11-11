@@ -35,7 +35,8 @@
 <div class="wrap">
   <header>
     <h1>红笔 · 教师工作台</h1>
-    <div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button id="ctxBtn" onclick="openWizard('switch')" style="padding:9px 14px;background:#fdf3f2;color:#c0392b;border:1px solid #e5b7b1;border-radius:8px;font-size:14px;cursor:pointer;">🏫 <span id="ctxLabel">加载中…</span> ▾</button>
       <a class="btn" href="/settings">⚙️ 批改引擎设置</a>
       <a class="btn" href="/mobile">📱 手机上传</a>
     </div>
@@ -95,6 +96,24 @@
     <h2 style="font-size:16px;margin:0 0 12px;">批改详情</h2>
     <img id="detailImg" class="result" alt="红笔标注">
     <div id="detailBody" style="margin-top:12px;font-size:14px;"></div>
+  </div>
+</div>
+
+<!-- 首次三步引导 / 上下文切换浮层 -->
+<div id="wizGate" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:98;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:28px;width:340px;box-shadow:0 8px 30px rgba(0,0,0,.2);">
+    <h2 id="wizTitle" style="font-size:17px;margin:0 0 4px;color:#c0392b;">👋 欢迎使用红笔</h2>
+    <p class="hint" id="wizSub" style="margin:0 0 14px;">三步完成初始设置（随时可在右上角切换）</p>
+    <p id="wizStepLabel" class="hint" style="margin:0 0 8px;"></p>
+    <div id="wizOptions" style="display:flex;flex-wrap:wrap;gap:8px;min-height:44px;"></div>
+    <div id="wizCustomRow" style="display:none;margin-top:10px;">
+      <input id="wizCustomInput" placeholder="或输入新班级名称，例：三年二班" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:16px;">
+      <button id="wizBackBtn" onclick="wizBack()" style="padding:9px 16px;border:1px solid #ddd;background:#fff;color:#555;border-radius:8px;cursor:pointer;">上一步</button>
+      <button id="wizNextBtn" onclick="wizNext()" style="padding:9px 16px;background:#c0392b;color:#fff;border:none;border-radius:8px;cursor:pointer;">下一步</button>
+    </div>
+    <p id="wizMsg" class="hint" style="min-height:16px;margin:10px 0 0;color:#c0392b;"></p>
   </div>
 </div>
 
@@ -454,9 +473,10 @@ async function overrideQuestion(qrId, judgement) {
 }
 
 // ---------- 管理员 PIN 解锁 ----------
-async function ensureAdmin() {
+async function ensureAdmin(autoShow = true) {
   const s = await (await fetch("/api/auth/pin-status")).json();
   if (s.unlocked) return true;
+  if (!autoShow) return false;   // 静默检查：不自动弹 PIN（首次引导优先）
   const gate = $("pinGate");
   gate.style.display = "flex";
   setTimeout(() => $("pinInput").focus(), 50);
@@ -479,8 +499,108 @@ async function pinUnlock() {
   }
 }
 
-load(); loadRows();
-ensureAdmin().then(ok => { if (ok) { loadManage(); loadAnalytics(); } });
+// ---------- 首次三步引导 / 上下文切换 ----------
+let _wizMode = "setup";   // setup=首次引导(context接口,标记完成) / switch=右上角切换
+let _wizStep = 0;         // 0学段 1学科 2班级
+let _wizSel = { stage: null, subject: null, class_name: null };
+let _wizData = null;      // /api/setup/status 结果
+
+function wizChip(label, value, selected) {
+  return `<button onclick="wizPick('${value.replace(/'/g, "\\'")}', this)"` +
+    ` style="padding:9px 16px;border:1.5px solid ${selected ? "#c0392b" : "#ddd"};` +
+    `background:${selected ? "#fdf3f2" : "#fff"};color:${selected ? "#c0392b" : "#333"};` +
+    `border-radius:8px;font-size:14px;cursor:pointer;">${label}</button>`;
+}
+
+function wizRender() {
+  const labels = ["第 1/3 步：选择学段", "第 2/3 步：选择学科", "第 3/3 步：选择班级"];
+  $("wizStepLabel").textContent = labels[_wizStep];
+  const box = $("wizOptions");
+  const custom = $("wizCustomRow");
+  $("wizMsg").textContent = "";
+  $("wizBackBtn").style.visibility = _wizStep === 0 ? "hidden" : "visible";
+  $("wizNextBtn").textContent = _wizStep === 2 ? (_wizMode === "setup" ? "✓ 完成设置" : "✓ 切换") : "下一步";
+  if (_wizStep === 0) {
+    custom.style.display = "none";
+    box.innerHTML = (_wizData.stages || []).map(s =>
+      wizChip(s.name, s.name, _wizSel.stage === s.name)).join("")
+      || `<p class="hint">暂无学段</p>`;
+  } else if (_wizStep === 1) {
+    custom.style.display = "none";
+    box.innerHTML = (_wizData.subjects || []).map(s =>
+      wizChip(s.name, s.name, _wizSel.subject === s.name)).join("")
+      || `<p class="hint">暂无学科</p>`;
+  } else {
+    custom.style.display = "block";
+    box.innerHTML = (_wizData.classes || []).map(c =>
+      wizChip(c.name, c.name, _wizSel.class_name === c.name)).join("")
+      || `<p class="hint">还没有班级，直接在下面输入名称创建</p>`;
+  }
+}
+
+function wizPick(value, btn) {
+  if (_wizStep === 0) _wizSel.stage = value;
+  if (_wizStep === 1) _wizSel.subject = value;
+  if (_wizStep === 2) { _wizSel.class_name = value; $("wizCustomInput").value = ""; }
+  wizRender();
+}
+
+function wizBack() {
+  if (_wizStep > 0) { _wizStep--; wizRender(); }
+}
+
+async function wizNext() {
+  const msg = $("wizMsg");
+  if (_wizStep === 0 && !_wizSel.stage) { msg.textContent = "请选择学段"; return; }
+  if (_wizStep === 1 && !_wizSel.subject) { msg.textContent = "请选择学科"; return; }
+  if (_wizStep === 2) {
+    const cls = ($("wizCustomInput").value || "").trim() || _wizSel.class_name;
+    if (!cls) { msg.textContent = "请选择或输入班级名称"; return; }
+    _wizSel.class_name = cls;
+    // 解锁管理功能后保存
+    const ok = await ensureAdmin();
+    if (!ok) return;
+    const url = _wizMode === "setup" ? "/api/setup/complete" : "/api/setup/context";
+    const r = await fetch(url, { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: _wizSel.stage, subject: _wizSel.subject, class_name: _wizSel.class_name }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.success) { msg.textContent = d.detail || "保存失败"; return; }
+    $("wizGate").style.display = "none";
+    $("ctxLabel").textContent = `${_wizSel.class_name} · ${_wizSel.subject}`;
+    if (_wizMode === "setup") {
+      $("wizTitle").textContent = "🎉 设置完成";
+      $("wizTitle").style.color = "#27ae60";
+      setTimeout(() => { location.reload(); }, 600);
+    }
+    return;
+  }
+  _wizStep++;
+  wizRender();
+}
+
+function openWizard(mode) {
+  _wizMode = mode;
+  _wizStep = 0;
+  _wizSel = { stage: null, subject: null, class_name: null };
+  $("wizTitle").textContent = mode === "setup" ? "👋 欢迎使用红笔" : "🏫 切换教学上下文";
+  $("wizSub").textContent = mode === "setup"
+    ? "三步完成初始设置（随时可在右上角切换）"
+    : "选择当前使用的学段 / 学科 / 班级";
+  $("wizGate").style.display = "flex";
+  wizRender();
+}
+
+async function initSetup() {
+  try { _wizData = await (await fetch("/api/setup/status")).json(); } catch (e) { return; }
+  if (!_wizData) return;
+  const dft = _wizData.defaults || {};
+  $("ctxLabel").textContent = (dft.class_name || "未设置") + " · " + (dft.subject || "-");
+  if (!_wizData.setup_completed) openWizard("setup");
+}
+
+load(); loadRows(); initSetup();
+ensureAdmin(false).then(ok => { if (ok) { loadManage(); loadAnalytics(); } });
 </script>
 </body>
 </html>
