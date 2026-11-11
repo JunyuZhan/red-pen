@@ -39,3 +39,6 @@ s) 多次采样一致性：已由低置信度二次复核 review.py mode=resampl
 t) LLM教学建议：✅ backend/models/teaching_advice.py + /api/analytics/teaching-advice(/generate) + 学情页"AI教学建议"卡片（prompt锁定只引用输入数据，纯文本低成本调用，存teaching_advice表，可重新生成）
 u) 学段/学科配置表驱动 subject_config ✅（setup向导/引导页已表驱动；grading_engine默认值"数学"仅作回退，保留）
 纪律：每轮一个待办，开发→测试→CI绿→提交。官网bug修复穿插进行。
+
+## 版本纪律（用户 2026-11-11 指定）
+每完成一个待办(n-u 或后续新功能)：本地测试 + CI 绿 → 立即升一个小版本(v0.4.1→v0.4.2→...)并打 tag，release.yml 自动出 exe。不等攒一批。bug 修复不升版本，随下一个功能版本带上。打 tag 前检查：CHANGELOG.md 加条目、版本号同步(CHANGELOG/version 引用处)。
