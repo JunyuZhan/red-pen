@@ -49,7 +49,7 @@ jobs:
         body: |
           ## 红笔 RedPen ${{ github.ref_name }}（Windows 单文件版）
 
-          **开发者**：JunyuZhan ｜ **联系邮箱**：397791043@qq.com ｜ 问题反馈请到 [Issues](https://github.com/JunyuZhan/red-pen/issues) 或邮件联系
+          **开发者**：JunyuZhan ｜ **联系邮箱**：junyuzhan@outlook.com ｜ 问题反馈请到 [Issues](https://github.com/JunyuZhan/red-pen/issues) 或邮件联系
 
           **安装使用**：下载 `RedPen.exe`，放到任意文件夹双击即可运行（无需安装 Python）。
           - ⚠️ 首次运行 Windows 会提示"已保护你的电脑"，点 **更多信息 → 仍要运行** 即可；杀毒软件误报请添加信任

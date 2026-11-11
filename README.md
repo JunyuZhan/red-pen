@@ -1,6 +1,6 @@
 # 红笔 RedPen · 教师作业批改助手
 
-**开发者：JunyuZhan（397791043@qq.com）**
+**开发者：JunyuZhan（junyuzhan@outlook.com）**
 
 基于大模型的教师作业自动批改系统：手机拍照上传 → AI 逐题批改 → 红笔标注回显 → 学情分析看板。
 
@@ -49,7 +49,7 @@ red-pen/
 
 ## 联系与社区
 - 开发者：**JunyuZhan**
-- 邮箱：**397791043@qq.com**
+- 邮箱：**junyuzhan@outlook.com**
 - 提 bug / 功能建议：[开 Issue](https://github.com/JunyuZhan/red-pen/issues)
 
 ## ☕ 请作者喝杯咖啡
