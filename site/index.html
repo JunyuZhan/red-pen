@@ -80,6 +80,28 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
   .cta-row .btn{width:100%;text-align:center}
   .pill{font-size:12px}
 }
+
+/* ---- 动效层 ---- */
+.hero-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.hero-bg .blob{position:absolute;border-radius:9999px;filter:blur(60px);opacity:.35}
+.hero-bg .b1{width:340px;height:340px;background:var(--marigold);top:-60px;right:-80px}
+.hero-bg .b2{width:260px;height:260px;background:var(--sky-wash);bottom:-40px;left:-60px}
+.hero-bg .dotgrid{position:absolute;inset:0;background-image:radial-gradient(rgba(0,0,0,0.06) 1px, transparent 1px);background-size:22px 22px}
+#hero{position:relative}
+#hero > *{position:relative;z-index:1}
+@keyframes beam{0%{--beam-angle:0deg}100%{--beam-angle:360deg}}
+@property --beam-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
+.dl-card{position:relative;background:linear-gradient(var(--midnight),var(--midnight)) padding-box,
+  conic-gradient(from var(--beam-angle), rgba(255,177,16,0) 0deg, var(--marigold) 60deg, rgba(246,73,50,0.9) 120deg, rgba(255,177,16,0) 180deg) border-box;
+  border:1.5px solid transparent}
+@media (prefers-reduced-motion: reduce){.dl-card{background:linear-gradient(var(--midnight),var(--midnight)) padding-box,border-box;border:1px solid rgba(255,255,255,0.2)}}
+.card{position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0;background:radial-gradient(320px circle at var(--mx,-200px) var(--my,-200px), rgba(0,117,222,0.10), transparent 60%);opacity:0;transition:opacity .3s ease;pointer-events:none}
+.card:hover::before{opacity:1}
+.cursor{display:inline-block;width:3px;height:1.05em;background:var(--notion-blue);margin-left:4px;vertical-align:-0.15em;animation:blink 0.8s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion: reduce){.cursor{animation:none}}
+@media (hover:none){.card::before{display:none}}
 </style>
 </head>
 <body>
@@ -94,10 +116,11 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 </nav>
 
 <div class="wrap">
-<section style="margin-top:96px">
+<section id="hero" style="margin-top:96px">
+<div class="hero-bg" aria-hidden="true"><div class="blob b1" data-parallax="0.25"></div><div class="blob b2" data-parallax="0.15"></div><div class="dotgrid" data-parallax="0.08"></div></div>
   <div class="pill">给老师的 AI 批改助手 <b>对老师永久免费</b></div>
   <h1 class="display">作业拍照上传<br><span class="hl">AI 帮你批改</span></h1>
-  <p class="sub">手机拍照 → AI 逐题批改 → 红笔标注回显 → 学情分析看板。装在教师自己的电脑上，数据不出本机，学生的每份作业都留档可查。</p>
+  <p class="sub"><span id="typed"></span><span class="cursor" aria-hidden="true"></span></p>
   <div class="cta-row">
     <a class="btn btn-primary" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 Windows 版（免安装）</a>
     <a class="btn btn-ghost" href="https://github.com/JunyuZhan/red-pen" target="_blank">查看源码</a>
@@ -148,7 +171,7 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 </section>
 
 <section id="download">
-  <div class="dl-card">
+  <div class="dl-card" id="download-card">
     <div class="kicker" style="color:rgba(255,255,255,0.5)">Download</div>
     <h2>立即下载</h2>
     <a class="btn btn-primary" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ Windows 版 RedPen.exe</a>
@@ -191,5 +214,47 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
   红笔 RedPen · 开发者 JunyuZhan · junyuzhan@outlook.com<br>
   <a href="https://github.com/JunyuZhan/red-pen" target="_blank" style="color:var(--notion-blue)">github.com/JunyuZhan/red-pen</a> · Released under PolyForm Noncommercial 1.0.0
 </footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // 打字机
+  var lines = [
+    '手机拍照上传，AI 逐题批改，红笔标注回显。',
+    '错误类型分布、学生正确率，学情分析一目了然。',
+    '数据保存在教师自己的电脑，换机一键恢复。',
+    '对老师和学校永久免费，不支持任何商用。'
+  ];
+  var el = document.getElementById('typed');
+  if (el && !reduce) {
+    var li = 0, ci = 0, del = false;
+    (function tick(){
+      var t = lines[li];
+      el.textContent = t.slice(0, ci);
+      if (!del) { ci++; if (ci > t.length) { del = true; return setTimeout(tick, 2200); } }
+      else { ci--; if (ci < 0) { del = false; li = (li+1) % lines.length; ci = 0; } }
+      setTimeout(tick, del ? 24 : 70);
+    })();
+  } else if (el) { el.textContent = lines[0]; }
+  // 视差
+  if (!reduce) {
+    var els = document.querySelectorAll('[data-parallax]');
+    window.addEventListener('scroll', function(){
+      var y = window.scrollY;
+      els.forEach(function(e){ e.style.transform = 'translateY(' + (y * parseFloat(e.dataset.parallax) * -0.4) + 'px)'; });
+    }, {passive:true});
+  }
+  // 聚光（仅精确指针设备）
+  if (window.matchMedia('(hover:hover) and (pointer:fine)').matches && !reduce) {
+    document.querySelectorAll('.grid .card').forEach(function(c){
+      c.addEventListener('mousemove', function(ev){
+        var r = c.getBoundingClientRect();
+        c.style.setProperty('--mx', (ev.clientX - r.left) + 'px');
+        c.style.setProperty('--my', (ev.clientY - r.top) + 'px');
+      });
+    });
+  }
+})();
+</script>
 </body>
 </html>
