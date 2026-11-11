@@ -1,29 +1,46 @@
-"""PRD 待办 g：CV 切题 + 裁切放大 测试
+# -*- coding: utf-8 -*-
+"""PRD 待办 g：CV 切题 + 裁切放大 测试 — pytest 原生版
 
-覆盖：区域切分（多题图 ≥2 区域）/ 单块图不切 / EXIF 旋转校正 /
-裁切放大生效 / 配置读写 / 开关关闭不触发切分 / 切题失败回退整页。
-运行：PYTHONPATH=. python tests/test_question_splitter.py
+覆盖：区域切分 / 单块图不切 / EXIF 旋转校正 / 裁切放大 /
+配置读写 / 开关关闭不触发切分 / 切题失败回退整页 / 损坏图回退。
 """
-
+import asyncio
 import os
-import shutil
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
+from PIL import Image, ImageDraw
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./data/test_split.db")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
-from PIL import Image, ImageDraw  # noqa: E402
-from backend.models.question_splitter import (  # noqa: E402
-    _find_regions, _row_means, get_split_config, save_split_config,
-    split_questions)
-from backend.database import init_db  # noqa: E402
 
-PASS = []
-def ok(name, cond):
-    PASS.append((name, bool(cond)))
-    print(("✅" if cond else "❌"), name)
+@pytest.fixture()
+def split_env():
+    """独立临时库 + 临时输出目录，结束恢复原状。"""
+    import backend.database as dbmod
+    from backend.database import init_db
+
+    tmp = tempfile.mkdtemp(prefix="rp_split_")
+    url = "sqlite:///" + os.path.join(tmp, "test_split.db")
+    old = (dbmod.engine, dbmod.SessionLocal)
+    dbmod.engine = dbmod.create_engine(url, connect_args={"check_same_thread": False})
+    dbmod.SessionLocal = dbmod.sessionmaker(bind=dbmod.engine, autoflush=False)
+    init_db()
+    # 下游模块在 import 时绑定了 SessionLocal，需一并替换才真正隔离
+    import backend.models.grading_engine as _ge
+    import backend.models.question_splitter as _qs
+    old_bound = {}
+    for mod in (_ge, _qs):
+        if hasattr(mod, "SessionLocal"):
+            old_bound[mod.__name__] = mod.SessionLocal
+            mod.SessionLocal = dbmod.SessionLocal
+    yield tmp
+    dbmod.engine.dispose()
+    dbmod.engine, dbmod.SessionLocal = old
+    for name, sm in old_bound.items():
+        sys.modules[name].SessionLocal = sm
 
 
 def make_page(path, lines=5, line_h=60, w=800):
@@ -38,79 +55,83 @@ def make_page(path, lines=5, line_h=60, w=800):
     return img
 
 
-def main():
-    init_db()
-    tmp = tempfile.mkdtemp()
+def test_multi_line_page_splits_into_regions(split_env):
+    from backend.models.question_splitter import split_questions
 
-    # 1) 多题图切出 >=2 区域
-    page = os.path.join(tmp, "page.jpg")
+    page = os.path.join(split_env, "page.jpg")
     make_page(page, lines=5)
-    crops = split_questions(page, os.path.join(tmp, "out"))
-    ok("多题图切出>=2区域", len(crops) >= 2)
+    crops = split_questions(page, os.path.join(split_env, "out"))
+    assert len(crops) >= 2
+    orig_h = Image.open(page).size[1]
+    for c in crops:
+        assert os.path.exists(c["path"])
+        assert Image.open(c["path"]).size[1] < orig_h
 
-    # 2) 每个裁切图存在且为原图子区域（高度小于原图）
-    if crops:
-        orig_h = Image.open(page).size[1]
-        heights = [Image.open(c["path"]).size[1] for c in crops]
-        ok("裁切图为子区域(高度<原图)", all(hh < orig_h for hh in heights))
-        ok("裁切图文件存在", all(os.path.exists(c["path"]) for c in crops))
 
-    # 3) 小字区域被放大：单行高度 40px 的裁切应放大到 >= 400 高（含边距）
-    single = os.path.join(tmp, "one.jpg")
+def test_single_line_zoom_or_skip(split_env):
+    """单行小字：要么放大成单题裁切，要么不强切。"""
+    from backend.models.question_splitter import split_questions
+
+    single = os.path.join(split_env, "one.jpg")
     make_page(single, lines=1)
-    c1 = split_questions(single, os.path.join(tmp, "out1"))
-    if c1 and len(c1) == 1:
-        ch = Image.open(c1[0]["path"]).size[1]
-        ok("小字裁切被放大(高度>=原行高)", ch >= 40)
+    c1 = split_questions(single, os.path.join(split_env, "out1"))
+    if len(c1) == 1:
+        assert Image.open(c1[0]["path"]).size[1] >= 40
     else:
-        ok("单行图不强行切题", True)
+        assert c1 == []
 
-    # 4) EXIF 旋转校正：图被转置存储 + Orientation 标记 → 校正后仍可切题
-    try:
-        rot = make_page(os.path.join(tmp, "rot_src.jpg"), lines=4).rotate(-90, expand=True)
-        rot.save(os.path.join(tmp, "rot_tmp.jpg"))
-        exif = Image.open(os.path.join(tmp, "rot_tmp.jpg")).getexif()
-        exif[274] = 6  # Orientation: 需顺时针转90°才是正向
-        rot.save(os.path.join(tmp, "rot.jpg"), exif=exif.tobytes())
-        crops_rot = split_questions(os.path.join(tmp, "rot.jpg"), os.path.join(tmp, "out2"))
-        ok("EXIF旋转图校正后仍可切题", len(crops_rot) >= 2)
-    except Exception as e:
-        print("  EXIF 用例跳过:", e)
-        ok("EXIF旋转图校正后仍可切题", True)
 
-    # 5) 行投影分组：5 行墨迹 → 5 组
-    img = make_page(os.path.join(tmp, "proj.jpg"), lines=5)
-    regions = _find_regions(_row_means(img.convert("L")))
-    ok("行投影切出5组", len(regions) == 5)
+def test_exif_rotated_image_still_splits(split_env):
+    from backend.models.question_splitter import split_questions
 
-    # 6) 配置读写（默认关闭）
+    src = make_page(os.path.join(split_env, "rot_src.jpg"), lines=4)
+    rot = src.rotate(-90, expand=True)
+    rot.save(os.path.join(split_env, "rot_tmp.jpg"))
+    exif = Image.open(os.path.join(split_env, "rot_tmp.jpg")).getexif()
+    exif[274] = 6  # Orientation: 需顺时针转90°才是正向
+    rot.save(os.path.join(split_env, "rot.jpg"), exif=exif.tobytes())
+    crops = split_questions(os.path.join(split_env, "rot.jpg"),
+                            os.path.join(split_env, "out2"))
+    assert len(crops) >= 2
+
+
+def test_row_projection_groups_five_lines(split_env):
+    from backend.models.question_splitter import _find_regions, _row_means
+
+    img = make_page(os.path.join(split_env, "proj.jpg"), lines=5)
+    assert len(_find_regions(_row_means(img.convert("L")))) == 5
+
+
+def test_split_config_roundtrip(split_env):
+    from backend.models.question_splitter import get_split_config, save_split_config
+
     save_split_config(True)
-    ok("配置保存为true", get_split_config()["enabled"] is True)
+    assert get_split_config()["enabled"] is True
     save_split_config(False)
-    ok("配置保存为false", get_split_config()["enabled"] is False)
+    assert get_split_config()["enabled"] is False
 
-    # 7) 损坏图片返回空列表（回退整页）
-    bad = os.path.join(tmp, "bad.jpg")
+
+def test_corrupt_image_returns_empty(split_env):
+    from backend.models.question_splitter import split_questions
+
+    bad = os.path.join(split_env, "bad.jpg")
     with open(bad, "wb") as f:
         f.write(b"not an image")
-    ok("损坏图片返回空列表", split_questions(bad, os.path.join(tmp, "out3")) == [])
+    assert split_questions(bad, os.path.join(split_env, "out3")) == []
 
-    # 8) 集成：开启切题模式后逐区域调用模型，合并 questions
-    import asyncio
-    from backend.models import grading_engine as ge
-    calls = []
 
-    class FakeEngine:
-        def __init__(self, *a, **k):
-            pass
-        async def grade(self, image_path, question_type, subject, answers=None):
-            calls.append(image_path)
-            return {"success": True, "questions": [
-                {"no": len(calls), "judgement": "correct", "confidence": 0.9}]}
+class _FakeEngine:
+    def __init__(self, *a, **k):
+        pass
 
-    orig_engine = ge.GradingEngine
-    # 集成用例需要已配置的 LLM（否则 mgr.grade 提前返回"未配置"）
+    async def grade(self, image_path, question_type, subject, answers=None):
+        self.calls = getattr(self, "calls", [])
+        return {"success": True, "questions": []}
+
+
+def _configure_mock_llm():
     from backend.database import AppConfig, SessionLocal
+
     db = SessionLocal()
     for k, v in [("llm_provider", "custom"), ("llm_base_url", "http://mock/v1"),
                  ("llm_model", "mock-vl"), ("llm_api_key", "sk-mock")]:
@@ -121,21 +142,37 @@ def main():
             db.add(AppConfig(key=k, value=v))
     db.commit()
     db.close()
+
+
+def test_integration_split_mode_and_fallback(split_env):
+    """切题模式逐区域调用并合并；全失败不崩溃；关闭开关只整页调用 1 次。"""
+    from backend.models import grading_engine as ge
+    from backend.models.question_splitter import save_split_config
+
+    _configure_mock_llm()
+    calls = []
+
+    class FakeEngine:
+        def __init__(self, *a, **k):
+            pass
+
+        async def grade(self, image_path, question_type, subject, answers=None):
+            calls.append(image_path)
+            return {"success": True, "questions": [
+                {"no": len(calls), "judgement": "correct", "confidence": 0.9}]}
+
+    orig_engine = ge.GradingEngine
     ge.GradingEngine = FakeEngine
     try:
         save_split_config(True)
-        page2 = os.path.join(tmp, "page2.jpg")
+        page2 = os.path.join(split_env, "page2.jpg")
         make_page(page2, lines=4)
         mgr = ge.GradingManager()
-        res = asyncio.get_event_loop().run_until_complete(
-            mgr.grade(page2, "default", "数学")) if sys.version_info < (3, 10) else None
-        if res is None:
-            res = asyncio.run(mgr.grade(page2, "default", "数学"))
-        ok("切题模式逐区域调用", len(calls) >= 2)
-        ok("切题模式合并结果 split_used", res.get("success") and res.get("split_used") is True
-           and len(res.get("questions", [])) == len(calls))
+        res = asyncio.run(mgr.grade(page2, "default", "数学"))
+        assert len(calls) >= 2
+        assert res.get("success") and res.get("split_used") is True
+        assert len(res.get("questions", [])) == len(calls)
 
-        # 9) 全部区域失败 → 回退整页（返回 None 路径后走整页 grade）
         class FailEngine(FakeEngine):
             async def grade(self, *a, **k):
                 return {"success": False, "error": "mock fail"}
@@ -143,25 +180,12 @@ def main():
         calls.clear()
         ge.GradingEngine = FailEngine
         res2 = asyncio.run(mgr.grade(page2, "default", "数学"))
-        # FailEngine 整页也失败 → success False 但不应崩溃
-        ok("全部失败不崩溃", isinstance(res2, dict))
+        assert isinstance(res2, dict)
 
-        # 10) 关闭开关 → 不做切分调用
         save_split_config(False)
         calls.clear()
         ge.GradingEngine = FakeEngine
-        res3 = asyncio.run(mgr.grade(page2, "default", "数学"))
-        ok("关闭开关只整页调用1次", len(calls) == 1)
+        asyncio.run(mgr.grade(page2, "default", "数学"))
+        assert len(calls) == 1
     finally:
         ge.GradingEngine = orig_engine
-
-    shutil.rmtree(tmp, ignore_errors=True)
-    failed = [n for n, c in PASS if not c]
-    print(f"\n{len(PASS) - len(failed)}/{len(PASS)} PASS")
-    if failed:
-        print("FAILED:", failed)
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
