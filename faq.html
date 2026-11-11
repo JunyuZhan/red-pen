@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>常见问题 · 红笔 RedPen</title>
+<meta name="description" content="红笔 RedPen 常见问题：运行警告、杀毒误报、API Key、费用、数据安全、换电脑迁移。">
+<link rel="icon" type="image/png" href="images/brand/favicon_64.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+.faq-item{background:var(--white);border:var(--hairline);border-radius:12px;padding:20px 24px;margin-top:16px}
+.faq-item h3{font-size:18px;font-weight:700;margin-bottom:8px;letter-spacing:-0.2px}
+.faq-item p,.faq-item li{font-size:14.5px;color:var(--slate);line-height:1.9}
+.faq-item ol,.faq-item ul{padding-left:20px;margin:6px 0}
+.kbd{background:#f0efee;border:var(--hairline);border-radius:6px;padding:1px 7px;font-size:13px;font-family:monospace}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="index.html" style="display:inline-flex;align-items:center;gap:8px"><img src="images/brand/logo_48.png" alt="红笔logo" style="width:26px;height:26px;border-radius:6px">红笔 <span>RedPen</span></a>
+    <div class="nav-links">
+      <a href="index.html">首页</a><a href="guide.html">使用教程</a><a href="download.html">下载</a><a href="faq.html" style="color:var(--notion-blue);font-weight:600">常见问题</a><a href="about.html">关于</a>
+      <a href="https://github.com/JunyuZhan/red-pen" target="_blank">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+<section style="margin-top:56px">
+  <div class="kicker">FAQ</div>
+  <h2 class="heading" style="font-size:36px">常见问题</h2>
+</section>
+
+<div class="faq-item">
+  <h3>双击 exe 提示"Windows 已保护你的电脑"，怎么办？</h3>
+  <p>这是 Windows 对<b>没有代码签名证书</b>软件的标准提示，不代表有病毒。点 <b>更多信息 → 仍要运行</b> 即可，之后不再出现。我们未购买签名证书（费用每年数千元），把这笔钱省下来让软件保持免费。请务必从本官网或 GitHub Releases 下载以确认文件来源。</p>
+</div>
+
+<div class="faq-item">
+  <h3>杀毒软件（360/火绒/Defender）报毒了？</h3>
+  <p>红笔由 Python 打包而成，这类打包格式是杀毒软件<b>误报的重灾区</b>。请选择"信任/加入白名单"。如果你不放心，可以在 GitHub 上查看全部源代码——软件是开源的，每一行都公开可查。</p>
+</div>
+
+<div class="faq-item">
+  <h3>API Key 是什么？要花钱吗？</h3>
+  <p>API Key 是大模型服务的专属密钥，AI 批改能力来自它。需要到模型厂商（DeepSeek/通义/智谱）注册并充值，<b>按用量计费</b>：以 DeepSeek 为例，批改一份作业约几毛钱，10 元大约够批 30-50 份，余额永久有效。详细申请步骤见<a href="guide.html" style="color:var(--notion-blue)">使用教程第 4 步</a>（有截图）。</p>
+</div>
+
+<div class="faq-item">
+  <h3>软件本身收费吗？</h3>
+  <p><b>永久免费。</b>开源协议（PolyForm Noncommercial）允许个人与学校/教师自由使用；唯一的限制是未经作者授权不得将软件本身用于商业用途。你的花费只有模型 API 的使用费，直接付给模型厂商，与作者无关。</p>
+</div>
+
+<div class="faq-item">
+  <h3>学生的作业照片和成绩会被上传到哪里？</h3>
+  <p>作业照片只发往<b>你自己配置的模型服务商</b>（用于识别批改，这是必须的）；所有成绩、学生信息、API Key 都保存在<b>你电脑本地的数据库</b>，不会传给开发者或任何第三方。建议在拍照前遮盖试卷上的学生真实姓名等敏感信息，并关闭模型服务商的"数据用于训练"授权（设置页有详细说明）。</p>
+</div>
+
+<div class="faq-item">
+  <h3>换电脑了，数据怎么办？</h3>
+  <p>设置页 → <b>数据备份</b> 导出 zip（含全部数据库+作业照片）→ 新电脑装好红笔 → <b>数据恢复</b> 导入 zip，完整迁移。建议平时定期备份到 U 盘或网盘。</p>
+</div>
+
+<div class="faq-item">
+  <h3>手机扫码后打不开页面？</h3>
+  <p>三个最常见原因：① 手机和电脑不在同一个 WiFi；② Windows 防火墙拦截——首次运行弹出的"允许访问网络"要点允许（错过就去 控制面板 → 防火墙 → 允许应用通过防火墙 勾选）；③ 电脑用了 VPN/代理——先关掉再试。</p>
+</div>
+
+<div class="faq-item">
+  <h3>AI 批改的准确吗？判错了怎么办？</h3>
+  <p>准确率是本软件的第一优先级：图像质量门禁挡掉模糊照片、参考答案注入、规则交叉校验、低置信度自动交叉复核。但 AI 无法保证 100% 正确——所以所有没把握的题目会<b>诚实标记</b>并进入复核列表，你点一下即可修正。建议重要考试的成绩以你复核后的结果为准。</p>
+</div>
+
+<div class="faq-item">
+  <h3>批改速度慢 / 一直转圈？</h3>
+  <p>单份约 20-60 秒，取决于模型服务商的响应速度。如长时间无结果：检查设置页 API Key 是否有效（点"测试连接"）；检查电脑是否断网；失败的作业会在工作台出现"重试"按钮，不会丢。</p>
+</div>
+
+<div class="faq-item">
+  <h3>还有其他问题？</h3>
+  <p>加 QQ 交流群 <span class="kbd">984644289</span>（Redpen交流群），或发邮件到 <span class="kbd">junyuzhan@outlook.com</span>，或在 <a href="https://github.com/JunyuZhan/red-pen/issues" target="_blank" style="color:var(--notion-blue)">GitHub Issues</a> 提问。</p>
+</div>
+</div>
+
+<footer>
+  红笔 RedPen · 开发者 詹俊宇 · junyuzhan@outlook.com<br>
+  <a href="https://github.com/JunyuZhan/red-pen" target="_blank" style="color:var(--notion-blue)">github.com/JunyuZhan/red-pen</a> · PolyForm Noncommercial 1.0.0
+</footer>
+</body>
+</html>
