@@ -124,6 +124,15 @@
   <div class="msg" id="split_msg"></div>
 </div>
 
+<!-- 切题前置图像预处理 -->
+<div class="card" style="margin-top:20px">
+  <h1>图像预处理（切题前置）</h1>
+  <div class="sub">开启后，切题批改前会先自动转正照片方向、对偏灰的拍照增强对比度、并裁掉四周大片空白桌面。配合切题模式可进一步提升手写小字识别率；不影响整页模式。默认关闭。</div>
+  <label><input type="checkbox" id="prep_enabled"> 启用图像预处理（仅作用于切题模式）</label>
+  <button onclick="savePreprocess()">保存预处理设置</button>
+  <div class="msg" id="prep_msg"></div>
+</div>
+
 <!-- 低置信度二次复核 -->
 <div class="card" style="margin-top:20px">
   <h1>低置信度二次复核</h1>
@@ -380,6 +389,25 @@ async function saveSplit() {
     const d = await r.json();
     if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
     msg.className = "msg ok"; msg.textContent = "✅ 切题设置已保存";
+  } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
+}
+
+async function loadPreprocess() {
+  const r = await fetch("/api/settings/preprocess");
+  const d = await r.json();
+  if (d.success) document.getElementById("prep_enabled").checked = !!d.enabled;
+}
+
+async function savePreprocess() {
+  const msg = document.getElementById("prep_msg");
+  try {
+    const r = await fetch("/api/settings/preprocess", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ enabled: document.getElementById("prep_enabled").checked })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ 预处理设置已保存";
   } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
 }
 
@@ -641,7 +669,7 @@ async function saveGrade() {
   msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadReview(); loadGrade(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadPreprocess(); loadReview(); loadGrade(); } });
 </script>
 </body>
 </html>

@@ -323,6 +323,10 @@ class GradingManager:
         from .question_splitter import split_questions
         try:
             out_dir = os.path.join(str(settings.DATA_DIR), "splits")
+            # 切题前置预处理（设置页可开关；失败/关闭均用原图）
+            from .image_preprocess import get_preprocess_config, preprocess_image
+            if get_preprocess_config()["enabled"]:
+                image_path = preprocess_image(image_path, out_dir)
             crops = split_questions(image_path, out_dir)
         except Exception:
             return None

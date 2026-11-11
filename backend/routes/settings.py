@@ -84,6 +84,25 @@ async def update_split_settings(config: SplitConfigIn, _: None = Depends(require
     return {"success": True, "message": "切题模式设置已保存", **get_split_config()}
 
 
+# ---------- 切题前置图像预处理 ----------
+
+class PreprocessConfigIn(BaseModel):
+    enabled: bool = False
+
+
+@router.get("/preprocess")
+async def get_preprocess_settings():
+    from ..models.image_preprocess import get_preprocess_config
+    return {"success": True, **get_preprocess_config()}
+
+
+@router.post("/preprocess")
+async def update_preprocess_settings(config: PreprocessConfigIn, _: None = Depends(require_admin)):
+    from ..models.image_preprocess import save_preprocess_config, get_preprocess_config
+    save_preprocess_config(config.enabled)
+    return {"success": True, "message": "预处理设置已保存", **get_preprocess_config()}
+
+
 @router.get("/review")
 async def get_review_settings():
     from ..models.review import get_review_config
