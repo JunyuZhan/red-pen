@@ -104,6 +104,9 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
 
         questions = result.get("questions", [])
 
+        # 重批清旧：删除本次提交的历史逐题结果，避免重复累积
+        db.query(QuestionResult).filter(QuestionResult.submission_id == submission.id).delete()
+
         # 低置信度二次复核（PRD 待办 f）：不一致的题标 needs_review 进复核队列
         review_stats = None
         try:
