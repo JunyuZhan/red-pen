@@ -102,6 +102,10 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 @keyframes blink{50%{opacity:0}}
 @media (prefers-reduced-motion: reduce){.cursor{animation:none}}
 @media (hover:none){.card::before{display:none}}
+
+.tilt{transition:transform .2s ease;transform-style:preserve-3d;will-change:transform}
+.tilt-wrap{perspective:900px}
+@media (prefers-reduced-motion: reduce){.tilt{transition:none}}
 </style>
 </head>
 <body>
@@ -154,17 +158,17 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 <section id="screenshots">
   <div class="kicker">Product</div>
   <h2 class="heading">真实界面预览</h2>
-  <div class="card" style="margin-top:32px;padding:12px">
+  <div class="tilt-wrap"><div class="card tilt" data-tilt-max="3" style="margin-top:32px;padding:12px">
     <img loading="lazy" src="images/site_workbench.jpg" width="1600" height="3560" alt="教师工作台" style="width:100%;height:auto;border-radius:8px;display:block">
     <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">教师工作台（PC 端）：提交记录 · 班级管理 · 成本统计 · 学情分析</p>
-  </div>
+  </div></div>
   <div class="card" style="margin-top:16px;padding:12px">
     <img loading="lazy" src="images/analytics.jpg" width="1600" height="1424" alt="学情分析" style="width:100%;height:auto;border-radius:8px;display:block">
     <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">学情分析：学生正确率排名 · 错误类型分布 · 判定分布环形图 · 低置信度题目人工复核</p>
   </div>
   <div style="display:flex;justify-content:center;margin-top:24px">
-    <figure style="margin:0;max-width:300px;text-align:center">
-      <div style="border:8px solid var(--midnight);border-radius:24px;overflow:hidden;background:var(--midnight)">
+    <figure class="tilt-wrap" style="margin:0;max-width:300px;text-align:center">
+      <div class="tilt" data-tilt-max="8" style="border:8px solid var(--midnight);border-radius:24px;overflow:hidden;background:var(--midnight)">
         <img loading="lazy" src="images/site_mobile.jpg" width="780" height="1688" alt="手机拍照页" style="width:100%;height:auto;display:block">
       </div>
       <figcaption style="font-size:13px;color:var(--stone);margin-top:10px">手机端（真实手机比例）：扫码即开，拍照上传</figcaption>
@@ -263,5 +267,20 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
   }
 })();
 </script>
+
+// 3D 倾斜（仅桌面精确指针）
+if (window.matchMedia('(hover:hover) and (pointer:fine)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  document.querySelectorAll('.tilt').forEach(function(el){
+    var max = parseFloat(el.dataset.tiltMax || 6);
+    var wrap = el.closest('.tilt-wrap') || el.parentElement;
+    el.addEventListener('mousemove', function(ev){
+      var r = el.getBoundingClientRect();
+      var px = (ev.clientX - r.left) / r.width - 0.5;
+      var py = (ev.clientY - r.top) / r.height - 0.5;
+      el.style.transform = 'perspective(900px) rotateY(' + (px * max * 2).toFixed(2) + 'deg) rotateX(' + (-py * max * 2).toFixed(2) + 'deg)';
+    });
+    el.addEventListener('mouseleave', function(){ el.style.transform = 'perspective(900px) rotateY(0deg) rotateX(0deg)'; });
+  });
+}
 </body>
 </html>
