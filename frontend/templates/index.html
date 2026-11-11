@@ -280,18 +280,80 @@ async function loadAnalytics() {
       `<button style="margin-right:4px;" onclick="overrideQuestion(${r.id},'${j}')">${j === "correct" ? "✓对" : j === "wrong" ? "✗错" : "◐部分"}</button>`
     ).join("") + `</td></tr>`
   ).join("");
+  // ---- SVG 图表 ----
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  // 学生正确率横向条形图
+  const stus = (d.students || []).slice().sort((a,b)=>(b.accuracy||0)-(a.accuracy||0));
+  const bw = 150, barH = 22, gap = 8;
+  const accBars = stus.map((s, i) => {
+    const acc = s.accuracy == null ? 0 : s.accuracy;
+    const w = Math.max(2, Math.round(acc * bw));
+    const y = i * (barH + gap);
+    const color = acc >= 0.85 ? "#27ae60" : acc >= 0.7 ? "#f39c12" : "#e74c3c";
+    return `<text x="0" y="${y + barH - 6}" font-size="12" fill="#333">${esc(s.name)}</text>` +
+      `<rect x="76" y="${y}" width="${bw}" height="${barH}" rx="4" fill="#f0f0f0"/>` +
+      `<rect x="76" y="${y}" width="${w}" height="${barH}" rx="4" fill="${color}"/>` +
+      `<text x="${76 + bw + 6}" y="${y + barH - 6}" font-size="12" fill="#555">${(acc*100).toFixed(0)}%</text>`;
+  }).join("");
+  const accSvgH = stus.length * (barH + gap) + 4;
+  // 错误类型条形图
+  const errs = Object.entries(d.error_type_distribution || {}).sort((a,b)=>b[1]-a[1]);
+  const maxErr = Math.max(1, ...errs.map(e => e[1]));
+  const errColors = {"计算错误":"#e74c3c","概念错误":"#8e44ad","粗心":"#f39c12","未作答":"#95a5a6","审题错误":"#2980b9"};
+  const errBars = errs.map(([k, v], i) => {
+    const y = i * (barH + gap);
+    const w = Math.max(2, Math.round(v / maxErr * bw));
+    return `<text x="0" y="${y + barH - 6}" font-size="12" fill="#333">${esc(k)}</text>` +
+      `<rect x="76" y="${y}" width="${bw}" height="${barH}" rx="4" fill="#f0f0f0"/>` +
+      `<rect x="76" y="${y}" width="${w}" height="${barH}" rx="4" fill="${errColors[k] || "#615d59"}"/>` +
+      `<text x="${76 + bw + 6}" y="${y + barH - 6}" font-size="12" fill="#555">${v}次</text>`;
+  }).join("");
+  const errSvgH = Math.max(errs.length, 1) * (barH + gap) + 4;
+  // 判定分布环形图
+  const jd = d.judgement_distribution || {};
+  const jdColors = {correct:"#27ae60", wrong:"#e74c3c", partial:"#f39c12", unclear:"#95a5a6"};
+  const jdNames = {correct:"正确", wrong:"错误", partial:"部分对", unclear:"存疑"};
+  const total_j = Object.values(jd).reduce((a,b)=>a+b, 0) || 1;
+  const R = 44, C = 2 * Math.PI * R;
+  let offset = 0;
+  const arcs = Object.entries(jd).map(([k, v]) => {
+    const frac = v / total_j;
+    const seg = `<circle r="${R}" cx="56" cy="56" fill="none" stroke="${jdColors[k] || "#999"}" stroke-width="14"` +
+      ` stroke-dasharray="${(frac * C).toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-offset * C).toFixed(1)}"` +
+      ` transform="rotate(-90 56 56)"><title>${jdNames[k] || k} ${v}题</title></circle>`;
+    offset += frac;
+    return seg;
+  }).join("");
+  const legend = Object.entries(jd).map(([k,v]) =>
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px;color:#555;">` +
+    `<span style="width:10px;height:10px;border-radius:3px;display:inline-block;background:${jdColors[k]||"#999"}"></span>` +
+    `${jdNames[k]||k} ${Math.round(v/total_j*100)}%</span>`).join("");
   body.innerHTML = `
-    <p style="margin:0 0 10px;font-size:14px;">共批改 <b>${d.total_questions}</b> 题 ·
-      判定分布：${Object.entries(d.judgement_distribution || {}).map(([k,v]) => `${k} ${v}`).join(" / ") || "-"} ·
+    <p style="margin:0 0 14px;font-size:14px;">共批改 <b>${d.total_questions}</b> 题 ·
       待复核 <b style="color:#c0392b;">${d.needs_review_count}</b> 题</p>
-    <p style="margin:0 0 6px;font-size:14px;"><b>错误类型分布</b></p>
-    <div style="margin-bottom:14px;">${errTags}</div>
-    <p style="margin:0 0 6px;font-size:14px;"><b>学生正确率</b></p>
-    <table style="margin-bottom:14px;">
-      <thead><tr><th>学生</th><th>总题数</th><th>正确</th><th>正确率</th></tr></thead>
-      <tbody>${stuRows || `<tr><td colspan="4" class="hint">暂无数据</td></tr>`}</tbody>
-    </table>
-    <p style="margin:0 0 6px;font-size:14px;"><b>待复核题目（置信度 &lt; 60%）</b></p>
+    <div style="display:flex;flex-wrap:wrap;gap:24px;margin-bottom:16px;">
+      <div style="flex:1;min-width:260px;">
+        <p style="margin:0 0 6px;font-size:14px;"><b>学生正确率</b>（按正确率排序）</p>
+        <svg width="${76 + bw + 48}" height="${accSvgH}" role="img" aria-label="学生正确率条形图">${accBars}</svg>
+      </div>
+      <div style="flex:1;min-width:260px;">
+        <p style="margin:0 0 6px;font-size:14px;"><b>错误类型分布</b></p>
+        <svg width="${76 + bw + 48}" height="${errSvgH}" role="img" aria-label="错误类型条形图">${errBars || `<text x="0" y="14" font-size="12" fill="#999">暂无错误记录 🎉</text>`}</svg>
+      </div>
+    </div>
+    <p style="margin:0 0 6px;font-size:14px;"><b>判定分布</b></p>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;">
+      <svg width="112" height="112" role="img" aria-label="判定分布环形图">${arcs}</svg>
+      <div>${legend}</div>
+    </div>
+    <details style="margin-top:6px;">
+      <summary style="cursor:pointer;font-size:14px;"><b>学生明细表</b></summary>
+      <table style="margin-top:8px;">
+        <thead><tr><th>学生</th><th>总题数</th><th>正确</th><th>正确率</th></tr></thead>
+        <tbody>${stuRows || `<tr><td colspan="4" class="hint">暂无数据</td></tr>`}</tbody>
+      </table>
+    </details>
+    <p style="margin:14px 0 6px;font-size:14px;"><b>待复核题目（置信度 &lt; 60%）</b></p>
     <table>
       <thead><tr><th>提交</th><th>题号</th><th>判定</th><th>置信度</th><th>复核修正</th></tr></thead>
       <tbody>${reviewRows || `<tr><td colspan="5" class="hint">没有需要复核的题目 🎉</td></tr>`}</tbody>
