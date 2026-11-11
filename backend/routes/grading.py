@@ -77,7 +77,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             result = await grading_manager.grade(
                 image_path=submission.original_image_path,
                 question_type="default",
-                subject="数学",
+                subject=(template.subject if template else "数学"),
                 answers=(template.answers if template else None),
             )
         except Exception as e:
