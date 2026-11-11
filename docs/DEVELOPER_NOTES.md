@@ -22,3 +22,7 @@ j) 月度预算护栏 + 模型价格预设表（含 DeepSeek/Qwen/GLM/豆包，�
 k) AI学情报告：把学生历史错题/错误类型/正确率序列交给LLM，生成自然语言学情分析（按学生/按班级），存表并在学情页展示，可重新生成
 l) 学情可视化：看板与学情页加图表（纯前端SVG或引入轻量图表库本地打包），错误类型分布饼图、学生正确率趋势折线图、班级对比条形图
 注意：备份/恢复(/api/backup)已实现数据迁移；k/l 是在其之上的新功能。
+
+m) 官网(GitHub Pages)：新建 gh-pages 分支放静态落地页，启用 Pages 自动部署
+   - 设计语言：从 styles.refero.design 选现成 DESIGN.md 风格（教师工具适合 Notion「warm paper」或 OpenAI「research lab」类温暖干净风格），禁止自创样式
+   - 内容必需：产品介绍、Windows exe 下载按钮(链 GitHub Releases/latest)、开发者署名与联系、开源协议说明、二维码赞赏入口(donate_qr.png 上传后加)
