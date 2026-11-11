@@ -104,9 +104,9 @@ async def update_review_settings(config: ReviewConfigIn, _: None = Depends(requi
 
 @router.get("/cost")
 async def get_cost_settings():
-    from ..models.grading_engine import get_cost_config
+    from ..models.grading_engine import get_cost_config, MODEL_PRICE_PRESETS
     cfg = get_cost_config()
-    return {"success": True, **cfg}
+    return {"success": True, **cfg, "presets": MODEL_PRICE_PRESETS}
 
 
 @router.post("/cost")
@@ -127,6 +127,29 @@ async def update_cost_settings(config: CostConfigIn):
         db.close()
     cfg = get_cost_config()
     return {"success": True, "message": "单价已保存", **cfg}
+
+
+@router.get("/budget")
+async def get_budget_settings():
+    """月度预算护栏（PRD 待办 j）：预算配置 + 本月已用"""
+    from ..models.budget import check_budget
+    return {"success": True, **check_budget()}
+
+
+class BudgetConfigIn(BaseModel):
+    monthly_budget: float = 0.0     # 元/月，0 = 不限
+    budget_action: str = "warn"     # warn = 只提示 / block = 超预算停止批改
+
+
+@router.post("/budget")
+async def update_budget_settings(config: BudgetConfigIn, _: None = Depends(require_admin)):
+    if config.monthly_budget < 0:
+        raise HTTPException(status_code=400, detail="预算不能为负数（0 = 不限）")
+    if config.budget_action not in ("warn", "block"):
+        raise HTTPException(status_code=400, detail="budget_action 须为 warn 或 block")
+    from ..models.budget import save_budget_config, check_budget
+    save_budget_config(config.monthly_budget, config.budget_action)
+    return {"success": True, "message": "预算设置已保存", **check_budget()}
 
 
 @router.get("/fallback")

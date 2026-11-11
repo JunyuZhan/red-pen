@@ -53,13 +53,34 @@
   <div class="sub">配置每 1K tokens 的单价（元），用于估算批改花费，仅保存在本机。</div>
 
   <label>输入单价（元 / 1K tokens）</label>
-  <input id="cost_input" type="number" step="0.01" min="0" placeholder="如 0.8">
+  <input id="cost_input" type="number" step="0.0001" min="0" placeholder="如 0.0008">
 
   <label>输出单价（元 / 1K tokens）</label>
-  <input id="cost_output" type="number" step="0.01" min="0" placeholder="如 2.0">
+  <input id="cost_output" type="number" step="0.0001" min="0" placeholder="如 0.002">
+
+  <label>价格预设（选模型自动填单价，2026-11 官方价，实际以厂商为准）</label>
+  <select id="price_preset" onchange="applyPreset()">
+    <option value="">— 选择模型 —</option>
+  </select>
 
   <button onclick="saveCost()">保存单价</button>
   <div class="msg" id="cost_msg"></div>
+
+  <h1 style="margin-top:18px;font-size:15px;">月度预算护栏</h1>
+  <div class="sub">设置每月花费上限（按批改记录估算累计）。超出后按所选方式处理；预算填 0 表示不限。</div>
+  <div id="budget_status" class="msg" style="min-height:22px;"></div>
+
+  <label>月度预算（元）</label>
+  <input id="budget_amount" type="number" step="1" min="0" value="0">
+
+  <label>超出预算后</label>
+  <select id="budget_action">
+    <option value="warn">只提示，继续批改</option>
+    <option value="block">停止批改新任务</option>
+  </select>
+
+  <button onclick="saveBudget()">保存预算</button>
+  <div class="msg" id="budget_msg"></div>
 
   <h1 style="margin-top:18px;font-size:15px;">成本估算器</h1>
   <div class="sub">按 PRD 4.3 公式估算：单份成本 ≈ 题目数 × (单题输入token × 输入单价 + 单题输出token × 输出单价)。厂商价格随时变，此处只给算法不给死价。</div>
@@ -266,6 +287,63 @@ async function loadCost() {
   if (d.success) {
     document.getElementById("cost_input").value = d.input;
     document.getElementById("cost_output").value = d.output;
+    const sel = document.getElementById("price_preset");
+    if (sel && Array.isArray(d.presets)) {
+      for (const p of d.presets) {
+        const o = document.createElement("option");
+        o.value = p.input + "," + p.output;
+        o.textContent = p.model + "（输入 " + p.input + " / 输出 " + p.output + " 元/1K）";
+        sel.appendChild(o);
+      }
+    }
+  }
+}
+
+function applyPreset() {
+  const v = document.getElementById("price_preset").value;
+  if (!v) return;
+  const [inp, outp] = v.split(",");
+  document.getElementById("cost_input").value = inp;
+  document.getElementById("cost_output").value = outp;
+}
+
+async function loadBudget() {
+  const r = await fetch("/api/settings/budget");
+  const d = await r.json();
+  if (!d.success) return;
+  document.getElementById("budget_amount").value = d.monthly_budget;
+  document.getElementById("budget_action").value = d.budget_action;
+  const st = document.getElementById("budget_status");
+  if (d.monthly_budget > 0) {
+    st.className = "msg " + (d.exceeded ? "err" : "ok");
+    st.textContent = "本月已用 " + d.spent + " 元 / 预算 " + d.monthly_budget + " 元（" + d.percent + "%）" +
+      (d.exceeded ? " — 已超预算" + (d.budget_action === "block" ? "，新批改已停止" : "，仅提示") : "");
+  } else {
+    st.className = "msg";
+    st.textContent = "本月已用 " + d.spent + " 元（未设预算）";
+  }
+}
+
+async function saveBudget() {
+  const msg = document.getElementById("budget_msg");
+  const body = {
+    monthly_budget: parseFloat(document.getElementById("budget_amount").value),
+    budget_action: document.getElementById("budget_action").value
+  };
+  if (isNaN(body.monthly_budget) || body.monthly_budget < 0) {
+    msg.className = "msg err"; msg.textContent = "❌ 预算须为不小于 0 的数字（0 = 不限）";
+    return;
+  }
+  try {
+    const r = await fetch("/api/settings/budget", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || d.error || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ " + d.message;
+    loadBudget();
+  } catch (e) {
+    msg.className = "msg err"; msg.textContent = "❌ " + e.message;
   }
 }
 
@@ -528,7 +606,7 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); loadConcurrency(); loadSplit(); loadReview(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadReview(); } });
 </script>
 </body>
 </html>

@@ -188,7 +188,7 @@ def _parse_llm_json(text: str) -> Optional[dict]:
 
 
 def get_cost_config() -> Dict[str, float]:
-    """读取单价配置（元/1K tokens），默认给个通义 qwen-vl-plus 的近似价"""
+    """读取单价配置（元/1K tokens），默认 qwen-vl-plus 官方价（¥0.8输入/¥2.0 每百万tokens）"""
     db = SessionLocal()
     try:
         rows = db.query(AppConfig).filter(
@@ -197,13 +197,13 @@ def get_cost_config() -> Dict[str, float]:
     finally:
         db.close()
     try:
-        inp = float(stored.get("cost_input_per_1k", 0.8))
+        inp = float(stored.get("cost_input_per_1k", 0.0008))
     except ValueError:
-        inp = 0.8
+        inp = 0.0008
     try:
-        out = float(stored.get("cost_output_per_1k", 2.0))
+        out = float(stored.get("cost_output_per_1k", 0.002))
     except ValueError:
-        out = 2.0
+        out = 0.002
     return {"input": inp, "output": out}
 
 
@@ -422,6 +422,16 @@ RECOMMENDED_VISION_MODELS = [
     {"provider": "qwen", "model": "qwen-vl-max", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问视觉旗舰，手写识别更准"},
     {"provider": "glm", "model": "glm-4v-flash", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉，有免费额度"},
     {"provider": "glm", "model": "glm-4v-plus", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉旗舰"},
+]
+
+# 模型价格预设表（PRD 待办 j）：单价 元/1K tokens，2026-11-11 按官方定价页核实（元/百万tokens 换算）
+# qwen-vl-plus 国际 $0.115/$0.287 每百万 ≈ ¥0.82/¥2.05；qwen3-vl-plus ¥1/¥10；glm-4v-flash 免费；glm-4v-plus ¥4/¥4
+MODEL_PRICE_PRESETS = [
+    {"model": "qwen-vl-plus", "input": 0.0008, "output": 0.002},
+    {"model": "qwen-vl-max", "input": 0.003, "output": 0.009},
+    {"model": "qwen3-vl-plus", "input": 0.001, "output": 0.010},
+    {"model": "glm-4v-flash", "input": 0.0, "output": 0.0},
+    {"model": "glm-4v-plus", "input": 0.004, "output": 0.004},
 ]
 
 # 错误信息中出现这些关键词 → 大概率是模型不支持视觉/图片输入

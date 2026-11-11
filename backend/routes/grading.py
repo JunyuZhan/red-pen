@@ -55,6 +55,14 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
     q = QUEUE.setdefault(submission_id, {"state": "queued", "duration_seconds": None, "error": None})
     q["state"] = "processing"
     t0 = time.monotonic()
+    # 月度预算护栏（PRD 待办 j）：block 模式下超预算停止新批改
+    from ..models.budget import check_budget
+    budget = check_budget()
+    if budget["exceeded"] and budget["budget_action"] == "block":
+        q["state"] = "failed"
+        q["error"] = f"本月已用 {budget['spent']:.2f} 元，已达预算上限 {budget['monthly_budget']:.2f} 元（设置页可调整）"
+        db.close()
+        return {"success": False, "error": q["error"], "budget": budget}
     try:
         template = None
         if template_id:
