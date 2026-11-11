@@ -51,7 +51,11 @@ red-pen/
 - 开发者：**JunyuZhan**
 - 邮箱：**397791043@qq.com**
 - 提 bug / 功能建议：[开 Issue](https://github.com/JunyuZhan/red-pen/issues)
-- 用户交流群：微信群（见 Release 页说明 / 联系邮箱拉群）
+
+## ☕ 请作者喝杯咖啡
+本软件对老师和学校**永久免费**（协议禁止商用）。如果它帮到了你，欢迎扫码赞赏——所有功能不会因为是否打赏而有任何区别。
+
+<p align="center"><img src="donate_qr.png" width="220" alt="微信赞赏码"></p>
 
 ## 许可证
 本项目采用 [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) 协议：
