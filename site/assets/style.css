@@ -149,3 +149,7 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 @media(prefers-reduced-motion: reduce){.shimmer-btn::after{display:none}}
 
 .hero-bg::after{content:'';position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(to bottom,transparent,var(--paper));pointer-events:none}
+
+/* 内测标识 */
+.beta-tag{display:inline-block;background:var(--marigold);color:#fff;font-size:11px;font-weight:700;border-radius:9999px;padding:2px 9px;margin-left:8px;vertical-align:2px;letter-spacing:1px}
+.beta-note{background:#fff8ec;border:1px solid rgba(255,177,16,0.35);border-radius:10px;padding:12px 16px;font-size:13.5px;color:#8a5b00;line-height:1.8;margin-top:16px}
