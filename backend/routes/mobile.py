@@ -11,6 +11,17 @@ from ..models.grade_scale import get_thresholds, compute_grade, accuracy_for_sub
 router = APIRouter()
 
 
+@router.get("/queue-counts")
+async def queue_counts(db: Session = Depends(get_db)):
+    """手机端顶部队列计数：已传N / 批改M / 完成K（全库统计）"""
+    total = db.query(Submission).count()
+    processing = db.query(Submission).filter(Submission.status == "processing").count()
+    completed = db.query(Submission).filter(Submission.status == "completed").count()
+    failed = db.query(Submission).filter(Submission.status == "failed").count()
+    return {"success": True, "total": total, "processing": processing,
+            "completed": completed, "failed": failed}
+
+
 @router.get("/list")
 async def list_submissions(db: Session = Depends(get_db)):
     """提交记录列表（工作台用）"""

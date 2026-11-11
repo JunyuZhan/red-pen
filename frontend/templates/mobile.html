@@ -50,7 +50,7 @@
 <header>
   <img src="/static/brand_logo.png" alt="logo" onerror="this.style.display='none'">
   <div class="t">红笔 <span>· 拍照批改</span></div>
-  <div class="badge">🔒 数据仅存本机</div>
+  <div class="badge" id="queue_badge">🔒 数据仅存本机</div>
 </header>
 <div class="wrap">
 <div class="card">
@@ -141,6 +141,20 @@ function fillStudents() {
 }
 $("class_sel").addEventListener("change", fillStudents);
 loadClasses();
+
+async function refreshQueueBadge() {
+  try {
+    const r = await fetch("/api/mobile/queue-counts");
+    const d = await r.json();
+    if (!d.success) return;
+    const parts = [`已传 ${d.total}`, `批改 ${d.processing}`, `完成 ${d.completed}`];
+    if (d.failed) parts.push(`失败 ${d.failed}`);
+    $("queue_badge").textContent = parts.join(" · ");
+    $("queue_badge").title = "🔒 数据仅存本机";
+  } catch (e) { /* 忽略瞬时错误 */ }
+}
+refreshQueueBadge();
+setInterval(refreshQueueBadge, 5000);
 
 let cdTimer = null, cdLeft = 0;
 
