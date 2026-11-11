@@ -247,7 +247,7 @@ async function poll() {
     if (d.status === "completed") { clearInterval(timer); show(d); }
     else if (d.status === "failed") {
       clearInterval(timer);
-      setStatus("❌ 批改失败" + (d.error_message ? `：${d.error_message}` : "，请检查设置页的 API Key")
+      setStatus("❌ 批改失败" + (d.error_message ? `：${friendlyError(d.error_message)}` : "，请检查设置页的 API Key")
         + "，请联系教师在电脑端重试"); }
   } catch (e) { /* 忽略瞬时错误 */ }
 }
@@ -291,5 +291,19 @@ function reset() {
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("mFooter").textContent = "红笔 RedPen " + d.version + " · 开发者 詹俊宇 · 数据仅存本机"; }).catch(()=>{});
 </script>
+
+// 把技术报错翻译成老师能看懂的话
+function friendlyError(msg){
+  msg = msg || "";
+  if (/401|Unauthorized|invalid.*key|无效的密钥|authentication/i.test(msg)) return "API Key 无效或已失效——请到设置页检查 Key 是否粘贴完整，必要时重新生成";
+  if (/402|insufficient|balance|余额/i.test(msg)) return "模型账户余额不足——请到模型官网充值后重试（余额永久有效）";
+  if (/429|rate.?limit|限流/i.test(msg)) return "请求太快被限流——等 1 分钟后点重试即可";
+  if (/timeout|timed? ?out|超时/i.test(msg)) return "网络超时——检查电脑网络和 VPN/代理设置后重试";
+  if (/connection|connect|refused|network|网络/i.test(msg)) return "网络连接失败——检查电脑能否上网，以及防火墙是否放行";
+  if (/vision|image|multimodal|不支持.*图|视觉/i.test(msg)) return "当前模型不支持图片识别——请到设置页换用支持视觉的模型（可点测试连接验证）";
+  if (/quality|模糊|blur/i.test(msg)) return "照片质量不达标——请在光线充足处对准作业整页重新拍摄";
+  return msg;
+}
+
 </body>
 </html>
