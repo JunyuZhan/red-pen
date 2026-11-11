@@ -8,7 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import asyncio
+import os
 import time
+from ..config import settings
 from ..logging_setup import get_logger
 from pydantic import BaseModel
 
@@ -140,6 +142,38 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             db.add(qr)
             if first_qr is None:
                 first_qr = qr
+
+        # 标注坐标以本地 CV 切题为准（PRD 六章：LLM 视觉定位精度不足）：
+        # CV 版面分析切出的区域数量与题目数一致时，按顺序用区域 bbox 覆盖引擎返回的坐标
+        try:
+            from ..models.question_splitter import split_questions
+            regions = split_questions(submission.original_image_path,
+                                      os.path.join(settings.DATA_DIR, "splits")) or None
+            if regions and len(regions) >= len(questions):
+                from PIL import Image as _Img
+                w = _Img.open(submission.original_image_path).size[0]
+                for i, qd in enumerate(questions):
+                    if i < len(regions):
+                        r = regions[i]
+                        qd["bbox"] = [0, r["top"], w, r["bottom"]]
+                get_logger().info("标注坐标改用CV切题区域: %s题/%s区域", len(questions), len(regions))
+        except Exception as e:
+            get_logger().warning("CV切题失败: %s", str(e)[:120])
+
+        # 兜底定位：CV没切出/数量不符时，按题目序号把标注均匀分布到整页（估算位置，
+        # 精确定位待 CV 切题调优后替换），避免所有标记挤在引擎给的同一个小区域
+        if regions is None or len(regions) < len(questions):
+            try:
+                from PIL import Image as _Img
+                _w, _h = _Img.open(submission.original_image_path).size
+                n = len(questions)
+                for i, qd in enumerate(questions):
+                    top = int(_h * (i + 0.15) / n)
+                    bot = int(_h * (i + 0.95) / n)
+                    qd["bbox"] = [0, top, _w, bot]
+                get_logger().info("标注使用均匀分布估算定位: %s题", n)
+            except Exception:
+                pass
 
         # 红笔回显
         annotated = annotate_image(submission.original_image_path, questions,
