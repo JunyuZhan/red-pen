@@ -19,6 +19,12 @@ FONT_SIZE_RATIO = 0.035  # 相对图片宽度的字号
 
 def _load_font(size: int) -> ImageFont.FreeTypeFont:
     candidates = [
+        # Windows 中文字体
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/msyhbd.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/simsun.ttc",
+        # Linux 中文字体
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",

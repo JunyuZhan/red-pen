@@ -3,3 +3,6 @@ __pycache__/
 data/
 *.db
 .env
+build/
+dist/
+*.spec.bak

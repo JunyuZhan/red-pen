@@ -4,6 +4,12 @@
 
 from pydantic_settings import BaseSettings
 from pathlib import Path
+import sys
+
+# PyInstaller 打包(frozen)时：资源解包目录 sys._MEIPASS，可写数据放 exe 同目录
+FROZEN = getattr(sys, "frozen", False)
+APP_DIR = Path(sys.executable).parent if FROZEN else Path(".")
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", "."))
 
 class Settings(BaseSettings):
     # 基础配置
@@ -13,12 +19,19 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8080
     
-    # 数据库配置
-    DATA_DIR: Path = Path("./data")
-    DATABASE_URL: str = "sqlite:///./data/red_pen.db"
-    
+    # 数据库配置（打包后数据目录放在 exe 同级，保证可写）
+    if FROZEN:
+        DATA_DIR: Path = APP_DIR / "data"
+        DATABASE_URL: str = f"sqlite:///{(APP_DIR / 'data' / 'red_pen.db').as_posix()}"
+    else:
+        DATA_DIR: Path = Path("./data")
+        DATABASE_URL: str = "sqlite:///./data/red_pen.db"
+
     # 上传配置
-    UPLOAD_DIR: Path = Path("./data/uploads")
+    if FROZEN:
+        UPLOAD_DIR: Path = DATA_DIR / "uploads"
+    else:
+        UPLOAD_DIR: Path = Path("./data/uploads")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_EXTENSIONS: list = ["jpg", "jpeg", "png", "webp"]
     

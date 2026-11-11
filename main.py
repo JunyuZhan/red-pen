@@ -18,12 +18,13 @@ if __name__ == "__main__":
     print(f"📡 访问地址: http://{settings.HOST}:{settings.PORT}")
     print(f"📱 手机扫码访问: http://{settings.HOST}:{settings.PORT}/mobile")
     
-    # 启动FastAPI服务器
+    # 启动FastAPI服务器（打包后禁用 reload）
     import uvicorn
+    from backend.config import FROZEN
     uvicorn.run(
         app,
         host=settings.HOST,
         port=settings.PORT,
-        reload=settings.DEBUG,
+        reload=settings.DEBUG and not FROZEN,
         log_level="info"
     )

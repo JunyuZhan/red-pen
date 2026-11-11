@@ -38,14 +38,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件（目录可能尚不存在，不能让启动崩溃）
+# 静态文件（目录可能尚不存在，不能让启动崩溃）；PyInstaller 打包后资源在 _MEIPASS
 from pathlib import Path as _Path
-if _Path("frontend/static").exists():
+from backend.config import RESOURCE_DIR as _RES
+if (_Path("frontend/static")).exists():
     app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+elif (_RES / "frontend" / "static").exists():
+    app.mount("/static", StaticFiles(directory=str(_RES / "frontend" / "static")), name="static")
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 # 模板引擎
-templates = Jinja2Templates(directory="frontend/templates")
+if (_RES / "frontend" / "templates").exists():
+    templates = Jinja2Templates(directory=str(_RES / "frontend" / "templates"))
+else:
+    templates = Jinja2Templates(directory="frontend/templates")
 
 import inspect as _inspect
 
@@ -92,7 +98,9 @@ async def mobile_page(request: Request):
 # 设置页面
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page():
-    with open("frontend/templates/settings.html", encoding="utf-8") as f:
+    _tpl = _RES / "frontend" / "templates" / "settings.html"
+    _tpl_path = _tpl if _tpl.exists() else _Path("frontend/templates/settings.html")
+    with open(_tpl_path, encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 # 健康检查
