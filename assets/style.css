@@ -157,3 +157,7 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 /* Hero背景与导航无缝衔接: 背景从导航底开始, 空隙收进背景内部 */
 #hero{margin-top:0;padding-top:56px}
 @media(max-width:800px){#hero{padding-top:28px}}
+
+/* hero-meta 手机端在固定点换行, 不拆人名 */
+.hm-br{display:inline}
+@media(max-width:800px){.hm-br{display:block}}
