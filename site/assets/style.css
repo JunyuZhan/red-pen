@@ -117,3 +117,7 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
   .story-panel{padding:24px 18px}
   .sp-emoji{font-size:36px}.sp-title{font-size:17px;margin-top:8px}
 }
+
+/* 多层视差纵深 */
+#hero{position:relative}
+#hero .mtn{will-change:transform}
