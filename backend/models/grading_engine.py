@@ -145,6 +145,7 @@ def _build_prompt(question_type: str, subject: str, answers: Optional[Dict[str, 
         '"student_answer": "学生答案摘要", '
         '"correct_answer": "正确答案摘要", '
         '"analysis": "简要分析", '
+        '"knowledge_point": "该题考查的知识点（如：两位数乘法、拼音声调），一句话，拿不准就留空", '
         '"confidence": 0.0到1.0, '
         '"bbox": [x1, y1, x2, y2] 或 null}\n'
         "  ],\n"

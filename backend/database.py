@@ -107,6 +107,7 @@ class QuestionResult(Base):
     submission_id = Column(Integer, nullable=False)
     question_no = Column(Integer, nullable=False)
     question_type = Column(String(50), nullable=False)
+    knowledge_point = Column(Text, nullable=True)  # LLM 识别的知识点名称（如“两位数乘法”）
     knowledge_point_id = Column(Integer, nullable=True)
     student_answer_text = Column(Text, nullable=True)
     correct_answer_text = Column(Text, nullable=True)
@@ -162,6 +163,8 @@ def init_db():
             conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN needs_review INTEGER DEFAULT 0")
         if "review_note" not in qcols:
             conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN review_note TEXT")
+        if "knowledge_point" not in qcols:
+            conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN knowledge_point TEXT")
         conn.commit()
 
     # 插入默认数据

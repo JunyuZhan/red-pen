@@ -373,6 +373,18 @@ async function loadAnalytics() {
     `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px;color:#555;">` +
     `<span style="width:10px;height:10px;border-radius:3px;display:inline-block;background:${jdColors[k]||"#999"}"></span>` +
     `${jdNames[k]||k} ${Math.round(v/total_j*100)}%</span>`).join("");
+  const kps = (d.knowledge_points || []);
+  const kpRows = kps.map(k => {
+    const acc = k.accuracy == null ? "-" : (k.accuracy * 100).toFixed(0) + "%";
+    const color = k.accuracy == null ? "#555" : k.accuracy >= 0.85 ? "#27ae60" : k.accuracy >= 0.7 ? "#f39c12" : "#e74c3c";
+    return `<tr><td>${esc(k.name)}</td><td>${k.total}</td><td>${k.correct}</td><td style="color:${color};font-weight:bold;">${acc}</td></tr>`;
+  }).join("");
+  const kpBlock = kps.length ? `
+    <p style="margin:14px 0 6px;font-size:14px;"><b>知识点掌握情况</b>（薄弱知识点排前面，正确率由 AI 识别的考点统计）</p>
+    <table>
+      <thead><tr><th>知识点</th><th>总题数</th><th>正确</th><th>掌握率</th></tr></thead>
+      <tbody>${kpRows}</tbody>
+    </table>` : "";
   body.innerHTML = `
     <p style="margin:0 0 14px;font-size:14px;">共批改 <b>${d.total_questions}</b> 题 ·
       待复核 <b style="color:#c0392b;">${d.needs_review_count}</b> 题</p>
@@ -398,6 +410,7 @@ async function loadAnalytics() {
         <tbody>${stuRows || `<tr><td colspan="4" class="hint">暂无数据</td></tr>`}</tbody>
       </table>
     </details>
+    ${kpBlock}
     <p style="margin:14px 0 6px;font-size:14px;"><b>待复核题目（置信度 &lt; 60%）</b></p>
     <table>
       <thead><tr><th>提交</th><th>题号</th><th>判定</th><th>置信度</th><th>复核修正</th></tr></thead>

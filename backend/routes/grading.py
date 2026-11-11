@@ -110,6 +110,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                 submission_id=submission.id,
                 question_no=int(qd.get("question_no") or 0) or 1,
                 question_type=qd.get("question_type") or "default",
+                knowledge_point=(qd.get("knowledge_point") or None) or None,
                 student_answer_text=qd.get("student_answer"),
                 correct_answer_text=qd.get("correct_answer"),
                 llm_raw_output=result.get("raw_output"),
