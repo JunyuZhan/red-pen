@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="images/brand/logo_square.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css?v=5">
+<link rel="stylesheet" href="assets/style.css?v=6">
 </head>
 <body>
 <nav>
@@ -151,17 +151,17 @@
   <div class="kicker">Product</div>
   <h2 class="heading">真实界面预览</h2>
   <div class="card" style="margin-top:32px;padding:12px">
-    <img loading="lazy" src="images/site_workbench.jpg" width="1600" height="3560" alt="教师工作台" style="width:100%;height:auto;border-radius:8px;display:block">
+    <img loading="lazy" class="shimmer-img" src="images/site_workbench.jpg" onload="this.classList.remove('shimmer-img')" width="1600" height="3560" alt="教师工作台" style="width:100%;height:auto;border-radius:8px;display:block">
     <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">教师工作台（PC 端）：提交记录 · 班级管理 · 成本统计 · 学情分析</p>
   </div>
   <div class="card" style="margin-top:16px;padding:12px">
-    <img loading="lazy" src="images/analytics.jpg" width="1600" height="1424" alt="学情分析" style="width:100%;height:auto;border-radius:8px;display:block">
+    <img loading="lazy" class="shimmer-img" src="images/analytics.jpg" onload="this.classList.remove('shimmer-img')" width="1600" height="1424" alt="学情分析" style="width:100%;height:auto;border-radius:8px;display:block">
     <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">学情分析：学生正确率排名 · 错误类型分布 · 判定分布环形图 · 低置信度题目人工复核</p>
   </div>
   <div style="display:flex;justify-content:center;margin-top:24px">
     <figure style="margin:0;max-width:300px;text-align:center">
       <div style="border:8px solid var(--midnight);border-radius:24px;overflow:hidden;background:var(--midnight)">
-        <img loading="lazy" src="images/site_mobile.jpg" width="780" height="1688" alt="手机拍照页" style="width:100%;height:auto;display:block">
+        <img loading="lazy" class="shimmer-img" src="images/site_mobile.jpg" onload="this.classList.remove('shimmer-img')" width="780" height="1688" alt="手机拍照页" style="width:100%;height:auto;display:block">
       </div>
       <figcaption style="font-size:13px;color:var(--stone);margin-top:10px">手机端（真实手机比例）：扫码即开，拍照上传</figcaption>
     </figure>
@@ -172,7 +172,7 @@
   <div class="dl-card" id="download-card">
     <div class="kicker" style="color:rgba(255,255,255,0.5)">Download</div>
     <h2>立即下载</h2>
-    <a class="btn btn-primary" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ Windows 版 RedPen.exe</a>
+    <a class="btn btn-primary shimmer-btn" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ Windows 版 RedPen.exe</a>
     <p class="dl-note">免安装单文件 · 数据存于 exe 同级 data 文件夹，备份该文件夹即备份全部数据<br>
     首次运行若提示"Windows 已保护你的电脑"，点"更多信息 → 仍要运行"；杀毒软件误报请添加信任<br>
     请始终从本页或 GitHub Releases 官方渠道下载</p>
@@ -195,16 +195,16 @@
       </div>
       <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:center">
         <figure style="margin:0;text-align:center">
-          <img loading="lazy" src="images/qq_group_qr.png" width="364" height="362" alt="QQ交流群二维码" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block">
+          <img loading="lazy" class="shimmer-img" src="images/qq_group_qr.png" width="364" height="362" alt="QQ交流群二维码" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block">
           <figcaption style="font-size:12px;color:var(--stone);margin-top:6px">QQ 扫码进群</figcaption>
         </figure>
         <figure style="margin:0;text-align:center">
-          <img loading="lazy" src="images/wechat_qr.png" width="352" height="352" alt="微信联系作者" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block">
+          <img loading="lazy" class="shimmer-img" src="images/wechat_qr.png" width="352" height="352" alt="微信联系作者" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block">
           <figcaption style="font-size:12px;color:var(--stone);margin-top:6px">微信加作者</figcaption>
         </figure>
       </div>
       <div style="text-align:center">
-        <img loading="lazy" src="images/donate_qr.png" width="330" height="332" alt="微信赞赏码" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block;margin:0 auto">
+        <img loading="lazy" class="shimmer-img" src="images/donate_qr.png" width="330" height="332" alt="微信赞赏码" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block;margin:0 auto">
         <figcaption style="font-size:12px;color:var(--stone);margin-top:6px">☕ 赞赏作者（完全自愿）</figcaption>
       </div>
     </div>
