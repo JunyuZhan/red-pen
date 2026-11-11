@@ -402,9 +402,14 @@ async function loadAnalytics() {
       <thead><tr><th>知识点</th><th>总题数</th><th>正确</th><th>掌握率</th></tr></thead>
       <tbody>${kpRows}</tbody>
     </table>` : "";
+    // AI 一致率（待办 o）
+    const ag = d.ai_agreement || {};
+    const agLine = ag.reviewed_total > 0
+      ? ` · 🤖 AI 判定与教师确认一致率 <b style="color:${ag.rate >= 0.9 ? "#27ae60" : "#f39c12"};">${(ag.rate * 100).toFixed(0)}%</b>（已复核 ${ag.reviewed_total} 题：一致 ${ag.agree}，改判 ${ag.disagree}）`
+      : ` · 🤖 AI 一致率：暂无教师复核记录`;
   body.innerHTML = `
     <p style="margin:0 0 14px;font-size:14px;">共批改 <b>${d.total_questions}</b> 题 ·
-      待复核 <b style="color:#c0392b;">${d.needs_review_count}</b> 题</p>
+      待复核 <b style="color:#c0392b;">${d.needs_review_count}</b> 题${agLine}</p>
     <div style="display:flex;flex-wrap:wrap;gap:24px;margin-bottom:16px;">
       <div style="flex:1;min-width:260px;">
         <p style="margin:0 0 6px;font-size:14px;"><b>学生正确率</b>（按正确率排序）</p>

@@ -83,6 +83,18 @@ async def analytics(db: Session = Depends(get_db)):
         })
     knowledge_points.sort(key=lambda x: (x["accuracy"] if x["accuracy"] is not None else 1.1, -x["total"]))
 
+    # AI 一致率统计（待办 o）：teacher_override 与原始判定 judgement_raw 对账
+    # 口径：teacher_override 非空的题视为"教师已复核"；一致率 = 判定与原始一致 / 已复核总数
+    reviewed = [r for r in results if r.teacher_override]
+    agree = sum(1 for r in reviewed
+                if r.judgement_raw == r.teacher_override)
+    ai_agreement = {
+        "reviewed_total": len(reviewed),
+        "agree": agree,
+        "disagree": len(reviewed) - agree,
+        "rate": round(agree / len(reviewed), 3) if reviewed else None,
+    }
+
     return {
         "success": True,
         "total_questions": len(results),
@@ -92,6 +104,7 @@ async def analytics(db: Session = Depends(get_db)):
         "students": students_stat,
         "needs_review_count": len(needs_review),
         "needs_review": needs_review[:20],
+        "ai_agreement": ai_agreement,
     }
 
 
