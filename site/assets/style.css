@@ -122,3 +122,19 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 
 /* 多层视差纵深 */
 #hero .mtn{will-change:transform}
+
+/* 跑马灯 Marquee */
+.marquee-wrap{overflow:hidden;margin-top:36px;--mq-mask:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);-webkit-mask-image:var(--mq-mask);mask-image:var(--mq-mask)}
+.mq-row{display:flex;width:max-content;gap:16px;padding:8px 0}
+.mq-row+.mq-row{margin-top:8px}
+.mq-track{display:flex;gap:16px;align-items:stretch;animation:mq 38s linear infinite}
+.mq-row.mq-reverse .mq-track{animation:mqr 26s linear infinite}
+.marquee-wrap:hover .mq-track{animation-play-state:paused}
+@keyframes mq{from{transform:translateX(0)}to{transform:translateX(calc(-100% - 16px))}}
+@keyframes mqr{from{transform:translateX(calc(-100% - 16px))}to{transform:translateX(0)}}
+.mq-card{background:var(--white);border:var(--hairline);border-radius:14px;padding:16px 20px;width:300px;flex-shrink:0}
+.mq-card b{font-size:14px}
+.mq-card p{font-size:13.5px;color:var(--slate);line-height:1.8;margin:6px 0}
+.mq-card span{color:var(--marigold);font-size:13px;letter-spacing:2px}
+.mq-tag{background:var(--white);border:var(--hairline);border-radius:9999px;padding:10px 22px;font-size:14px;white-space:nowrap;display:flex;align-items:center;flex-shrink:0}
+@media(prefers-reduced-motion: reduce){.mq-track{animation:none}.marquee-wrap{overflow-x:auto;-webkit-mask-image:none;mask-image:none}}
