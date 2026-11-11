@@ -13,6 +13,7 @@
   select, input { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
   .hint { font-size: 12px; color: #999; margin-top: 4px; }
   button { width: 100%; margin-top: 22px; padding: 12px; background: #c0392b; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+  button.ghost { width: auto; padding: 8px 14px; background: #fff; color: #c0392b; border: 1px solid #c0392b; margin-top: 22px; }
   button:hover { background: #a93226; }
   .msg { margin-top: 14px; font-size: 14px; min-height: 18px; }
   .ok { color: #27ae60; } .err { color: #c0392b; }
@@ -42,7 +43,9 @@
   <div class="hint" id="key_hint"></div>
 
   <button onclick="save()">保存配置</button>
+  <button onclick="testConn('main')" class="ghost" style="margin-left:8px">测试连接</button>
   <div class="msg" id="msg"></div>
+  <div class="msg" id="test_msg" style="min-height:22px;"></div>
 </div>
 
 <div class="card" style="margin-top:20px">
@@ -100,7 +103,16 @@
   <div class="hint" id="fb_key_hint"></div>
 
   <button onclick="saveFallback()">保存备用配置</button>
+  <button onclick="testConn('fallback')" class="ghost" style="margin-left:8px">测试备用连接</button>
   <div class="msg" id="fb_msg"></div>
+  <div class="msg" id="fb_test_msg" style="min-height:22px;"></div>
+</div>
+
+<!-- 推荐视觉模型清单 -->
+<div class="card" style="margin-top:20px">
+  <h1>推荐视觉模型（支持手写作业图片识别）</h1>
+  <div class="sub">批改必须用支持图片输入的视觉模型；纯文本模型（如 DeepSeek 对话模型）无法识别作业照片。以下为常用选择，价格以厂商官网为准。</div>
+  <div id="rec_models" style="font-size:13px;line-height:1.8;margin-top:8px;color:#444"></div>
 </div>
 
 <!-- 关于红笔（开发者署名与联系） -->
@@ -322,6 +334,37 @@ async function saveFallback() {
   }
 }
 
+// ---------- 连接测试（待办 c：实测视觉输入 + Key 有效性） ----------
+async function testConn(target) {
+  const out = document.getElementById(target === "fallback" ? "fb_test_msg" : "test_msg");
+  out.className = "msg"; out.textContent = "⏳ 正在用内置测试图实测连接（约几秒）…";
+  try {
+    const r = await fetch("/api/settings/test-connection", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || "请求失败");
+    if (d.success) {
+      out.className = "msg ok"; out.textContent = "✅ " + d.message;
+    } else {
+      out.className = "msg err"; out.textContent = "❌ " + d.message + (d.detail ? "（详情：" + d.detail + "）" : "");
+    }
+  } catch (e) {
+    out.className = "msg err"; out.textContent = "❌ " + e.message;
+  }
+}
+
+function loadRecModels() {
+  const recs = [
+    ["通义千问（阿里云百炼）", "qwen-vl-plus", "性价比高，日常批改首选；qwen-vl-max 识别更准"],
+    ["智谱 GLM（bigmodel）", "glm-4v-flash", "有免费额度；glm-4v-plus 为旗舰"],
+  ];
+  document.getElementById("rec_models").innerHTML = recs.map(r =>
+    `<div>• <b>${r[0]}</b>（服务商选对应项即可）— 推荐模型：<code>${r[1]}</code>，${r[2]}</div>`
+  ).join("") + `<div style="margin-top:6px;color:#999">提示：DeepSeek 官方对话模型为纯文本，不支持图片输入，不能用于拍照批改。</div>`;
+}
+
 // ---------- 管理员 PIN 解锁 ----------
 async function ensureAdmin() {
   const s = await (await fetch("/api/auth/pin-status")).json();
@@ -373,7 +416,7 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); } });
 </script>
 </body>
 </html>

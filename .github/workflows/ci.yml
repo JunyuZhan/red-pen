@@ -107,6 +107,8 @@ jobs:
             assert token in r.text, f"设置页缺少合规提示内容：{token}"
         for token in ["备用引擎（自动切换）", "备用服务商", "saveFallback"]:
             assert token in r.text, f"设置页缺少备用引擎卡片：{token}"
+        for token in ["测试连接", "testConn", "推荐视觉模型"]:
+            assert token in r.text, f"设置页缺少测试连接/推荐模型：{token}"
         print("✅ 设置页备用引擎卡片齐全")
         print("✅ 设置页数据合规提示卡片齐全")
         print("✅ 页面路由 / 与 /settings")
@@ -154,6 +156,14 @@ jobs:
         for f in main.py requirements.txt README.md backend/app.py backend/config.py backend/database.py backend/models/grading_engine.py backend/routes/grading.py backend/routes/settings.py; do
           test -f "$f" || { echo "❌ $f 不存在"; exit 1; }
           echo "✅ $f 存在"
+        done
+
+    - name: Test-suite (tests/)
+      run: |
+        set -e
+        for t in tests/smoke_*.py tests/test_*.py; do
+          echo "▶ $t"
+          PYTHONPATH=. python "$t"
         done
 
 

@@ -253,7 +253,9 @@ class GradingEngine:
             for attempt in range(settings.LLM_MAX_RETRIES):
                 try:
                     resp = await client.post(self._chat_url(), json=data, headers=headers)
-                    resp.raise_for_status()
+                    if resp.status_code >= 400:
+                        # 保留响应体里的厂商错误信息（如 Invalid API key / 不支持图片），便于给出明确提示
+                        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
                     return self._parse_response(resp.json(), answers=answers)
                 except Exception as e:
                     last_error = e
@@ -360,3 +362,83 @@ class GradingManager:
 
 # 全局批改管理器实例
 grading_manager = GradingManager()
+
+
+# ---------- 连接测试（设置页"测试连接"按钮，PRD 待办 c） ----------
+
+# 推荐视觉模型清单：这些都是 OpenAI 兼容接口、明确支持图片输入的模型
+RECOMMENDED_VISION_MODELS = [
+    {"provider": "qwen", "model": "qwen-vl-plus", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问视觉，性价比高，日常批改首选"},
+    {"provider": "qwen", "model": "qwen-vl-max", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问视觉旗舰，手写识别更准"},
+    {"provider": "glm", "model": "glm-4v-flash", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉，有免费额度"},
+    {"provider": "glm", "model": "glm-4v-plus", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉旗舰"},
+]
+
+# 错误信息中出现这些关键词 → 大概率是模型不支持视觉/图片输入
+_NOT_VISION_HINTS = (
+    "does not support image", "not support image", "image input",
+    "image_url", "invalid image", "unsupported content", "multimodal",
+    "content must be", "text-only", "不支持图片", "不支持图像", "多模态",
+)
+
+
+def _make_test_image(path: str) -> None:
+    """生成一张内置测试图：手写风格的 1+1=2，用于实测视觉输入链路"""
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new("RGB", (320, 160), "white")
+    d = ImageDraw.Draw(img)
+    font = None
+    for fp in ("C:/Windows/Fonts/msyh.ttc", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
+        try:
+            font = ImageFont.truetype(fp, 48)
+            break
+        except Exception:
+            continue
+    if font is None:
+        font = ImageFont.load_default()
+    d.text((60, 50), "1+1=2", fill="black", font=font)
+    img.save(path, "JPEG")
+
+
+def _explain_error(error: str) -> Dict[str, Any]:
+    """把底层报错翻译成老师能看懂的提示"""
+    e = error.lower()
+    if "401" in e or "unauthorized" in e or "invalid api key" in e or "api key" in e and "invalid" in e:
+        return {"kind": "auth", "message": "API Key 无效或已过期，请检查 Key 是否填对。"}
+    if "404" in e or "not found" in e or "no such model" in e or "model not exist" in e:
+        return {"kind": "model", "message": "模型名称不存在，请检查模型名是否拼写正确（注意区分字母和横线）。"}
+    if "429" in e or "rate limit" in e:
+        return {"kind": "rate_limit", "message": "请求太频繁或余额/额度不足，请稍后重试或检查账户余额。"}
+    if "timeout" in e or "timed out" in e or "connect" in e:
+        return {"kind": "network", "message": "连不上服务商服务器：请检查网络、Base URL 是否填对（一般以 /v1 结尾）。"}
+    if any(h in e for h in _NOT_VISION_HINTS):
+        return {"kind": "not_vision", "message": "当前模型不支持图片输入（纯文本模型）。请改用视觉模型，如 qwen-vl-plus、glm-4v-flash 等。"}
+    return {"kind": "unknown", "message": error}
+
+
+async def test_connection(provider: str, base_url: str, model: str, api_key: str) -> Dict[str, Any]:
+    """用一张内置测试图实测：Key 是否有效、模型是否支持视觉输入"""
+    if not base_url or not model:
+        return {"success": False, "kind": "config", "message": "配置不完整：请先填写 Base URL 和模型名称并保存。"}
+    if not api_key:
+        return {"success": False, "kind": "config", "message": "尚未配置 API Key，请先填写并保存。"}
+    try:
+        import tempfile, os
+        fd, img_path = tempfile.mkstemp(suffix=".jpg")
+        os.close(fd)
+        try:
+            _make_test_image(img_path)
+            engine = GradingEngine(api_key, model, base_url)
+            result = await engine.grade(img_path, "short_answer", "数学")
+        finally:
+            try:
+                os.unlink(img_path)
+            except OSError:
+                pass
+    except Exception as e:
+        explanation = _explain_error(str(e))
+        return {"success": False, "kind": explanation["kind"], "message": explanation["message"], "detail": str(e)}
+    if result.get("success"):
+        return {"success": True, "message": f"连接成功：模型 {model} 可正常接收图片并返回批改结果，视觉输入链路畅通。"}
+    explanation = _explain_error(result.get("error", ""))
+    return {"success": False, "kind": explanation["kind"], "message": explanation["message"], "detail": result.get("error", "")}

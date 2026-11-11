@@ -31,6 +31,30 @@ class CostConfigIn(BaseModel):
     cost_output_per_1k: float
 
 
+class TestConnectionIn(BaseModel):
+    target: str = "main"                # main / fallback
+    base_url: Optional[str] = None      # 留空 = 用已保存的配置
+    model: Optional[str] = None
+    api_key: Optional[str] = None       # 留空 = 用已保存的 Key
+
+
+@router.post("/test-connection")
+async def test_llm_connection(config: TestConnectionIn):
+    """设置页"测试连接"按钮：用内置测试图实测当前引擎是否支持视觉输入、Key 是否有效"""
+    from ..models.grading_engine import test_connection as run_test, get_llm_config
+    if config.target == "fallback":
+        saved = get_fallback_config()
+    else:
+        saved = get_llm_config()
+    base_url = (config.base_url or "").strip() or saved.get("base_url", "")
+    model = (config.model or "").strip() or saved.get("model", "")
+    api_key = (config.api_key or "").strip() or saved.get("api_key", "")
+    result = await run_test(saved.get("provider", ""), base_url, model, api_key)
+    from ..models.grading_engine import RECOMMENDED_VISION_MODELS
+    return {"success": result.get("success", False), **result,
+            "recommendations": RECOMMENDED_VISION_MODELS}
+
+
 @router.get("/cost")
 async def get_cost_settings():
     from ..models.grading_engine import get_cost_config
