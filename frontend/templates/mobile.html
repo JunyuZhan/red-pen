@@ -287,6 +287,9 @@ function reset() {
   setStatus("");
 }
 </script>
-<footer>红笔 RedPen · 开发者 詹俊宇 · 数据仅存本机</footer>
+<footer id="mFooter">红笔 RedPen · 开发者 詹俊宇 · 数据仅存本机</footer>
+<script>
+fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("mFooter").textContent = "红笔 RedPen " + d.version + " · 开发者 詹俊宇 · 数据仅存本机"; }).catch(()=>{});
+</script>
 </body>
 </html>

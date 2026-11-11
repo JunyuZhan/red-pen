@@ -204,6 +204,7 @@
 <div class="card" style="margin-top:20px;border-left:4px solid #8B5CF6">
   <h1 style="font-size:16px">✍️ 关于红笔 RedPen</h1>
   <div style="font-size:13px;color:#555;line-height:1.9;margin-top:10px">
+    <b>当前版本</b>：<span id="appVersion">读取中…</span><br>
     <b>开发者</b>：詹俊宇<br>
     <b>用户交流QQ群</b>：984644289（Redpen交流群）<br>
     <b>联系邮箱</b>：<a href="mailto:junyuzhan@outlook.com">junyuzhan@outlook.com</a><br>
@@ -670,6 +671,9 @@ async function saveGrade() {
 }
 
 ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadPreprocess(); loadReview(); loadGrade(); } });
+</script>
+<script>
+fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });
 </script>
 </body>
 </html>
