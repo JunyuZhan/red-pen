@@ -34,7 +34,7 @@ n) 作业等级换算：作业维度正确率→等级(默认 A≥90/B≥75/C≥
 o) AI 一致率统计：teacher_override 与原始判定对账，学情页显示"AI判定与教师确认一致率%"（真实准确率指标）
 p) 首次启动三步引导：学段/学科/班级选择页+localStorage默认记住+工作台顶部上下文切换器（PRD二章）
 q) 手机端5秒倒计时预览+撤销重拍+顶部队列计数(已传N/批改M/完成K)（PRD五章）✅
-r) 图像预处理：EXIF校正+透视纠偏+CLAHE（PRD六章，切题前置）✅（透视纠偏未做，EXIF+对比度+裁边已做）
+r) 图像预处理：EXIF校正+透视纠偏+CLAHE（PRD六章，切题前置）✅（透视纠偏v0.4.5已做：Otsu四角检测+QUAD拉正；CLAHE未做，低对比度走autocontrast替代）
 s) 多次采样一致性：已由低置信度二次复核 review.py mode=resample 覆盖 ✅
 t) LLM教学建议：✅ backend/models/teaching_advice.py + /api/analytics/teaching-advice(/generate) + 学情页"AI教学建议"卡片（prompt锁定只引用输入数据，纯文本低成本调用，存teaching_advice表，可重新生成）
 u) 学段/学科配置表驱动 subject_config ✅（setup向导/引导页已表驱动；grading_engine默认值"数学"仅作回退，保留）
