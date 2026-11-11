@@ -1,57 +1,77 @@
-"""待办 o：AI 一致率统计（teacher_override 与 judgement_raw 对账）"""
+# -*- coding: utf-8 -*-
+"""待办 o：AI 一致率统计（teacher_override 与 judgement_raw 对账）— pytest 原生版"""
+import os
+import sys
+import tempfile
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import pytest
 from fastapi.testclient import TestClient
 
-from backend.database import Base, engine, SessionLocal, QuestionResult, Submission, Student, Class, Assignment
-from backend.app import app
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
-PASS = 0
-FAIL = 0
 
-def check(name, cond):
-    global PASS, FAIL
-    if cond:
-        PASS += 1
-    else:
-        FAIL += 1
-        print(f"FAIL: {name}")
+@pytest.fixture()
+def agreement_env():
+    """独立临时库 + get_db 覆盖，结束恢复原状。"""
+    import backend.database as dbmod
+    from backend.app import app
+    from backend.database import get_db
 
-# 独立临时库
-import backend.database as dbmod
-dbmod.DATABASE_URL = "sqlite:///./test_agreement.db"
-dbmod.engine = dbmod.create_engine(dbmod.DATABASE_URL, connect_args={"check_same_thread": False})
-Base.metadata.create_all(dbmod.engine)
-dbmod.SessionLocal = dbmod.sessionmaker(bind=dbmod.engine, autoflush=False)
-from backend.database import get_db
-def override_get_db():
-    s = dbmod.SessionLocal()
-    try:
-        yield s
-    finally:
-        s.close()
-app.dependency_overrides[get_db] = override_get_db
+    tmp = tempfile.mkdtemp(prefix="rp_agree_")
+    url = "sqlite:///" + os.path.join(tmp, "test_agreement.db")
+    old = (dbmod.engine, dbmod.SessionLocal)
+    dbmod.DATABASE_URL = url
+    dbmod.engine = dbmod.create_engine(url, connect_args={"check_same_thread": False})
+    dbmod.Base.metadata.create_all(dbmod.engine)
+    dbmod.SessionLocal = dbmod.sessionmaker(bind=dbmod.engine, autoflush=False)
 
-client = TestClient(app)
+    def override_get_db():
+        s = dbmod.SessionLocal()
+        try:
+            yield s
+        finally:
+            s.close()
 
-# 登录：analytics 接口需要管理员 PIN cookie
-from backend.config import settings
-_r = client.post("/api/auth/pin-login", json={"pin": settings.ADMIN_PIN})
-check("PIN 登录", _r.status_code == 200)
+    app.dependency_overrides[get_db] = override_get_db
+    yield dbmod
+    app.dependency_overrides.pop(get_db, None)
+    dbmod.engine.dispose()
+    if hasattr(dbmod, "DATABASE_URL"):
+        del dbmod.DATABASE_URL
+    dbmod.engine, dbmod.SessionLocal = old
 
-def seed():
+
+@pytest.fixture()
+def client(agreement_env):
+    from backend.app import app
+    from backend.config import settings
+
+    c = TestClient(app)
+    r = c.post("/api/auth/pin-login", json={"pin": settings.ADMIN_PIN})
+    assert r.status_code == 200
+    return c
+
+
+def _seed(dbmod):
+    from backend.database import Assignment, Class, QuestionResult, Student, Submission
+
     db = dbmod.SessionLocal()
-    Base.metadata.drop_all(dbmod.engine)
-    Base.metadata.create_all(dbmod.engine)
+    dbmod.Base.metadata.drop_all(dbmod.engine)
+    dbmod.Base.metadata.create_all(dbmod.engine)
     cls = Class(name="一班", teacher_id=1, stage_id=1, subject_id=1)
-    db.add(cls); db.commit()
+    db.add(cls)
+    db.commit()
     stu = Student(name="张三", class_id=cls.id)
-    db.add(stu); db.commit()
+    db.add(stu)
+    db.commit()
     asg = Assignment(class_id=cls.id, title="测试作业", subject_id=1)
-    db.add(asg); db.commit()
-    sub = Submission(assignment_id=asg.id, student_id=stu.id, original_image_path="test.jpg", status="done")
-    db.add(sub); db.commit()
+    db.add(asg)
+    db.commit()
+    sub = Submission(assignment_id=asg.id, student_id=stu.id,
+                     original_image_path="test.jpg", status="done")
+    db.add(sub)
+    db.commit()
     rows = [
         # (raw, final, override) → 期望一致口径
         ("correct", "correct", None),        # 未复核，不计
@@ -65,55 +85,73 @@ def seed():
                               judgement_raw=raw, judgement_final=fin, teacher_override=ov,
                               confidence_final=0.9))
     db.commit()
-    return sub.id
+    sub_id = sub.id
+    db.close()
+    return sub_id
 
-check("测试库创建", True)
-seed()
 
-r = client.get("/api/analytics/analytics")
-check("analytics 200", r.status_code == 200)
-ag = r.json().get("ai_agreement")
-check("返回 ai_agreement 字段", ag is not None)
-check("reviewed_total=4", ag["reviewed_total"] == 4)
-check("agree=2", ag["agree"] == 2)
-check("disagree=2", ag["disagree"] == 2)
-check("rate=0.5", ag["rate"] == 0.5)
+def test_ai_agreement_stats(client, agreement_env):
+    dbmod = agreement_env
+    _seed(dbmod)
 
-# 无复核记录时 rate=None
-db = dbmod.SessionLocal()
-db.query(QuestionResult).update({QuestionResult.teacher_override: None})
-db.commit(); db.close()
-ag = client.get("/api/analytics/analytics").json()["ai_agreement"]
-check("无复核 rate=None", ag["rate"] is None)
-check("无复核 reviewed_total=0", ag["reviewed_total"] == 0)
+    r = client.get("/api/analytics/analytics")
+    assert r.status_code == 200
+    ag = r.json().get("ai_agreement")
+    assert ag is not None
+    assert ag["reviewed_total"] == 4
+    assert ag["agree"] == 2
+    assert ag["disagree"] == 2
+    assert ag["rate"] == 0.5
 
-# 全一致场景：100%
-seed()
-db = dbmod.SessionLocal()
-db.query(QuestionResult).update({
-    QuestionResult.judgement_final: QuestionResult.judgement_raw,
-    QuestionResult.teacher_override: QuestionResult.judgement_raw})
-db.commit(); db.close()
-ag = client.get("/api/analytics/analytics").json()["ai_agreement"]
-check("全一致 rate=1.0", ag["rate"] == 1.0)
 
-# override 端点写入后一致率联动
-seed()
-db = dbmod.SessionLocal()
-qr = db.query(QuestionResult).first()
-qr_id = qr.id
-db.close()
-r = client.post("/api/analytics/override", json={"question_result_id": qr_id, "judgement": "wrong"})
-check("override 200", r.status_code == 200)
-db = dbmod.SessionLocal()
-qr = db.query(QuestionResult).get(qr_id)
-check("override 后 judgement_raw 保留", qr.judgement_raw is not None)
-raw0 = qr.judgement_raw
-db.close()
-client.post("/api/analytics/override", json={"question_result_id": qr_id,
-             "judgement": raw0 if raw0 in ("correct","wrong","partial") else "correct"})
-ag = client.get("/api/analytics/analytics").json()["ai_agreement"]
-check("确认一致后 agree 增加", ag["reviewed_total"] >= 1)
+def test_ai_agreement_no_overrides(client, agreement_env):
+    from backend.database import QuestionResult
 
-print(f"\n{PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+    dbmod = agreement_env
+    _seed(dbmod)
+    db = dbmod.SessionLocal()
+    db.query(QuestionResult).update({QuestionResult.teacher_override: None})
+    db.commit()
+    db.close()
+    ag = client.get("/api/analytics/analytics").json()["ai_agreement"]
+    assert ag["rate"] is None
+    assert ag["reviewed_total"] == 0
+
+
+def test_ai_agreement_all_agree(client, agreement_env):
+    from backend.database import QuestionResult
+
+    dbmod = agreement_env
+    _seed(dbmod)
+    db = dbmod.SessionLocal()
+    db.query(QuestionResult).update({
+        QuestionResult.judgement_final: QuestionResult.judgement_raw,
+        QuestionResult.teacher_override: QuestionResult.judgement_raw})
+    db.commit()
+    db.close()
+    ag = client.get("/api/analytics/analytics").json()["ai_agreement"]
+    assert ag["rate"] == 1.0
+
+
+def test_ai_agreement_override_endpoint(client, agreement_env):
+    from backend.database import QuestionResult
+
+    dbmod = agreement_env
+    _seed(dbmod)
+    db = dbmod.SessionLocal()
+    qr = db.query(QuestionResult).first()
+    qr_id = qr.id
+    db.close()
+    r = client.post("/api/analytics/override",
+                    json={"question_result_id": qr_id, "judgement": "wrong"})
+    assert r.status_code == 200
+    db = dbmod.SessionLocal()
+    qr = db.query(QuestionResult).get(qr_id)
+    assert qr.judgement_raw is not None
+    raw0 = qr.judgement_raw
+    db.close()
+    client.post("/api/analytics/override",
+                json={"question_result_id": qr_id,
+                      "judgement": raw0 if raw0 in ("correct", "wrong", "partial") else "correct"})
+    ag = client.get("/api/analytics/analytics").json()["ai_agreement"]
+    assert ag["reviewed_total"] >= 1
