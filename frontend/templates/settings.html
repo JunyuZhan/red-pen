@@ -79,6 +79,21 @@
   <div class="msg ok" id="est_msg" style="min-height:22px;">—</div>
 </div>
 
+<!-- 批改并发路数 -->
+<div class="card" style="margin-top:20px">
+  <h1>批改并发路数</h1>
+  <div class="sub">批量批改时同时调用 AI 的份数。路数越多整班批得越快，但也更容易触发厂商限流；建议 2，稳定后可试 3-4。</div>
+  <label>并发路数（1-4）</label>
+  <select id="concurrency_sel">
+    <option value="1">1（最稳）</option>
+    <option value="2" selected>2（推荐）</option>
+    <option value="3">3</option>
+    <option value="4">4（最快）</option>
+  </select>
+  <button onclick="saveConcurrency()">保存并发设置</button>
+  <div class="msg" id="conc_msg"></div>
+</div>
+
 <!-- 备用引擎（PRD 第三节：主 provider 失败自动切备用） -->
 <div class="card" style="margin-top:20px">
   <h1>备用引擎（自动切换）</h1>

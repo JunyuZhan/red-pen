@@ -44,7 +44,10 @@
   <div class="stats" id="stats"></div>
 
   <div class="card">
-    <h2 style="font-size:16px;margin:0 0 12px;">提交记录</h2>
+    <h2 style="font-size:16px;margin:0 0 12px;">提交记录
+      <button id="batchBtn" onclick="startBatch()" style="float:right;padding:6px 14px;background:#c0392b;color:#fff;border:none;border-radius:8px;cursor:pointer;">🚀 一键批改全部待批</button>
+    </h2>
+    <p class="hint" id="queueHint" style="display:none;margin:0 0 8px;"></p>
     <table>
       <thead><tr><th>ID</th><th>状态</th><th>总评</th><th>查看</th></tr></thead>
       <tbody id="rows"><tr><td colspan="4" class="hint">加载中…</td></tr></tbody>
@@ -147,7 +150,47 @@ async function startGrading(id) {
   const r = await fetch(`/api/grading/start/${id}${q}`, { method: "POST" });
   const d = await r.json();
   if (!r.ok || d.success === false) return alert(d.detail || d.error || "批改失败");
-  loadRows(); load();
+  loadRows(); load(); pollQueue();
+}
+
+async function startBatch() {
+  const tpl = $("gradeTplSel").value;
+  const body = tpl ? { template_id: parseInt(tpl) } : {};
+  $("batchBtn").disabled = true;
+  const r = await fetch("/api/grading/batch", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body) });
+  const d = await r.json();
+  $("batchBtn").disabled = false;
+  if (!r.ok || d.success === false) return alert(d.detail || d.error || "批量批改启动失败");
+  if (!d.count) { alert("当前没有待批改的提交"); return; }
+  pollQueue();
+}
+
+let _pollTimer = null;
+async function pollQueue() {
+  const r = await fetch("/api/grading/queue-status");
+  if (!r.ok) return;
+  const d = await r.json();
+  const c = d.counts || {};
+  const hint = $("queueHint");
+  if (c.queued + c.processing > 0) {
+    hint.style.display = "block";
+    hint.textContent = `⏳ 批改队列：排队 ${c.queued} 份 · 处理中 ${c.processing} 份（并发 ${d.concurrency} 路）` +
+      (c.completed ? ` · 已完成 ${c.completed} 份` : "") + (c.failed ? ` · 失败 ${c.failed} 份` : "") +
+      (d.avg_duration_seconds ? ` · 平均单份 ${d.avg_duration_seconds}s` : "");
+    clearTimeout(_pollTimer);
+    _pollTimer = setTimeout(pollQueue, 3000);
+    loadRows();
+  } else {
+    if (hint.style.display === "block") {
+      hint.style.display = "block";
+      hint.textContent = `✅ 本轮批改完成：成功 ${c.completed} 份` +
+        (c.failed ? ` · 失败 ${c.failed} 份（可在列表中重试）` : "") +
+        (d.avg_duration_seconds ? ` · 平均单份 ${d.avg_duration_seconds}s` : "");
+    }
+    loadRows(); load();
+  }
 }
 
 // ---------- 答案模板 ----------
