@@ -16,7 +16,8 @@ from PIL import Image, ImageOps, ImageFilter
 # 阈值（经验值，宁可多提醒不误杀；可强行上传）
 BLUR_VARIANCE_MIN = 250.0     # 拉普拉斯方差低于此视为模糊（清晰作业照通常>300）
 DARK_MEAN_MAX = 45.0          # 平均亮度低于此视为太暗
-BRIGHT_MEAN_MIN = 240.0       # 平均亮度高于此视为过曝（白纸照片均值高，阈值需留余量）
+BRIGHT_MEAN_MIN = 246.0
+OVEREXPOSE_STD_MAX = 28.0     # 高亮且低对比才判过曝（白纸黑字对比大属正常）       # 平均亮度高于此视为过曝（白纸照片均值高，阈值需留余量）
 MIN_DIMENSION = 400           # 最短边低于此视为过小
 EVAL_MAX_DIM = 1200           # 评估时降采样上限，控制耗时
 
@@ -24,18 +25,20 @@ _LAPLACIAN = ImageFilter.Kernel((3, 3), [0, 1, 0, 1, -4, 1, 0, 1, 0], scale=1)
 
 
 def _hist_stats(gray):
-    """降采样后的灰度图 → (平均亮度, 拉普拉斯方差)。"""
+    """降采样后的灰度图 → (平均亮度, 拉普拉斯方差, 标准差)。"""
     gray.thumbnail((EVAL_MAX_DIM, EVAL_MAX_DIM))
     hist = gray.histogram()
     total = sum(hist)
     mean = sum(i * c for i, c in enumerate(hist)) / total
+    var_gray = sum(((i - mean) ** 2) * c for i, c in enumerate(hist)) / total
+    std = var_gray ** 0.5
 
     lap = gray.filter(_LAPLACIAN)
     lhist = lap.histogram()  # 256 bin，中心 128
     ltotal = sum(lhist)
     lmean = sum(i * c for i, c in enumerate(lhist)) / ltotal
     var = sum((i - lmean) ** 2 * c for i, c in enumerate(lhist)) / ltotal
-    return mean, var
+    return mean, var, std
 
 
 def check_image(data: bytes) -> list:
@@ -57,11 +60,11 @@ def check_image(data: bytes) -> list:
         flags.append(f"图片尺寸过小（{w}×{h}），手写字可能看不清，请靠近拍摄")
 
     gray = img.convert("L")
-    mean, lap_var = _hist_stats(gray)
+    mean, lap_var, std = _hist_stats(gray)
 
     if mean < DARK_MEAN_MAX:
         flags.append("照片太暗，建议开灯或补光后重拍")
-    elif mean > BRIGHT_MEAN_MIN:
+    elif mean > BRIGHT_MEAN_MIN and std < OVEREXPOSE_STD_MAX:
         flags.append("照片过曝发白，请避免阳光直射或闪光灯")
     elif lap_var < BLUR_VARIANCE_MIN:
         # 模糊只在亮度正常时评估，过暗图拉普拉斯方差天然偏低
