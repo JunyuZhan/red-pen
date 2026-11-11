@@ -254,7 +254,7 @@ class GradingEngine:
                 try:
                     resp = await client.post(self._chat_url(), json=data, headers=headers)
                     resp.raise_for_status()
-                    return self._parse_response(resp.json())
+                    return self._parse_response(resp.json(), answers=answers)
                 except Exception as e:
                     last_error = e
                     if attempt < settings.LLM_MAX_RETRIES - 1:
@@ -262,7 +262,8 @@ class GradingEngine:
                         await asyncio.sleep(settings.LLM_BACKOFF_FACTOR * (2 ** attempt))
             return {"success": False, "error": str(last_error)}
 
-    def _parse_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    def _parse_response(self, response: Dict[str, Any],
+                        answers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         try:
             content = response["choices"][0]["message"]["content"]
             usage = response.get("usage") or {}
@@ -273,6 +274,9 @@ class GradingEngine:
             parsed = _parse_llm_json(content)
             if parsed and parsed.get("questions"):
                 questions = parsed.get("questions", [])
+                # 规则交叉校验层：用教师参考答案约束模型结论（准确性第一）
+                from backend.models.rule_validator import rule_validate
+                rule_stats = rule_validate(questions, answers)
                 judgement_counts: Dict[str, int] = {}
                 for q in questions:
                     j = q.get("judgement", "unclear")
@@ -285,6 +289,7 @@ class GradingEngine:
                     "confidence": round(sum(confidences) / len(confidences), 2) if confidences else 0.5,
                     "analysis": parsed.get("summary") or content,
                     "questions": questions,
+                    "rule_validation": rule_stats,
                     **usage_info,
                 }
             # 无法结构化时降级为原始文本
