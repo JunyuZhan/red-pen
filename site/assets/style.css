@@ -154,6 +154,6 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 .beta-tag{display:inline-block;background:var(--marigold);color:#fff;font-size:11px;font-weight:700;border-radius:9999px;padding:2px 9px;margin-left:8px;vertical-align:2px;letter-spacing:1px}
 .beta-note{background:#fff8ec;border:1px solid rgba(255,177,16,0.35);border-radius:10px;padding:12px 16px;font-size:13.5px;color:#8a5b00;line-height:1.8;margin-top:16px}
 
-/* Hero背景与导航无缝衔接 */
-#hero{margin-top:44px}
-@media(max-width:800px){#hero{margin-top:24px}}
+/* Hero背景与导航无缝衔接: 背景从导航底开始, 空隙收进背景内部 */
+#hero{margin-top:0;padding-top:56px}
+@media(max-width:800px){#hero{padding-top:28px}}
