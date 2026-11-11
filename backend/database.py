@@ -116,6 +116,8 @@ class QuestionResult(Base):
     error_type = Column(String(50), nullable=True)
     confidence_final = Column(Float, nullable=True)
     rule_conflict_flags = Column(JSON, nullable=True)
+    needs_review = Column(Integer, nullable=True, default=0)  # 二次复核不一致 → 标黄进复核队列
+    review_note = Column(Text, nullable=True)
     teacher_override = Column(String(20), nullable=True)
     bbox_answer = Column(JSON, nullable=True)
     bbox_question = Column(JSON, nullable=True)
@@ -155,6 +157,11 @@ def init_db():
             conn.exec_driver_sql("ALTER TABLE submission ADD COLUMN retry_count INTEGER DEFAULT 0")
         if "duration_seconds" not in cols:
             conn.exec_driver_sql("ALTER TABLE submission ADD COLUMN duration_seconds REAL")
+        qcols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(question_result)")}
+        if "needs_review" not in qcols:
+            conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN needs_review INTEGER DEFAULT 0")
+        if "review_note" not in qcols:
+            conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN review_note TEXT")
         conn.commit()
 
     # 插入默认数据

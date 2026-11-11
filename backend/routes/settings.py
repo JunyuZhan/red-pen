@@ -2,9 +2,11 @@
 系统设置路由：老师在这里选择服务商、填写 API Key
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+
+from .auth import require_admin
 
 from ..models.grading_engine import (get_llm_config, save_llm_config,
                                      get_fallback_config, save_fallback_config, PROVIDER_DEFAULTS)
@@ -53,6 +55,32 @@ async def test_llm_connection(config: TestConnectionIn):
     from ..models.grading_engine import RECOMMENDED_VISION_MODELS
     return {"success": result.get("success", False), **result,
             "recommendations": RECOMMENDED_VISION_MODELS}
+
+
+# ---------- 低置信度二次复核（PRD 待办 f） ----------
+
+class ReviewConfigIn(BaseModel):
+    enabled: bool = True
+    threshold: float = 0.7
+    mode: str = "resample"   # resample=同模型重采样 / fallback=备用provider
+
+
+@router.get("/review")
+async def get_review_settings():
+    from ..models.review import get_review_config
+    return {"success": True, **get_review_config()}
+
+
+@router.post("/review")
+async def update_review_settings(config: ReviewConfigIn, _: None = Depends(require_admin)):
+    if not (0.3 <= config.threshold <= 0.95):
+        raise HTTPException(status_code=400, detail="阈值须在 0.3-0.95 之间")
+    if config.mode not in ("resample", "fallback"):
+        raise HTTPException(status_code=400, detail="mode 须为 resample 或 fallback")
+    from ..models.review import save_review_config
+    save_review_config(config.enabled, round(config.threshold, 2), config.mode)
+    from ..models.review import get_review_config
+    return {"success": True, "message": "复核设置已保存", **get_review_config()}
 
 
 @router.get("/cost")

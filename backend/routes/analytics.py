@@ -55,9 +55,11 @@ async def analytics(db: Session = Depends(get_db)):
     # 置信度偏低的题目（需要老师复核）
     needs_review = [
         {"id": r.id, "submission_id": r.submission_id, "question_no": r.question_no,
-         "judgement": r.judgement_final, "confidence": r.confidence_final}
+         "judgement": r.judgement_final, "confidence": r.confidence_final,
+         "note": r.review_note}
         for r in results
-        if r.confidence_final is not None and r.confidence_final < 0.6
+        if (r.needs_review and int(r.needs_review)) or
+           (r.confidence_final is not None and r.confidence_final < 0.6)
     ]
 
     return {

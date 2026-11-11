@@ -94,6 +94,26 @@
   <div class="msg" id="conc_msg"></div>
 </div>
 
+<!-- 低置信度二次复核 -->
+<div class="card" style="margin-top:20px">
+  <h1>低置信度二次复核</h1>
+  <div class="sub">AI 对置信度低于阈值的题目自动做第二次批改交叉验证：两次结论一致则采纳，不一致的题标黄进入工作台"待复核"队列，由老师最终确认。只对低置信度题目多做调用，成本可控。</div>
+  <label><input type="checkbox" id="rev_enabled" checked> 启用二次复核</label>
+  <label>复核阈值（置信度低于该值才复核）</label>
+  <select id="rev_threshold">
+    <option value="0.6">0.6（复核更少、更省）</option>
+    <option value="0.7" selected>0.7（推荐）</option>
+    <option value="0.8">0.8（更严格、更准）</option>
+  </select>
+  <label>复核通道</label>
+  <select id="rev_mode">
+    <option value="resample" selected>同模型重采样（推荐，无需备用厂商）</option>
+    <option value="fallback">备用引擎（需在下方配置备用服务商）</option>
+  </select>
+  <button onclick="saveReview()">保存复核设置</button>
+  <div class="msg" id="rev_msg"></div>
+</div>
+
 <!-- 备用引擎（PRD 第三节：主 provider 失败自动切备用） -->
 <div class="card" style="margin-top:20px">
   <h1>备用引擎（自动切换）</h1>
@@ -244,6 +264,32 @@ async function loadConcurrency() {
   const r = await fetch("/api/grading/concurrency");
   const d = await r.json();
   if (d.success) document.getElementById("concurrency_sel").value = d.concurrency;
+}
+
+async function loadReview() {
+  const r = await fetch("/api/settings/review");
+  const d = await r.json();
+  if (!d.success) return;
+  document.getElementById("rev_enabled").checked = !!d.enabled;
+  if (["0.6","0.7","0.8"].includes(String(d.threshold))) document.getElementById("rev_threshold").value = String(d.threshold);
+  document.getElementById("rev_mode").value = d.mode;
+}
+
+async function saveReview() {
+  const msg = document.getElementById("rev_msg");
+  try {
+    const r = await fetch("/api/settings/review", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        enabled: document.getElementById("rev_enabled").checked,
+        threshold: parseFloat(document.getElementById("rev_threshold").value),
+        mode: document.getElementById("rev_mode").value
+      })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ 复核设置已保存";
+  } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
 }
 
 async function saveConcurrency() {
@@ -454,7 +500,7 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); loadConcurrency(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); loadConcurrency(); loadReview(); } });
 </script>
 </body>
 </html>

@@ -317,14 +317,16 @@ async function loadAnalytics() {
     return `<tr><td>${s.name}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td></tr>`;
   }).join("");
   const review = d.needs_review || [];
-  const reviewRows = review.map(r =>
-    `<tr id="rev-${r.id}"><td>提交 #${r.submission_id}</td><td>第${r.question_no}题</td><td>${r.judgement || "-"}</td><td>${r.confidence == null ? "-" : (r.confidence*100).toFixed(0) + "%"}</td><td>` +
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const reviewRows = review.map(r => {
+    const hot = r.note ? ' style="background:#fff3cd;"' : "";
+    const note = r.note ? `<div style="font-size:12px;color:#856404;margin-top:2px;">⚠️ ${esc(r.note)}</div>` : "";
+    return `<tr id="rev-${r.id}"${hot}><td>提交 #${r.submission_id}</td><td>第${r.question_no}题${note}</td><td>${r.judgement || "-"}</td><td>${r.confidence == null ? "-" : (r.confidence*100).toFixed(0) + "%"}</td><td>` +
     ["correct", "wrong", "partial"].map(j =>
       `<button style="margin-right:4px;" onclick="overrideQuestion(${r.id},'${j}')">${j === "correct" ? "✓对" : j === "wrong" ? "✗错" : "◐部分"}</button>`
-    ).join("") + `</td></tr>`
-  ).join("");
+    ).join("") + `</td></tr>`;
+  }).join("");
   // ---- SVG 图表 ----
-  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
   // 学生正确率横向条形图
   const stus = (d.students || []).slice().sort((a,b)=>(b.accuracy||0)-(a.accuracy||0));
   const bw = 150, barH = 22, gap = 8;

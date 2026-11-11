@@ -92,6 +92,16 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
 
         questions = result.get("questions", [])
 
+        # 低置信度二次复核（PRD 待办 f）：不一致的题标 needs_review 进复核队列
+        review_stats = None
+        try:
+            from ..models.review import cross_check_questions
+            review_stats = await cross_check_questions(
+                result, submission.original_image_path, "default", "数学",
+                answers=(template.answers if template else None))
+        except Exception:
+            review_stats = None  # 复核链路任何异常都不能影响正常批改结果
+
         # 保存逐题批改结果
         first_qr = None
         for qd in questions:
@@ -108,6 +118,8 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                 error_type=qd.get("error_type"),
                 confidence_final=float(conf) if isinstance(conf, (int, float)) else None,
                 bbox_answer=qd.get("bbox"),
+                needs_review=1 if qd.get("needs_review") else 0,
+                review_note=qd.get("review_note"),
             )
             db.add(qr)
             if first_qr is None:
@@ -141,6 +153,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             "confidence": result.get("confidence"),
             "analysis": result.get("analysis"),
             "duration_seconds": duration,
+            "review": review_stats,
         }
     finally:
         db.close()
