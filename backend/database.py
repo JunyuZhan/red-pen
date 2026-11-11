@@ -132,6 +132,18 @@ class KnowledgePoint(Base):
     subject_id = Column(Integer, nullable=False)
     parent_id = Column(Integer, nullable=True)
 
+class TeachingAdvice(Base):
+    """AI 生成的教学建议（待办 t）：存最新几份，供学情页展示/重新生成"""
+    __tablename__ = "teaching_advice"
+
+    id = Column(Integer, primary_key=True, index=True)
+    scope = Column(String(20), nullable=False, default="class")  # 预留：class/student
+    stats_snapshot = Column(JSON, nullable=True)   # 生成时依据的统计数据
+    content = Column(JSON, nullable=False)         # {summary, suggestions, focus_students}
+    model = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AppConfig(Base):
     __tablename__ = "app_config"
     

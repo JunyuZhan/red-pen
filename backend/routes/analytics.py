@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 
 from ..database import get_db, QuestionResult, Submission, Student
 from ..models.grade_scale import get_thresholds, compute_grade
+from .auth import require_admin
 
 router = APIRouter()
 
@@ -138,3 +139,20 @@ async def teacher_override(payload: dict, db: Session = Depends(get_db)):
 
     return {"success": True, "id": qr.id, "judgement_final": qr.judgement_final,
             "teacher_override": qr.teacher_override, "error_type": qr.error_type}
+
+
+# ---------- LLM 教学建议（待办 t） ----------
+
+from ..models.teaching_advice import generate_advice, get_latest_advice  # noqa: E402
+
+
+@router.get("/teaching-advice")
+async def teaching_advice_latest():
+    """最近一次 AI 教学建议（无则返回 null，前端显示未生成）"""
+    return {"success": True, "advice": get_latest_advice()}
+
+
+@router.post("/teaching-advice/generate")
+async def teaching_advice_generate():
+    """重新生成 AI 教学建议（纯文本调用，成本一次几 KB）"""
+    return await generate_advice()

@@ -452,11 +452,19 @@ async function loadAnalytics() {
       </table>
     </details>
     ${kpBlock}
+    <div id="adviceBlock" style="margin:18px 0 0;">
+      <p style="margin:0 0 6px;font-size:14px;"><b>AI 教学建议</b>
+        <button id="adviceBtn" style="margin-left:8px;" onclick="generateAdvice()">重新生成</button>
+        <span id="adviceStatus" class="hint" style="margin-left:8px;"></span>
+      </p>
+      <div id="adviceBody"><p class="hint">加载中…</p></div>
+    </div>
     <p style="margin:14px 0 6px;font-size:14px;"><b>待复核题目（置信度 &lt; 60%）</b></p>
     <table>
       <thead><tr><th>提交</th><th>题号</th><th>判定</th><th>置信度</th><th>复核修正</th></tr></thead>
       <tbody>${reviewRows || `<tr><td colspan="5" class="hint">没有需要复核的题目 🎉</td></tr>`}</tbody>
     </table>`;
+  loadAdvice();
 }
 
 // 教师复核修正：改写判定，写入 teacher_override 后刷新面板
@@ -470,6 +478,44 @@ async function overrideQuestion(qrId, judgement) {
   const row = document.getElementById("rev-" + qrId);
   if (row) row.remove();
   loadAnalytics();
+}
+
+// ---------- AI 教学建议 ----------
+async function loadAdvice() {
+  const d = await (await fetch("/api/analytics/teaching-advice")).json();
+  renderAdvice(d.advice);
+}
+function renderAdvice(a) {
+  const body = document.getElementById("adviceBody");
+  if (!a) { body.innerHTML = `<p class="hint">尚未生成。点击"重新生成"让 AI 基于批改数据给出教学建议。</p>`; return; }
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const sug = (a.advice.suggestions || []).map(s => `<li>${esc(s)}</li>`).join("");
+  const focus = (a.advice.focus_students || []).map(f =>
+    `<span class="tag" title="${esc(f.reason)}">关注: ${esc(f.name)}</span>`).join(" ");
+  body.innerHTML = `
+    <p style="margin:4px 0;font-size:14px;">${esc(a.advice.summary || "")}</p>
+    <ul style="margin:6px 0;font-size:14px;">${sug}</ul>
+    ${focus ? `<div style="margin-bottom:6px;">${focus}</div>` : ""}
+    <p class="hint">生成时间 ${a.created_at ? a.created_at.slice(0,16).replace("T"," ") : "-"} · 模型 ${esc(a.model || "-")}</p>`;
+}
+async function generateAdvice() {
+  const btn = document.getElementById("adviceBtn");
+  const status = document.getElementById("adviceStatus");
+  btn.disabled = true; status.textContent = "AI 正在分析（约10-30秒）…";
+  try {
+    const r = await fetch("/api/analytics/teaching-advice/generate", { method: "POST" });
+    const d = await r.json();
+    if (!r.ok || !d.success) {
+      status.textContent = "";
+      alert(d.error || d.detail || "生成失败，请稍后重试");
+      return;
+    }
+    renderAdvice(d);
+    status.textContent = "✅ 已生成";
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { status.textContent = ""; }, 4000);
+  }
 }
 
 // ---------- 管理员 PIN 解锁 ----------
