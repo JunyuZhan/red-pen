@@ -118,7 +118,7 @@ class TestTeachingAdvice(unittest.TestCase):
         row.value = ""
         db.commit()
         db.close()
-        res = asyncio.get_event_loop().run_until_complete(teaching_advice.generate_advice())
+        res = asyncio.run(teaching_advice.generate_advice())
         self.assertFalse(res["success"])
         self.assertIn("API Key", res["error"])
         self.assertIsNone(get_latest_advice())
@@ -154,7 +154,7 @@ class TestTeachingAdvice(unittest.TestCase):
         orig = teaching_advice.httpx.AsyncClient
         teaching_advice.httpx.AsyncClient = FakeClient
         try:
-            res = asyncio.get_event_loop().run_until_complete(teaching_advice.generate_advice())
+            res = asyncio.run(teaching_advice.generate_advice())
         finally:
             teaching_advice.httpx.AsyncClient = orig
         self.assertTrue(res["success"], res)
@@ -188,7 +188,7 @@ class TestTeachingAdvice(unittest.TestCase):
         orig = teaching_advice.httpx.AsyncClient
         teaching_advice.httpx.AsyncClient = FakeClient
         try:
-            res = asyncio.get_event_loop().run_until_complete(teaching_advice.generate_advice())
+            res = asyncio.run(teaching_advice.generate_advice())
         finally:
             teaching_advice.httpx.AsyncClient = orig
         self.assertFalse(res["success"])
