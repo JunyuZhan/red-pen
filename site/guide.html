@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>使用教程 · 红笔 RedPen</title>
+<meta name="description" content="红笔 RedPen 完整图文使用教程：下载安装、修改PIN、创建班级、配置模型API Key（DeepSeek/通义/智谱）、手机扫码批改。">
+<link rel="icon" type="image/png" href="images/brand/favicon_64.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+.step{display:flex;gap:16px;margin-top:36px}
+.step-num{flex-shrink:0;width:36px;height:36px;line-height:36px;text-align:center;background:var(--notion-blue);color:#fff;border-radius:9999px;font-weight:700;font-size:16px}
+.step-body{flex:1;min-width:0}
+.step-body h2{font-size:26px;font-weight:700;letter-spacing:-0.3px;margin:6px 0 10px}
+.step-body p, .step-body li{font-size:15px;color:var(--slate);line-height:1.9}
+.step-body ol,.step-body ul{padding-left:20px;margin:8px 0}
+.step-body .card{margin-top:14px;padding:16px}
+.step-body img{width:100%;height:auto;border-radius:8px;border:var(--hairline);display:block}
+.hint-box{background:var(--sky-tint);border-radius:10px;padding:14px 16px;font-size:14px;color:#0b5aa5;line-height:1.8;margin-top:12px}
+.warn-box{background:#fdf3f2;border:1px solid rgba(227,45,20,0.25);border-radius:10px;padding:14px 16px;font-size:14px;color:var(--brand);line-height:1.8;margin-top:12px}
+.kbd{background:#f0efee;border:var(--hairline);border-radius:6px;padding:1px 7px;font-size:13px;font-family:monospace}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="index.html" style="display:inline-flex;align-items:center;gap:8px"><img src="images/brand/logo_48.png" alt="红笔logo" style="width:26px;height:26px;border-radius:6px">红笔 <span>RedPen</span></a>
+    <div class="nav-links">
+      <a href="index.html">首页</a><a href="guide.html" style="color:var(--notion-blue);font-weight:600">使用教程</a><a href="download.html">下载</a><a href="faq.html">常见问题</a><a href="about.html">关于</a>
+      <a href="https://github.com/JunyuZhan/red-pen" target="_blank">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+<section style="margin-top:56px">
+  <div class="kicker">Guide</div>
+  <h2 class="heading" style="font-size:36px">完整使用教程</h2>
+  <p class="sub" style="font-size:16px;margin-top:12px">从下载到批改出第一份作业，共 6 步。每一步都有截图对照，跟着做即可。全程约 10 分钟。</p>
+</section>
+
+<!-- 第1步 -->
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h2>下载并运行</h2>
+    <p>打开<a href="download.html" style="color:var(--notion-blue)">下载页</a>，点击按钮下载 <span class="kbd">RedPen.exe</span>，放到一个新建文件夹（例如 <span class="kbd">D:\红笔</span>）——作业照片和成绩都会存在 exe 旁边的 <span class="kbd">data</span> 文件夹里，方便整体备份。</p>
+    <p>双击运行，浏览器会自动打开工作台。</p>
+    <div class="warn-box">首次运行 Windows 会弹出蓝色提示"Windows 已保护你的电脑"——这是未签名软件的正常提示，<b>不是病毒</b>。点 <b>更多信息 → 仍要运行</b> 即可。如杀毒软件（360/火绒）误报，选择"信任此文件"。</div>
+  </div>
+</div>
+
+<!-- 第2步 -->
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h2>修改登录 PIN</h2>
+    <p>首次登录 PIN 为 <span class="kbd">123456</span>。登录后请立即到「设置」页改成自己的 6 位数字——这个 PIN 保护的是你电脑上的成绩数据。</p>
+  </div>
+</div>
+
+<!-- 第3步 -->
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-body">
+    <h2>创建班级和学生</h2>
+    <p>在工作台「班级管理」卡片中：点 <b>新建班级</b>（如"三年级2班"）→ 点班级进入 → <b>添加学生</b>（逐个输入姓名，或从名单批量粘贴）。学生信息只保存在你自己的电脑上。</p>
+  </div>
+</div>
+
+<!-- 第4步 -->
+<div class="step">
+  <div class="step-num">4</div>
+  <div class="step-body">
+    <h2>配置模型 API Key（最关键的一步）</h2>
+    <p>AI 批改能力来自大模型服务，需要一个 <b>API Key</b>（相当于你的专属密码，按用量付费，批改一份作业约几毛钱）。下面以最常用的 <b>DeepSeek</b> 为例：</p>
+    <div class="card">
+      <ol>
+        <li>电脑浏览器打开 <span class="kbd">platform.deepseek.com</span>，用手机号注册并登录</li>
+        <li>左侧菜单点 <b>「API keys」</b>（API 密钥）→ 点 <b>「创建 API key」</b> → 随便起个名字（如"红笔"）→ 点确定</li>
+        <li>页面会显示一串以 <span class="kbd">sk-</span> 开头的密钥，<b>点复制</b>（这个字符串只显示一次，务必当时复制保存）</li>
+        <li>回到红笔的「设置」页：服务商选 <b>DeepSeek</b> → 在 <b>API Key</b> 输入框中粘贴刚才的密钥 → 点 <b>保存</b> → 点 <b>测试连接</b>，显示"连接正常"即配置成功</li>
+        <li>使用前请确保 DeepSeek 账户有余额（在 DeepSeek 网页的「充值」页面，10 元大约能批改 30-50 份作业，用不完永久有效）</li>
+      </ol>
+    </div>
+    <img loading="lazy" src="images/guide/step_key_form.jpg" width="1440" height="720" alt="设置页批改引擎配置表单">
+    <p style="font-size:13px;color:var(--stone);margin-top:8px">▲ 设置页的「批改引擎」表单：选服务商 → 粘贴 Key → 保存 → 测试连接</p>
+    <div class="hint-box">💡 用通义千问或智谱也一样：分别到 <span class="kbd">bailian.console.aliyun.com</span> 或 <span class="kbd">open.bigmodel.cn</span> 注册并创建 Key，在设置页选对应服务商粘贴即可。任何 OpenAI 兼容接口都支持「自定义」方式接入。</div>
+    <div class="warn-box">🔒 API Key 只保存在你自己电脑的数据库里，不会上传给任何人（包括开发者）。它相当于你的钱包密码，<b>不要发到微信群或截图发给别人</b>。</div>
+  </div>
+</div>
+
+<!-- 第5步 -->
+<div class="step">
+  <div class="step-num">5</div>
+  <div class="step-body">
+    <h2>手机扫码连接</h2>
+    <p>手机和电脑连接<b>同一个 WiFi</b>。在设置页「手机连接引导」里有一个二维码，用手机相机扫一下，浏览器会自动打开拍照批改页。选班级和学生，对准作业整页拍照即可上传。</p>
+    <img loading="lazy" src="images/guide/step_qr.jpg" width="1440" height="234" alt="手机连接引导二维码">
+    <p style="font-size:13px;color:var(--stone);margin-top:8px">▲ 设置页底部的「手机连接引导」二维码</p>
+    <div class="hint-box">💡 扫码连不上？大概率是 Windows 防火墙拦截：首次运行时如弹出"是否允许此应用访问网络"，点<b>允许</b>。已错过的话，到 控制面板 → Windows Defender 防火墙 → 允许应用通过防火墙，勾选 Python/RedPen。</div>
+  </div>
+</div>
+
+<!-- 第6步 -->
+<div class="step">
+  <div class="step-num">6</div>
+  <div class="step-body">
+    <h2>查看批改结果与复核</h2>
+    <p>上传后约 20-60 秒出结果：原图上会有<b>红笔圈画</b>（错题）和<b>绿勾</b>（对题），每题附错因分析和置信度。手机上直接看；电脑工作台可看全部班级的学情统计。</p>
+    <p>对 AI 判定没把握的题（置信度低于 60%）会自动进入<b>复核列表</b>，你点一下"对/错"即可修正——AI 会诚实告诉你它不确定的地方，这是准确性的关键设计。</p>
+    <div class="hint-box">💡 定期在「设置」页用 <b>数据备份</b> 导出 zip 到 U 盘或网盘；换电脑时在新电脑上"数据恢复"即可完整迁移。</div>
+  </div>
+</div>
+
+<section style="margin-top:64px;text-align:center;padding-bottom:40px">
+  <a class="btn btn-primary" href="download.html">⬇️ 我已了解，去下载</a>
+</section>
+</div>
+
+<footer>
+  红笔 RedPen · 开发者 詹俊宇 · junyuzhan@outlook.com<br>
+  <a href="https://github.com/JunyuZhan/red-pen" target="_blank" style="color:var(--notion-blue)">github.com/JunyuZhan/red-pen</a> · PolyForm Noncommercial 1.0.0
+</footer>
+</body>
+</html>
