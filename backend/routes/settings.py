@@ -90,6 +90,41 @@ async def get_review_settings():
     return {"success": True, **get_review_config()}
 
 
+# ---------- 作业等级换算（PRD 待办 n） ----------
+class GradeThresholdsIn(BaseModel):
+    a: int = 90
+    b: int = 75
+    c: int = 60
+
+
+@router.get("/grade")
+async def get_grade_settings():
+    from ..models.grade_scale import get_thresholds
+    from ..database import SessionLocal
+    db = SessionLocal()
+    try:
+        t = get_thresholds(db)
+    finally:
+        db.close()
+    return {"success": True, "thresholds": t}
+
+
+@router.post("/grade")
+async def update_grade_settings(config: GradeThresholdsIn, _: None = Depends(require_admin)):
+    from ..models.grade_scale import save_thresholds, get_thresholds
+    from ..database import SessionLocal
+    db = SessionLocal()
+    try:
+        try:
+            save_thresholds(db, {"A": config.a, "B": config.b, "C": config.c})
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        t = get_thresholds(db)
+    finally:
+        db.close()
+    return {"success": True, "message": "等级阈值已保存", "thresholds": t}
+
+
 @router.post("/review")
 async def update_review_settings(config: ReviewConfigIn, _: None = Depends(require_admin)):
     if not (0.3 <= config.threshold <= 0.95):

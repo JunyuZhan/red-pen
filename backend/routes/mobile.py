@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db, Submission, Assignment
+from ..models.grade_scale import get_thresholds, compute_grade, accuracy_for_submission
 
 router = APIRouter()
 
@@ -14,6 +15,7 @@ router = APIRouter()
 async def list_submissions(db: Session = Depends(get_db)):
     """提交记录列表（工作台用）"""
     subs = db.query(Submission).order_by(Submission.id.desc()).limit(100).all()
+    thresholds = get_thresholds(db)
     return {
         "success": True,
         "submissions": [
@@ -23,6 +25,12 @@ async def list_submissions(db: Session = Depends(get_db)):
                 "summary": (s.grading_summary or "")[:30] or None,
                 "error_message": s.error_message,
                 "retry_count": s.retry_count or 0,
+                **(
+                    (lambda a: {"accuracy": round(a, 3) if a is not None else None,
+                                "grade": compute_grade(a, thresholds)})(
+                        accuracy_for_submission(db, s.id))
+                    if s.status == "completed" else {"accuracy": None, "grade": None}
+                ),
             }
             for s in subs
         ],

@@ -144,6 +144,17 @@
   <div class="msg" id="rev_msg"></div>
 </div>
 
+<!-- 作业等级换算 -->
+<div class="card" style="margin-top:20px">
+  <h1>作业等级换算</h1>
+  <div class="sub">按作业正确率自动换算等级（A/B/C/D），显示在工作台和学情页。阈值可调整，D 为低于 C 的兜底档。</div>
+  <label>A 等级：正确率 ≥ <input type="number" id="grade_a" min="0" max="100" style="width:70px;"> %</label>
+  <label>B 等级：正确率 ≥ <input type="number" id="grade_b" min="0" max="100" style="width:70px;"> %</label>
+  <label>C 等级：正确率 ≥ <input type="number" id="grade_c" min="0" max="100" style="width:70px;"> %</label>
+  <button onclick="saveGrade()">保存等级阈值</button>
+  <div class="msg" id="grade_msg"></div>
+</div>
+
 <!-- 备用引擎（PRD 第三节：主 provider 失败自动切备用） -->
 <div class="card" style="margin-top:20px">
   <h1>备用引擎（自动切换）</h1>
@@ -606,7 +617,31 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadReview(); } });
+async function loadGrade() {
+  const r = await fetch("/api/settings/grade");
+  const d = await r.json();
+  if (d.success) {
+    document.getElementById("grade_a").value = d.thresholds.A;
+    document.getElementById("grade_b").value = d.thresholds.B;
+    document.getElementById("grade_c").value = d.thresholds.C;
+  }
+}
+
+async function saveGrade() {
+  const msg = document.getElementById("grade_msg");
+  const body = {
+    a: parseInt(document.getElementById("grade_a").value),
+    b: parseInt(document.getElementById("grade_b").value),
+    c: parseInt(document.getElementById("grade_c").value),
+  };
+  const r = await fetch("/api/settings/grade", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  const d = await r.json();
+  msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
+}
+
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadReview(); loadGrade(); } });
 </script>
 </body>
 </html>

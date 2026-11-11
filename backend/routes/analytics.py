@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from collections import Counter, defaultdict
 
 from ..database import get_db, QuestionResult, Submission, Student
+from ..models.grade_scale import get_thresholds, compute_grade
 
 router = APIRouter()
 
@@ -42,6 +43,7 @@ async def analytics(db: Session = Depends(get_db)):
             per_student[key]["correct"] += 1
 
     students_stat = []
+    thresholds = get_thresholds(db)
     for sid, st in sorted(per_student.items(), key=lambda x: -x[1]["total"]):
         acc = st["correct"] / st["total"] if st["total"] else None
         students_stat.append({
@@ -50,6 +52,7 @@ async def analytics(db: Session = Depends(get_db)):
             "total": st["total"],
             "correct": st["correct"],
             "accuracy": round(acc, 3) if acc is not None else None,
+            "grade": compute_grade(acc, thresholds),
         })
 
     # 置信度偏低的题目（需要老师复核）

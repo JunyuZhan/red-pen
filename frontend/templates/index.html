@@ -121,6 +121,17 @@ async function load() {
     <div class="stat"><b>${s.failed}</b><span>失败</span></div>
     <div class="stat"><b>${s.total_questions}</b><span>批改题数</span></div>
     <div class="stat"><b>${s.accuracy == null ? "-" : (s.accuracy*100).toFixed(0)+"%"}</b><span>正确率</span></div>`;
+  const ag = (s.assignment_grades || []).filter(a => a.grade);
+  if (ag.length) {
+    const old = document.getElementById("assignmentGrades");
+    if (old) old.remove();
+    const div = document.createElement("div");
+    div.id = "assignmentGrades";
+    div.style.cssText = "margin-top:10px;font-size:13px;color:#555;";
+    div.innerHTML = "📋 作业等级：" + ag.map(a =>
+      `<span style="display:inline-block;margin:2px 8px 2px 0;padding:2px 10px;border-radius:8px;background:#f0ead8;color:#6b5b2e;">${a.title || ("作业"+a.assignment_id)} <b>${a.grade}</b>（${(a.accuracy*100).toFixed(0)}%）</span>`).join("");
+    $("stats").after(div);
+  }
 }
 
 async function loadRows() {
@@ -128,15 +139,17 @@ async function loadRows() {
   const d = await r.json();
   const rows = d.submissions || [];
   $("emptyHint").style.display = rows.length ? "none" : "block";
-  $("rows").innerHTML = rows.map(x => `
-    <tr>
-      <td>${x.id}</td>
-      <td><span class="pill ${x.status}">${x.status}</span>${x.status === "failed" ? `<br><span class="hint">${(x.error_message || "").slice(0, 60) || "未知原因"}${(x.retry_count || 0) ? ` · 已重试 ${x.retry_count} 次` : ""}</span>` : ""}</td>
-      <td>${x.summary || "-"}</td>
+  $("rows").innerHTML = rows.map(x => {
+    const gradeBadge = x.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;margin-right:6px;">${x.grade}</span>` : "";
+    return `
+  <tr>
+    <td>${x.id}</td>
+    <td><span class="pill ${x.status}">${x.status}</span>${x.status === "failed" ? `<br><span class="hint">${(x.error_message || "").slice(0, 60) || "未知原因"}${(x.retry_count || 0) ? ` · 已重试 ${x.retry_count} 次` : ""}</span>` : ""}</td>
+    <td>${gradeBadge}${x.summary || "-"}</td>
       <td>${x.status === "completed" ? `<a href="#" onclick="view(${x.id});return false;">查看详情</a>`
         : x.status === "uploaded" ? `<a href="#" onclick="startGrading(${x.id});return false;">开始批改</a>`
         : x.status === "failed" ? `<a href="#" onclick="retry(${x.id});return false;">重试</a>` : "-"}</td>
-    </tr>`).join("");
+    </tr>`;}).join("");
 }
 
 async function retry(id) {
@@ -315,12 +328,13 @@ async function loadAnalytics() {
   }
   const errTags = Object.entries(d.error_type_distribution || {})
     .map(([k, v]) => `<span class="tag">${k} × ${v}</span>`).join("") || `<span class="hint">暂无错误记录</span>`;
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
   const stuRows = (d.students || []).map(s => {
     const acc = s.accuracy == null ? "-" : (s.accuracy * 100).toFixed(0) + "%";
-    return `<tr><td>${s.name}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td></tr>`;
+    const grade = s.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;">${s.grade}</span>` : "-";
+    return `<tr><td>${esc(s.name)}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td><td>${grade}</td></tr>`;
   }).join("");
   const review = d.needs_review || [];
-  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
   const reviewRows = review.map(r => {
     const hot = r.note ? ' style="background:#fff3cd;"' : "";
     const note = r.note ? `<div style="font-size:12px;color:#856404;margin-top:2px;">⚠️ ${esc(r.note)}</div>` : "";
@@ -409,8 +423,8 @@ async function loadAnalytics() {
     <details style="margin-top:6px;">
       <summary style="cursor:pointer;font-size:14px;"><b>学生明细表</b></summary>
       <table style="margin-top:8px;">
-        <thead><tr><th>学生</th><th>总题数</th><th>正确</th><th>正确率</th></tr></thead>
-        <tbody>${stuRows || `<tr><td colspan="4" class="hint">暂无数据</td></tr>`}</tbody>
+        <thead><tr><th>学生</th><th>总题数</th><th>正确</th><th>正确率</th><th>等级</th></tr></thead>
+        <tbody>${stuRows || `<tr><td colspan="5" class="hint">暂无数据</td></tr>`}</tbody>
       </table>
     </details>
     ${kpBlock}
