@@ -5,8 +5,11 @@
 - /api/analytics 返回知识点掌握统计，薄弱知识点排前面
 """
 import os
+import shutil
 
 os.environ["RED_PEN_DATA_DIR"] = "/tmp/red_pen_kp_test"
+# 清空残留测试库，保证重复运行幂等
+shutil.rmtree(os.environ["RED_PEN_DATA_DIR"], ignore_errors=True)
 
 from fastapi.testclient import TestClient
 

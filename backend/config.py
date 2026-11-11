@@ -4,6 +4,7 @@
 
 from pydantic_settings import BaseSettings
 from pathlib import Path
+import os
 import sys
 
 # PyInstaller 打包(frozen)时：资源解包目录 sys._MEIPASS，可写数据放 exe 同目录
@@ -14,7 +15,7 @@ RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", "."))
 class Settings(BaseSettings):
     # 基础配置
     APP_NAME: str = "红笔 · 教师单机自用版"
-    VERSION: str = "V0.4"
+    VERSION: str = "V0.4.1"
     DEBUG: bool = True
     HOST: str = "0.0.0.0"
     PORT: int = 8080
@@ -24,8 +25,9 @@ class Settings(BaseSettings):
         DATA_DIR: Path = APP_DIR / "data"
         DATABASE_URL: str = f"sqlite:///{(APP_DIR / 'data' / 'red_pen.db').as_posix()}"
     else:
-        DATA_DIR: Path = Path("./data")
-        DATABASE_URL: str = "sqlite:///./data/red_pen.db"
+        # RED_PEN_DATA_DIR 可覆盖数据目录（测试隔离用）
+        DATA_DIR: Path = Path(os.environ.get("RED_PEN_DATA_DIR", "./data"))
+        DATABASE_URL: str = f"sqlite:///{(DATA_DIR / 'red_pen.db').as_posix()}"
 
     # 上传配置
     if FROZEN:
