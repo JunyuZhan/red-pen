@@ -22,6 +22,8 @@
   .q.correct { border-color:#2e7d32; } .q.wrong { border-color:#c0392b; background:#fdf3f2; }
   .q .tag { font-weight:bold; } .q.correct .tag { color:#2e7d32; } .q.wrong .tag { color:#c0392b; }
   #summary { font-size:14px; color:#c0392b; background:#fdf3f2; padding:10px 12px; border-radius:8px; margin-top:12px; }
+  #quality_warn { display:none; border:2px solid #c0392b; background:#fdf3f2; color:#c0392b; padding:12px; border-radius:10px; margin:12px 0; font-size:14px; }
+  #quality_warn ul { margin:6px 0 10px; padding-left:18px; }
 </style>
 </head>
 <body>
@@ -49,6 +51,12 @@
     </div>
 
   <div id="status"></div>
+  <div id="quality_warn">
+    <strong>⚠️ 照片质量提醒</strong>
+    <ul id="quality_list"></ul>
+    <button class="secondary" onclick="hideQualityWarning(); cancelShot();">📸 重拍</button>
+    <button id="force_btn" style="display:none;" onclick="hideQualityWarning(); upload(true);">仍然使用此照片批改</button>
+  </div>
 
   <div id="result">
     <h2 style="font-size:16px;">批改结果</h2>
@@ -141,7 +149,22 @@ function cancelShot() {
 
 function setStatus(t) { $("status").textContent = t; }
 
-async function upload() {
+function showQualityWarning(flags, uploaded) {
+  const ul = $("quality_list");
+  ul.innerHTML = "";
+  flags.forEach(f => { const li = document.createElement("li"); li.textContent = f; ul.appendChild(li); });
+  $("quality_warn").style.display = "block";
+  if (uploaded) { // 已强行上传后仅提示，不阻断
+    $("force_btn").style.display = "none";
+  } else {
+    $("force_btn").style.display = "block";
+    setStatus("");
+  }
+  $("quality_warn").scrollIntoView({ behavior: "smooth" });
+}
+function hideQualityWarning() { $("quality_warn").style.display = "none"; }
+
+async function upload(force) {
   const file = $("file").files[0];
   if (!file) { setStatus("请先拍照或选择图片"); return; }
   const fd = new FormData();
@@ -152,15 +175,19 @@ async function upload() {
   fd.append("teacher_id", "1");
   const sid = $("student_sel").value;
   if (sid) fd.append("student_id", sid);
+  if (force) fd.append("force_quality", "1");
 
   setStatus("上传中…");
+  hideQualityWarning();
   clearInterval(cdTimer);
   $("preview_ctl").style.display = "none";
   $("countdown").textContent = "";
   try {
     const r = await fetch("/api/upload/upload-mobile", { method: "POST", body: fd });
     const d = await r.json();
+    if (r.status === 422 && d.quality_flags) { showQualityWarning(d.quality_flags); return; }
     if (!d.success) throw new Error(d.detail || d.message);
+    if (d.quality_flags && d.quality_flags.length) showQualityWarning(d.quality_flags, true);
     submissionId = d.submission_id;
     setStatus("已上传，AI 批改中…（约 10-30 秒）");
     $("uploadForm").style.display = "none";

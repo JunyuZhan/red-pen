@@ -16,6 +16,7 @@ from pathlib import Path
 from ..database import get_db, Submission, Assignment, Class
 from ..config import settings
 from ..models.grading_engine import grading_manager
+from ..models.quality_checker import check_image
 
 router = APIRouter()
 
@@ -55,24 +56,27 @@ async def upload_assignment(
             buffer.write(data)
         
         # 创建数据库记录
+        flags = check_image(data)
         submission = Submission(
             assignment_id=assignment_id,
             student_id=student_id,
             original_image_path=str(file_path),
             status="uploaded",
+            quality_flags=flags,
             created_at=datetime.utcnow()
         )
-        
+
         db.add(submission)
         db.commit()
         db.refresh(submission)
-        
+
         return {
             "success": True,
             "message": "文件上传成功",
             "submission_id": submission.id,
             "file_path": str(file_path),
-            "file_id": file_id
+            "file_id": file_id,
+            "quality_flags": flags
         }
         
     except Exception as e:
@@ -93,6 +97,7 @@ async def upload_mobile(
     subject: str = Form(...),
     teacher_id: int = Form(...),
     student_id: Optional[int] = Form(None),
+    force_quality: int = Form(0),
     db: Session = Depends(get_db)
 ):
     """移动端上传作业"""
@@ -149,11 +154,25 @@ async def upload_mobile(
         db.refresh(assignment)
         
         # 创建提交记录
+        flags = check_image(data)
+        if flags and not force_quality:
+            # 质量不合格且未强行上传：清理文件，退回让用户选择重拍/强行上传
+            p = Path(file_path)
+            if p.exists():
+                p.unlink()
+            return JSONResponse(status_code=422, content={
+                "success": False,
+                "quality_flags": flags,
+                "message": "照片质量检测未通过"
+            })
+
         submission = Submission(
             assignment_id=assignment.id,
             student_id=student_id if student_id else 1,
             original_image_path=str(file_path),
             status="uploaded",
+            quality_flags=flags,
+            quality_override=bool(force_quality),
             created_at=datetime.utcnow()
         )
         
@@ -167,6 +186,7 @@ async def upload_mobile(
             "submission_id": submission.id,
             "assignment_id": assignment.id,
             "file_id": file_id,
+            "quality_flags": flags,
             "grading_url": f"http://{settings.HOST}:{settings.PORT}/api/grading/start/{submission.id}"
         }
         
