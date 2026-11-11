@@ -4,6 +4,8 @@ AI模型适配器
 配置（服务商/模型/API Key）由教师在设置页填写，存储于 AppConfig 表。
 """
 
+import os
+
 import httpx
 import base64
 import mimetypes
@@ -310,6 +312,45 @@ class GradingEngine:
 class GradingManager:
     """批改管理器：根据老师配置选择服务商"""
 
+    async def _grade_with_split(self, image_path: str, cfg: Dict[str, Any],
+                                question_type: str, subject: str,
+                                answers: Optional[Dict[str, str]]) -> Optional[Dict[str, Any]]:
+        """切题模式（PRD 待办 g）：逐区域裁切放大后送模型，合并结果。
+
+        返回 None 表示回退整页批改（切题失败/区域不足/全部区域批改失败）。
+        """
+        from .question_splitter import split_questions
+        try:
+            out_dir = os.path.join(str(settings.DATA_DIR), "splits")
+            crops = split_questions(image_path, out_dir)
+        except Exception:
+            return None
+        if len(crops) < 2:
+            return None
+
+        engine = GradingEngine(cfg["api_key"], cfg["model"], cfg["base_url"])
+        merged_questions, used_regions = [], 0
+        for crop in crops:
+            try:
+                part = await engine.grade(crop["path"], question_type, subject, answers=answers)
+            except Exception:
+                part = {"success": False}
+            if part.get("success"):
+                used_regions += 1
+                part.setdefault("region_index", crop["index"])
+                merged_questions.extend(part.get("questions", []))
+
+        if not merged_questions:
+            return None  # 一个区域都没批出来，回退整页模式
+        return {
+            "success": True,
+            "questions": merged_questions,
+            "provider": cfg["provider"],
+            "split_used": True,
+            "regions_total": len(crops),
+            "regions_graded": used_regions,
+        }
+
     async def grade(self, image_path: str, question_type: str, subject: str,
                     answers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         cfg = get_llm_config()
@@ -326,6 +367,14 @@ class GradingManager:
                 "error": "LLM 配置不完整：缺少 base_url 或 model",
                 "provider": cfg["provider"],
             }
+
+        # PRD 待办 g：CV 切题 + 裁切放大（设置页可开关；失败自动回退整页）
+        from .question_splitter import get_split_config
+        if get_split_config()["enabled"]:
+            split_result = await self._grade_with_split(
+                image_path, cfg, question_type, subject, answers)
+            if split_result is not None:
+                return split_result
 
         async def _run(provider_name: str, api_key: str, model_name: str, base_url: str) -> Dict[str, Any]:
             engine = GradingEngine(api_key, model_name, base_url)

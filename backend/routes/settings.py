@@ -65,6 +65,25 @@ class ReviewConfigIn(BaseModel):
     mode: str = "resample"   # resample=同模型重采样 / fallback=备用provider
 
 
+# ---------- CV 切题模式（PRD 待办 g） ----------
+
+class SplitConfigIn(BaseModel):
+    enabled: bool = False
+
+
+@router.get("/split")
+async def get_split_settings():
+    from ..models.question_splitter import get_split_config
+    return {"success": True, **get_split_config()}
+
+
+@router.post("/split")
+async def update_split_settings(config: SplitConfigIn, _: None = Depends(require_admin)):
+    from ..models.question_splitter import save_split_config, get_split_config
+    save_split_config(config.enabled)
+    return {"success": True, "message": "切题模式设置已保存", **get_split_config()}
+
+
 @router.get("/review")
 async def get_review_settings():
     from ..models.review import get_review_config

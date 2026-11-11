@@ -94,6 +94,15 @@
   <div class="msg" id="conc_msg"></div>
 </div>
 
+<!-- CV 切题模式 -->
+<div class="card" style="margin-top:20px">
+  <h1>切题模式（裁切放大）</h1>
+  <div class="sub">开启后 AI 会先把整页作业照自动切成一道道题，逐题裁切放大后再识别——手写小字更清楚、准确率更高。注意：开启后每页的批改调用次数约为题目数，API 费用会相应增加；切题失败会自动退回整页模式，不影响正常批改。</div>
+  <label><input type="checkbox" id="split_enabled"> 启用切题模式（默认关闭=整页批改，更省）</label>
+  <button onclick="saveSplit()">保存切题设置</button>
+  <div class="msg" id="split_msg"></div>
+</div>
+
 <!-- 低置信度二次复核 -->
 <div class="card" style="margin-top:20px">
   <h1>低置信度二次复核</h1>
@@ -264,6 +273,25 @@ async function loadConcurrency() {
   const r = await fetch("/api/grading/concurrency");
   const d = await r.json();
   if (d.success) document.getElementById("concurrency_sel").value = d.concurrency;
+}
+
+async function loadSplit() {
+  const r = await fetch("/api/settings/split");
+  const d = await r.json();
+  if (d.success) document.getElementById("split_enabled").checked = !!d.enabled;
+}
+
+async function saveSplit() {
+  const msg = document.getElementById("split_msg");
+  try {
+    const r = await fetch("/api/settings/split", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ enabled: document.getElementById("split_enabled").checked })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ 切题设置已保存";
+  } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
 }
 
 async function loadReview() {
@@ -500,7 +528,7 @@ async function pinUnlock() {
   }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); loadConcurrency(); loadReview(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadRecModels(); loadConcurrency(); loadSplit(); loadReview(); } });
 </script>
 </body>
 </html>
