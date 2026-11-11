@@ -48,6 +48,7 @@ red-pen/
 ```
 
 ## 联系与社区
+- 👥 **用户交流QQ群：984644289**（Redpen交流群，QQ搜索群号加入，使用问题/功能讨论/更新通知都在群里）
 - 开发者：**JunyuZhan**
 - 邮箱：**junyuzhan@outlook.com**
 - 提 bug / 功能建议：[开 Issue](https://github.com/JunyuZhan/red-pen/issues)
