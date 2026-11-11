@@ -75,7 +75,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             return {"success": False, "error": "提交记录不存在"}
 
         subject = template.subject if template else "数学"
-        get_logger().info("开始批改 submission=%s class=%s", submission.id, submission.class_id)
+        get_logger().info("开始批改 submission=%s subject=%s", submission.id, subject)
         try:
             result = await grading_manager.grade(
                 image_path=submission.original_image_path,
