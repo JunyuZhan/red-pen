@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>红笔 RedPen · 教师作业 AI 批改助手</title>
+<meta name="description" content="手机拍照上传作业，AI 逐题批改，红笔标注回显，学情分析看板。对老师永久免费。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Notion "warm paper" design system — tokens from styles.refero.design */
+:root{
+  --notion-blue:#0075de; --sky-tint:#e6f3fe; --marigold:#ffb110; --coral:#f64932;
+  --saffron:#e89d01; --mocha:#b18164; --signal-blue:#097fe8; --sky-wash:#62aef0;
+  --midnight:#02093a; --paper:#f6f5f4; --white:#ffffff;
+  --ink:#000000; --graphite:#615d59; --stone:#757575; --slate:#696969;
+  --radius-card:12px; --radius-btn:8px; --hairline:1px solid rgba(0,0,0,0.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:'Inter',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;font-size:16px;line-height:1.5}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+section{margin-top:80px}
+nav{position:sticky;top:0;background:rgba(246,245,244,0.92);backdrop-filter:blur(8px);border-bottom:var(--hairline);z-index:10}
+.nav-inner{max-width:1080px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-weight:700;font-size:18px;letter-spacing:-0.2px}
+.logo span{color:var(--notion-blue)}
+.nav-links{display:flex;gap:24px;font-size:14px;color:var(--stone)}
+.nav-links a:hover{color:var(--ink)}
+.pill{display:inline-block;background:var(--coral);color:#fff;font-size:13px;font-weight:500;padding:5px 14px;border-radius:9999px;margin-bottom:20px}
+.pill b{background:var(--marigold);color:var(--ink);padding:1px 8px;border-radius:9999px;margin-left:2px}
+h1.display{font-size:54px;font-weight:700;line-height:1.3;letter-spacing:0.5px;margin-top:4px}
+h1 .hl{background:var(--marigold);padding:2px 12px;border-radius:9999px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.sub{margin-top:20px;font-size:20px;color:var(--graphite);max-width:560px}
+.cta-row{margin-top:32px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 24px;border-radius:8px;font-weight:600;font-size:16px;transition:all .2s ease}
+.btn-primary{background:var(--notion-blue);color:#fff}
+.btn-primary:hover{background:#0065c2}
+.btn-ghost{background:var(--sky-tint);color:var(--notion-blue)}
+.btn-ghost:hover{background:#d5ebfd}
+.hero-meta{margin-top:16px;font-size:13px;color:var(--stone)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--white);border:var(--hairline);border-radius:12px;padding:24px}
+.card h3{font-size:22px;font-weight:700;letter-spacing:-0.24px;margin-bottom:8px}
+.card p{font-size:14px;color:var(--slate);line-height:1.6}
+.card.accent{color:#fff}
+.card.accent p{color:rgba(255,255,255,0.85)}
+.card.c-marigold{background:var(--marigold);color:var(--ink)}
+.card.c-coral{background:var(--coral)}
+.card.c-sky{background:var(--sky-wash)}
+.card.c-midnight{background:var(--midnight)}
+.card.c-saffron{background:var(--saffron);color:var(--ink)}
+.card.c-mocha{background:var(--mocha)}
+h2.heading{font-size:40px;font-weight:600;letter-spacing:0.5px;line-height:1.4}
+.kicker{font-size:13px;color:var(--stone);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:32px}
+.step-num{display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;background:var(--notion-blue);color:#fff;border-radius:9999px;font-weight:700;margin-bottom:12px}
+.dl-card{background:var(--midnight);color:#fff;border-radius:12px;padding:48px 40px;text-align:center}
+.dl-card h2{font-size:44px;font-weight:600;letter-spacing:0;line-height:1.3}
+.dl-card .btn-primary{margin-top:24px;font-size:18px;padding:16px 40px}
+.dl-note{margin-top:16px;font-size:13px;color:rgba(255,255,255,0.6);line-height:1.8}
+.contact{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.contact .card{padding:32px}
+.contact img{width:200px;border-radius:12px;border:var(--hairline);display:block;margin:16px auto 0}
+footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;color:var(--stone);text-align:center;line-height:1.8}
+@media(max-width:800px){.grid,.steps,.contact{grid-template-columns:1fr}h1.display{font-size:36px;letter-spacing:0.5px;line-height:1.3}.dl-card h2{font-size:32px}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#">红笔 <span>RedPen</span></a>
+    <div class="nav-links">
+      <a href="#features">功能</a><a href="#how">如何使用</a><a href="#download">下载</a>
+      <a href="https://github.com/JunyuZhan/red-pen" target="_blank">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+<section style="margin-top:96px">
+  <div class="pill">给老师的 AI 批改助手 <b>对老师永久免费</b></div>
+  <h1 class="display">作业拍照上传<br><span class="hl">AI 帮你批改</span></h1>
+  <p class="sub">手机拍照 → AI 逐题批改 → 红笔标注回显 → 学情分析看板。装在教师自己的电脑上，数据不出本机，学生的每份作业都留档可查。</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 Windows 版（免安装）</a>
+    <a class="btn btn-ghost" href="https://github.com/JunyuZhan/red-pen" target="_blank">查看源码</a>
+  </div>
+  <p class="hero-meta">Windows 10/11 · 双击即用 · 默认 PIN 123456 · 开发者 JunyuZhan</p>
+</section>
+
+<section id="features">
+  <div class="kicker">Features</div>
+  <h2 class="heading">批改、标注、学情，一站完成</h2>
+  <div class="grid" style="margin-top:32px">
+    <div class="card c-coral accent"><h3>📱 拍照上传</h3><p>手机扫码连接，拍照 5 秒预览自动上传，无需安装任何 App。</p></div>
+    <div class="card"><h3>✅ 逐题批改</h3><p>AI 逐题判定对错、分析错因、给出置信度；规则层交叉校验，把模型犯错拦下来。</p></div>
+    <div class="card c-marigold"><h3>🖊️ 红笔标注</h3><p>原图上画圈标记对错，右侧逐题卡片，像老师用红笔批改一样直观。</p></div>
+    <div class="card c-sky"><h3>🤖 自选模型</h3><p>DeepSeek / 通义千问 / 智谱 / 自定义 OpenAI 兼容接口，填自己的 Key，主备自动切换。</p></div>
+    <div class="card c-midnight accent"><h3>📊 学情分析</h3><p>错误类型分布、学生正确率、班级对比，数据看板一目了然。</p></div>
+    <div class="card"><h3>🔒 数据本机</h3><p>Key、作业、成绩全部存在自己电脑，支持一键备份/恢复换机不丢数据。</p></div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="kicker">How it works</div>
+  <h2 class="heading">三步开始使用</h2>
+  <div class="steps">
+    <div class="card"><span class="step-num">1</span><h3>下载运行</h3><p>下载 RedPen.exe 双击运行（首次运行点"更多信息→仍要运行"）。浏览器自动打开工作台。</p></div>
+    <div class="card"><span class="step-num">2</span><h3>配置模型</h3><p>设置页填入你的模型 API Key（DeepSeek、通义、智谱任选），建议先修改默认 PIN。</p></div>
+    <div class="card"><span class="step-num">3</span><h3>扫码批改</h3><p>手机连同一 WiFi，扫设置页二维码打开拍照页，拍作业即可批改。</p></div>
+  </div>
+</section>
+
+<section id="download">
+  <div class="dl-card">
+    <div class="kicker" style="color:rgba(255,255,255,0.5)">Download</div>
+    <h2>立即下载</h2>
+    <a class="btn btn-primary" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ Windows 版 RedPen.exe</a>
+    <p class="dl-note">免安装单文件 · 数据存于 exe 同级 data 文件夹，备份该文件夹即备份全部数据<br>
+    首次运行若提示"Windows 已保护你的电脑"，点"更多信息 → 仍要运行"；杀毒软件误报请添加信任<br>
+    请始终从本页或 GitHub Releases 官方渠道下载</p>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="kicker">Contact</div>
+  <h2 class="heading">联系作者 · 支持开发</h2>
+  <div class="contact" style="margin-top:32px">
+    <div class="card">
+      <h3>JunyuZhan</h3>
+      <p style="margin-top:8px">📮 junyuzhan@outlook.com<br>
+      🐛 <a href="https://github.com/JunyuZhan/red-pen/issues" target="_blank" style="color:var(--notion-blue)">GitHub Issues 反馈</a><br>
+      📄 <a href="https://github.com/JunyuZhan/red-pen/blob/main/LICENSE" target="_blank" style="color:var(--notion-blue)">PolyForm Noncommercial 1.0.0</a><br>
+      <span style="font-size:12px;color:var(--stone)">个人学习与学校/教师使用免费，未经授权禁止商用</span></p>
+    </div>
+    <div class="card" style="text-align:center">
+      <h3>☕ 请作者喝杯咖啡</h3>
+      <p style="margin-top:8px">软件对老师永久免费，打赏完全自愿，功能无任何区别。</p>
+      <img src="donate_qr.png" alt="微信赞赏码">
+    </div>
+  </div>
+</section>
+</div>
+
+<footer>
+  红笔 RedPen · 开发者 JunyuZhan · junyuzhan@outlook.com<br>
+  <a href="https://github.com/JunyuZhan/red-pen" target="_blank" style="color:var(--notion-blue)">github.com/JunyuZhan/red-pen</a> · Released under PolyForm Noncommercial 1.0.0
+</footer>
+</body>
+</html>
