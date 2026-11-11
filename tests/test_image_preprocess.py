@@ -1,157 +1,166 @@
-"""切题前置图像预处理 测试
+# -*- coding: utf-8 -*-
+"""切题前置图像预处理 测试 — pytest 原生版
 
 覆盖：配置默认关/读写 / 墨迹包围盒 / 输出文件生成 / 低对比度增强 /
 裁边去空白 / 密集图不误裁 / 损坏文件与缺失文件回退原图 / EXIF 转正 /
 设置 API 读写 / 切题链路接入预处理。
-运行：PYTHONPATH=. python tests/test_image_preprocess.py
 """
-
 import io
 import os
-import shutil
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import pytest
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./data/test_preprocess.db")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
 from PIL import Image, ImageDraw, ImageStat  # noqa: E402
 
 from backend.models.image_preprocess import (  # noqa: E402
     _ink_bbox, get_preprocess_config, preprocess_image,
     save_preprocess_config)
-from backend.database import init_db  # noqa: E402
-
-PASS = []
-def ok(name, cond):
-    PASS.append((name, bool(cond)))
-    print(("✅" if cond else "❌"), name)
 
 
-TMP = tempfile.mkdtemp()
+@pytest.fixture()
+def preprocess_env():
+    """独立临时库，结束恢复原状（配置存取走 backend.database.SessionLocal）。"""
+    import backend.database as dbmod
+    from backend.database import init_db
+
+    tmp = tempfile.mkdtemp(prefix="rp_preproc_")
+    url = "sqlite:///" + os.path.join(tmp, "test_preprocess.db")
+    old = (dbmod.engine, dbmod.SessionLocal)
+    dbmod.engine = dbmod.create_engine(url, connect_args={"check_same_thread": False})
+    dbmod.SessionLocal = dbmod.sessionmaker(bind=dbmod.engine, autoflush=False)
+    init_db()
+    yield dbmod
+    dbmod.engine.dispose()
+    dbmod.engine, dbmod.SessionLocal = old
 
 
-def save_img(name, img, **kw):
-    p = os.path.join(TMP, name)
+@pytest.fixture()
+def tmpdir_img(tmp_path):
+    """存放测试图片的临时目录。"""
+    d = tmp_path / "imgs"
+    d.mkdir()
+    return str(d)
+
+
+def _save(directory, name, img, **kw):
+    p = os.path.join(directory, name)
     img.save(p, **kw)
     return p
 
 
-def test_config():
-    init_db()
-    ok("配置默认关闭", get_preprocess_config()["enabled"] is False)
-    save_preprocess_config(True)
-    ok("保存开启后读取为 true", get_preprocess_config()["enabled"] is True)
-    save_preprocess_config(False)
-    ok("保存关闭后读取为 false", get_preprocess_config()["enabled"] is False)
-
+# ---------- 纯图像逻辑（不依赖数据库） ----------
 
 def test_ink_bbox():
     img = Image.new("L", (100, 80), 255)
     d = ImageDraw.Draw(img)
     d.rectangle([20, 10, 60, 70], fill=0)
     bbox = _ink_bbox(img)
-    ok("包围盒覆盖墨迹", bbox is not None and bbox[0] <= 20 and bbox[2] >= 61
-       and bbox[1] <= 10 and bbox[3] >= 71)
-    ok("空白图无包围盒", _ink_bbox(Image.new("L", (50, 50), 255)) is None)
+    assert bbox is not None
+    assert bbox[0] <= 20 and bbox[2] >= 61 and bbox[1] <= 10 and bbox[3] >= 71
 
 
-def test_output_created():
+def test_ink_bbox_blank():
+    assert _ink_bbox(Image.new("L", (50, 50), 255)) is None
+
+
+def test_output_created(tmpdir_img):
     img = Image.new("RGB", (400, 300), (255, 255, 255))
     ImageDraw.Draw(img).rectangle([50, 50, 350, 250], outline=0, width=5)
-    p = save_img("a.png", img)
-    out = preprocess_image(p, os.path.join(TMP, "out"))
-    ok("生成预处理文件", os.path.exists(out) and out != p
-       and os.path.basename(out).startswith("pre_"))
+    p = _save(tmpdir_img, "a.png", img)
+    out = preprocess_image(p, os.path.join(tmpdir_img, "out"))
+    assert os.path.exists(out) and out != p
+    assert os.path.basename(out).startswith("pre_")
 
 
-def test_low_contrast_enhanced():
+def test_low_contrast_enhanced(tmpdir_img):
     img = Image.new("RGB", (200, 200), (120, 120, 120))
     ImageDraw.Draw(img).rectangle([20, 20, 180, 180], fill=130)
-    p = save_img("lowc.png", img)
-    out = preprocess_image(p, TMP)
+    p = _save(tmpdir_img, "lowc.png", img)
+    out = preprocess_image(p, tmpdir_img)
     std_b = ImageStat.Stat(Image.open(p).convert("L")).stddev[0]
     std_a = ImageStat.Stat(Image.open(out).convert("L")).stddev[0]
-    ok("低对比度图被增强(标准差提升)", std_a >= std_b)
+    assert std_a >= std_b
 
 
-def test_crop_blank():
+def test_crop_blank(tmpdir_img):
     img = Image.new("RGB", (1000, 1000), (255, 255, 255))
     ImageDraw.Draw(img).rectangle([400, 400, 600, 600], outline=0, width=5)
-    out = preprocess_image(save_img("blank.png", img), TMP)
+    out = preprocess_image(_save(tmpdir_img, "blank.png", img), tmpdir_img)
     w, h = Image.open(out).size
-    ok("大块空白被裁掉", w * h < 1000 * 1000 * 0.9)
+    assert w * h < 1000 * 1000 * 0.9
 
 
-def test_dense_not_cropped():
+def test_dense_not_cropped(tmpdir_img):
     img = Image.new("RGB", (300, 300), (255, 255, 255))
     ImageDraw.Draw(img).rectangle([5, 5, 295, 295], outline=0, width=10)
-    out = preprocess_image(save_img("dense.png", img), TMP)
-    ok("内容占满不误裁", Image.open(out).size == (300, 300))
+    out = preprocess_image(_save(tmpdir_img, "dense.png", img), tmpdir_img)
+    assert Image.open(out).size == (300, 300)
 
 
-def test_fallbacks():
-    bad = os.path.join(TMP, "bad.png")
+def test_fallback_corrupt_file(tmpdir_img):
+    bad = os.path.join(tmpdir_img, "bad.png")
     with open(bad, "wb") as f:
         f.write(b"not-an-image")
-    ok("损坏文件回退原图", preprocess_image(bad, TMP) == bad)
-    ok("缺失文件回退原图", preprocess_image(os.path.join(TMP, "nope.png"), TMP)
-       == os.path.join(TMP, "nope.png"))
+    assert preprocess_image(bad, tmpdir_img) == bad
 
 
-def test_exif():
+def test_fallback_missing_file(tmpdir_img):
+    missing = os.path.join(tmpdir_img, "nope.png")
+    assert preprocess_image(missing, tmpdir_img) == missing
+
+
+def test_exif_rotated(tmpdir_img):
     img = Image.new("RGB", (100, 200), (255, 255, 255))
     ImageDraw.Draw(img).text((10, 80), "hi", fill=0)
     exif = Image.Exif()
     exif[274] = 6
     bio = io.BytesIO()
     img.save(bio, format="JPEG", exif=exif.tobytes())
-    p = os.path.join(TMP, "rot.jpg")
+    p = os.path.join(tmpdir_img, "rot.jpg")
     with open(p, "wb") as f:
         f.write(bio.getvalue())
-    out = preprocess_image(p, TMP)
-    ok("EXIF 旋转图处理成功", os.path.exists(out))
-
-
-def test_api():
-    from fastapi.testclient import TestClient
-    from backend.app import app
-    c = TestClient(app)
-    # 未带 PIN cookie：GET/POST 均被拒绝（设置接口统一 admin 保护）
-    ok("GET 未鉴权被拒绝", c.get("/api/settings/preprocess").status_code in (401, 403))
-    ok("POST 未鉴权被拒绝", c.post("/api/settings/preprocess",
-                                   json={"enabled": True}).status_code in (401, 403))
-    c.post("/api/auth/pin-login", json={"pin": "123456"})
-    r = c.get("/api/settings/preprocess")
-    d = r.json()
-    ok("GET 带 PIN 读取成功", r.status_code == 200 and d["success"])
-    r3 = c.post("/api/settings/preprocess", json={"enabled": True})
-    d3 = r3.json()
-    ok("POST 带 PIN 保存成功", r3.status_code == 200 and d3["success"]
-       and d3["enabled"] is True)
-    save_preprocess_config(False)
+    out = preprocess_image(p, tmpdir_img)
+    assert os.path.exists(out)
 
 
 def test_split_integration():
     from backend.models.grading_engine import GradingManager
     import inspect
     src = inspect.getsource(GradingManager._grade_with_split)
-    ok("切题链路已接入预处理", "preprocess_image" in src and "get_preprocess_config" in src)
+    assert "preprocess_image" in src and "get_preprocess_config" in src
 
 
-if __name__ == "__main__":
-    test_config()
-    test_ink_bbox()
-    test_output_created()
-    test_low_contrast_enhanced()
-    test_crop_blank()
-    test_dense_not_cropped()
-    test_fallbacks()
-    test_exif()
-    test_api()
-    test_split_integration()
-    n_fail = sum(1 for _, c in PASS if not c)
-    print(f"\n{len(PASS) - n_fail}/{len(PASS)} passed")
-    shutil.rmtree(TMP, ignore_errors=True)
-    sys.exit(1 if n_fail else 0)
+# ---------- 依赖数据库的配置/API ----------
+
+def test_config_default_off(preprocess_env):
+    assert get_preprocess_config()["enabled"] is False
+
+
+def test_config_roundtrip(preprocess_env):
+    save_preprocess_config(True)
+    assert get_preprocess_config()["enabled"] is True
+    save_preprocess_config(False)
+    assert get_preprocess_config()["enabled"] is False
+
+
+def test_settings_api(preprocess_env):
+    from fastapi.testclient import TestClient
+    from backend.app import app
+    c = TestClient(app)
+    # 未带 PIN cookie：GET/POST 均被拒绝（设置接口统一 admin 保护）
+    assert c.get("/api/settings/preprocess").status_code in (401, 403)
+    assert c.post("/api/settings/preprocess",
+                  json={"enabled": True}).status_code in (401, 403)
+    c.post("/api/auth/pin-login", json={"pin": "123456"})
+    r = c.get("/api/settings/preprocess")
+    d = r.json()
+    assert r.status_code == 200 and d["success"]
+    r3 = c.post("/api/settings/preprocess", json={"enabled": True})
+    d3 = r3.json()
+    assert r3.status_code == 200 and d3["success"] and d3["enabled"] is True
+    save_preprocess_config(False)
