@@ -219,5 +219,40 @@
 })();
 </script>
 
+
+<script>
+// 乱码解码 Scramble Text：标题进入视口时从随机字符解码还原
+(function(){
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!('IntersectionObserver' in window)) return;
+  var pool = 'アイウエオカキクケコサシスセソ0123456789#$%&*+=?ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  function scramble(el){
+    var text = el.dataset.text || el.textContent;
+    if (el.dataset.done) return;
+    el.dataset.text = text;
+    el.dataset.done = '1';
+    var i = 0, frame = 0;
+    var timer = setInterval(function(){
+      frame++;
+      var out = '';
+      for (var k = 0; k < text.length; k++){
+        var ch = text[k];
+        if (ch === ' ' || ch === '\n') { out += ch; continue; }
+        out += (k < i) ? ch : pool[Math.floor(Math.random() * pool.length)];
+      }
+      el.textContent = out;
+      if (frame % 2 === 0) i++;
+      if (i > text.length){ clearInterval(timer); el.textContent = text; }
+    }, 28);
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting){ scramble(e.target); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.4 });
+  document.querySelectorAll('.heading, #story .sp-title').forEach(function(el){ io.observe(el); });
+})();
+</script>
+
 </body>
 </html>
