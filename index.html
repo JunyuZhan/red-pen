@@ -155,18 +155,20 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
   <div class="kicker">Product</div>
   <h2 class="heading">真实界面预览</h2>
   <div class="card" style="margin-top:32px;padding:12px">
-    <img loading="lazy" src="images/site_workbench.jpg" width="1600" height="3560" alt="教师工作台" style="width:100%;border-radius:8px;display:block">
-    <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">教师工作台：提交记录 · 班级管理 · 成本统计 · 学情分析</p>
+    <img loading="lazy" src="images/site_workbench.jpg" width="1600" height="3560" alt="教师工作台" style="width:100%;height:auto;border-radius:8px;display:block">
+    <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">教师工作台（PC 端）：提交记录 · 班级管理 · 成本统计 · 学情分析</p>
   </div>
-  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:16px;align-items:start">
-    <div class="card" style="padding:12px">
-      <img loading="lazy" src="images/analytics.jpg" width="1600" height="1424" alt="学情分析" style="width:100%;border-radius:8px;display:block">
-      <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">学情分析：学生正确率排名 · 错误类型分布 · 判定分布环形图 · 低置信度题目人工复核</p>
-    </div>
-    <div class="card" style="padding:12px">
-      <img loading="lazy" src="images/site_mobile.jpg" width="780" height="1688" alt="手机拍照页" style="width:100%;border-radius:8px;display:block">
-      <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">手机端：扫码即开，拍照上传</p>
-    </div>
+  <div class="card" style="margin-top:16px;padding:12px">
+    <img loading="lazy" src="images/analytics.jpg" width="1600" height="1424" alt="学情分析" style="width:100%;height:auto;border-radius:8px;display:block">
+    <p style="text-align:center;font-size:13px;color:var(--stone);margin-top:10px">学情分析：学生正确率排名 · 错误类型分布 · 判定分布环形图 · 低置信度题目人工复核</p>
+  </div>
+  <div style="display:flex;justify-content:center;margin-top:24px">
+    <figure style="margin:0;max-width:300px;text-align:center">
+      <div style="border:8px solid var(--midnight);border-radius:24px;overflow:hidden;background:var(--midnight)">
+        <img loading="lazy" src="images/site_mobile.jpg" width="780" height="1688" alt="手机拍照页" style="width:100%;height:auto;display:block">
+      </div>
+      <figcaption style="font-size:13px;color:var(--stone);margin-top:10px">手机端（真实手机比例）：扫码即开，拍照上传</figcaption>
+    </figure>
   </div>
 </section>
 
@@ -183,28 +185,33 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 
 <section id="contact">
   <div class="kicker">Contact</div>
-  <h2 class="heading">联系作者 · 支持开发</h2>
-  <div class="contact" style="margin-top:32px">
-    <div class="card">
-      <h3>JunyuZhan</h3>
-      <p style="margin-top:8px">👥 <b>用户交流QQ群：984644289</b>（Redpen交流群，QQ搜索群号加入）<br>
-      📮 junyuzhan@outlook.com<br>
-      🐛 <a href="https://github.com/JunyuZhan/red-pen/issues" target="_blank" style="color:var(--notion-blue)">GitHub Issues 反馈</a><br>
-      📄 <a href="https://github.com/JunyuZhan/red-pen/blob/main/LICENSE" target="_blank" style="color:var(--notion-blue)">PolyForm Noncommercial 1.0.0</a><br>
-      <span style="font-size:12px;color:var(--stone)">个人学习与学校/教师使用免费，未经授权禁止商用</span></p>
-    </div>
-    <div class="card" style="text-align:center">
-      <h3>👥 加入交流群 · 联系作者</h3>
-      <p style="margin-top:8px;font-size:13px">QQ交流群：984644289（使用问题/更新通知）</p>
-      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:8px">
-        <div><img loading="lazy" src="images/qq_group_qr.png" width="364" height="362" alt="QQ交流群二维码" style="width:150px;border-radius:8px;border:var(--hairline)"><p style="font-size:12px;color:var(--stone);margin-top:4px">QQ 扫码进群</p></div>
-        <div><img loading="lazy" src="images/wechat_qr.png" width="352" height="352" alt="微信联系作者" style="width:150px;border-radius:8px;border:var(--hairline)"><p style="font-size:12px;color:var(--stone);margin-top:4px">微信扫码加作者</p></div>
+  <h2 class="heading">联系作者 · 加入社区</h2>
+  <div class="card" style="margin-top:32px;padding:32px 24px">
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-around;gap:32px">
+      <div style="min-width:220px;flex:1">
+        <h3 style="font-size:22px;font-weight:700;margin-bottom:10px">JunyuZhan</h3>
+        <p style="font-size:14px;color:var(--slate);line-height:2">
+          👥 QQ交流群：<b>984644289</b><br>
+          📮 <a href="mailto:junyuzhan@outlook.com" style="color:var(--notion-blue)">junyuzhan@outlook.com</a><br>
+          🐛 <a href="https://github.com/JunyuZhan/red-pen/issues" target="_blank" style="color:var(--notion-blue)">GitHub Issues 反馈</a><br>
+          📄 <a href="https://github.com/JunyuZhan/red-pen/blob/main/LICENSE" target="_blank" style="color:var(--notion-blue)">PolyForm Noncommercial</a>
+        </p>
       </div>
-    </div>
-    <div class="card" style="text-align:center">
-      <h3>☕ 请作者喝杯咖啡</h3>
-      <p style="margin-top:8px">软件对老师永久免费，打赏完全自愿，功能无任何区别。</p>
-      <img loading="lazy" src="images/donate_qr.png" width="330" height="332" alt="微信赞赏码" style="width:200px">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:center">
+        <figure style="margin:0;text-align:center">
+          <img loading="lazy" src="images/qq_group_qr.png" width="364" height="362" alt="QQ交流群二维码" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block">
+          <figcaption style="font-size:12px;color:var(--stone);margin-top:6px">QQ 扫码进群</figcaption>
+        </figure>
+        <figure style="margin:0;text-align:center">
+          <img loading="lazy" src="images/wechat_qr.png" width="352" height="352" alt="微信联系作者" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block">
+          <figcaption style="font-size:12px;color:var(--stone);margin-top:6px">微信加作者</figcaption>
+        </figure>
+      </div>
+      <div style="text-align:center;min-width:180px">
+        <p style="font-size:14px;color:var(--slate);margin-bottom:10px">☕ 软件对老师<b>永久免费</b><br>打赏完全自愿</p>
+        <img loading="lazy" src="images/donate_qr.png" width="330" height="332" alt="微信赞赏码" style="width:140px;height:auto;border-radius:8px;border:var(--hairline);display:block;margin:0 auto">
+        <p style="font-size:12px;color:var(--stone);margin-top:6px">赞赏码</p>
+      </div>
     </div>
   </div>
 </section>
