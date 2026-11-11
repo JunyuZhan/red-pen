@@ -73,11 +73,12 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             q.update(state="failed", error="提交记录不存在")
             return {"success": False, "error": "提交记录不存在"}
 
+        subject = template.subject if template else "数学"
         try:
             result = await grading_manager.grade(
                 image_path=submission.original_image_path,
                 question_type="default",
-                subject=(template.subject if template else "数学"),
+                subject=subject,
                 answers=(template.answers if template else None),
             )
         except Exception as e:
@@ -105,7 +106,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         try:
             from ..models.review import cross_check_questions
             review_stats = await cross_check_questions(
-                result, submission.original_image_path, "default", "数学",
+                result, submission.original_image_path, "default", subject,
                 answers=(template.answers if template else None))
         except Exception:
             review_stats = None  # 复核链路任何异常都不能影响正常批改结果
