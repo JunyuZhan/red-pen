@@ -76,7 +76,7 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 .hero-bg .b2{width:260px;height:260px;background:var(--sky-wash);bottom:-40px;left:-60px}
 .hero-bg .dotgrid{position:absolute;inset:0;background-image:radial-gradient(rgba(0,0,0,0.06) 1px, transparent 1px);background-size:22px 22px}
 #hero{position:relative}
-#hero > *{position:relative;z-index:1}
+#hero > *:not(.hero-bg){position:relative;z-index:1}
 @keyframes beam{0%{--beam-angle:0deg}100%{--beam-angle:360deg}}
 @property --beam-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
 .dl-card{position:relative;background:linear-gradient(var(--midnight),var(--midnight)) padding-box,
@@ -119,5 +119,4 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 }
 
 /* 多层视差纵深 */
-#hero{position:relative}
 #hero .mtn{will-change:transform}
