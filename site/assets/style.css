@@ -72,8 +72,8 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 }
 
 /* ---- 动效层 ---- */
-.hero-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
-.hero-bg .blob{position:absolute;border-radius:9999px;filter:blur(60px);opacity:.35}
+.hero-bg{position:absolute;inset:0;left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;width:100vw;overflow:hidden;pointer-events:none;z-index:0}
+.hero-bg .blob{position:absolute;border-radius:9999px;filter:blur(80px);opacity:.28}
 .hero-bg .b1{width:340px;height:340px;background:var(--marigold);top:-60px;right:-80px}
 .hero-bg .b2{width:260px;height:260px;background:var(--sky-wash);bottom:-40px;left:-60px}
 .hero-bg .dotgrid{position:absolute;inset:0;background-image:radial-gradient(rgba(0,0,0,0.06) 1px, transparent 1px);background-size:22px 22px}
@@ -147,3 +147,5 @@ footer{margin-top:80px;padding:40px 0;border-top:var(--hairline);font-size:13px;
 .shimmer-btn{position:relative;overflow:hidden}
 .shimmer-btn::after{content:'';position:absolute;top:0;bottom:0;left:-40%;width:35%;background:linear-gradient(105deg,transparent,rgba(255,255,255,0.5),transparent);animation:sweep 2.8s ease-in-out infinite;pointer-events:none}
 @media(prefers-reduced-motion: reduce){.shimmer-btn::after{display:none}}
+
+.hero-bg::after{content:'';position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(to bottom,transparent,var(--paper));pointer-events:none}
