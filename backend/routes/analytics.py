@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from collections import Counter, defaultdict
 
-from ..database import get_db, QuestionResult, Submission, Student
+from ..database import get_db, Class, QuestionResult, Submission, Student
 from ..models.grade_scale import get_thresholds, compute_grade
 from .auth import require_admin
 
@@ -107,6 +107,73 @@ async def analytics(db: Session = Depends(get_db)):
         "needs_review": needs_review[:20],
         "ai_agreement": ai_agreement,
     }
+
+
+@router.get("/analytics/trends")
+async def analytics_trends(db: Session = Depends(get_db)):
+    """学情可视化数据（待办 l）：各生逐次作业正确率序列（趋势折线图用）+ 各班平均正确率（对比条形图用）"""
+
+    subs = db.query(Submission).order_by(Submission.created_at, Submission.id).all()
+    sub_map = {s.id: s for s in subs}
+    results = db.query(QuestionResult).all()
+
+    # 每次提交的正确数
+    by_sub = defaultdict(lambda: {"total": 0, "correct": 0})
+    for r in results:
+        st = by_sub[r.submission_id]
+        st["total"] += 1
+        if r.judgement_final == "correct":
+            st["correct"] += 1
+
+    # 各生逐次作业序列（按时间序，只含有批改结果的提交）
+    stu_map = {s.id: s for s in db.query(Student).all()}
+    cls_map = {c.id: c for c in db.query(Class).all()}
+    per_student = defaultdict(list)
+    for s in subs:
+        st = by_sub.get(s.id)
+        if not st or not st["total"]:
+            continue
+        per_student[s.student_id].append({
+            "date": s.created_at.strftime("%m-%d") if s.created_at else "",
+            "accuracy": round(st["correct"] / st["total"], 3),
+            "total": st["total"],
+        })
+    series = []
+    for sid, hist in per_student.items():
+        stu = stu_map.get(sid)
+        series.append({
+            "student_id": sid,
+            "name": stu.name if stu else f"学生{sid}",
+            "class_id": stu.class_id if stu else None,
+            "history": hist,
+        })
+    series.sort(key=lambda x: x["name"])
+
+    # 各班平均正确率（按班级聚合所有题）
+    by_class = defaultdict(lambda: {"total": 0, "correct": 0})
+    for r in results:
+        sub = sub_map.get(r.submission_id)
+        if not sub:
+            continue
+        stu = stu_map.get(sub.student_id)
+        if not stu:
+            continue
+        st = by_class[stu.class_id]
+        st["total"] += 1
+        if r.judgement_final == "correct":
+            st["correct"] += 1
+    classes = []
+    for cid, st in by_class.items():
+        cls = cls_map.get(cid)
+        classes.append({
+            "class_id": cid,
+            "name": cls.name if cls else f"班级{cid}",
+            "total": st["total"],
+            "accuracy": round(st["correct"] / st["total"], 3) if st["total"] else None,
+        })
+    classes.sort(key=lambda x: -(x["accuracy"] if x["accuracy"] is not None else -1))
+
+    return {"success": True, "series": series, "classes": classes}
 
 
 VALID_JUDGEMENTS = ("correct", "wrong", "partial")
