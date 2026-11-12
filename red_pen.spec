@@ -1,11 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 # 红笔 · 教师单机自用版 PyInstaller 打包配置
 # 用法: pyinstaller red_pen.spec
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+# RapidOCR（g1 题号锚点）：模型权重在包内 data，需一并打入
+_rapid_datas = collect_data_files('rapidocr_onnxruntime')
+_rapid_hidden = collect_submodules('rapidocr_onnxruntime')
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('frontend', 'frontend')],
+    datas=[('frontend', 'frontend')] + _rapid_datas,
     hiddenimports=[
         'uvicorn.logging',
         'uvicorn.loops',
@@ -17,7 +23,7 @@ a = Analysis(
         'uvicorn.protocols.websockets.auto',
         'uvicorn.lifespan',
         'uvicorn.lifespan.on',
-    ],
+    ] + _rapid_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

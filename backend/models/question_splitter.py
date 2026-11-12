@@ -36,6 +36,103 @@ SCALE_UP_MIN_H = 400     # 裁出高度低于此放大 2 倍
 MAX_CROP_DIM = 2000      # 裁切图最长边上限
 MARGIN_RATIO = 0.01      # 裁切四周留边（相对原图）
 
+# ---- g1: 题号 OCR 锚点 + 页眉剔除 ----
+# RapidOCR（onnxruntime）可选依赖：识别页面文字行，匹配题号锚点。
+# 未安装 / 识别失败 / 无锚点时自动回退纯行投影，绝不阻塞批改。
+QNO_RE = None  # 延迟编译（见 _qno_re）
+_ocr_engine = None
+
+
+def _qno_re():
+    """题号锚点正则：行首 "1." / "12、" / "(3)" / "1．"（仅阿拉伯数字，
+    中文数字"一、二、"可能是章节标题如"一、填空题"，不作为锚点）。"""
+    global QNO_RE
+    if QNO_RE is None:
+        import re
+        QNO_RE = re.compile(r"^[\(\(（]?(\d{1,2})[\)）\)\.、．,，:：]")
+    return QNO_RE
+
+
+def _get_ocr():
+    """惰性加载 RapidOCR 引擎单例；不可用返回 None（只尝试一次）。"""
+    global _ocr_engine
+    if _ocr_engine == "unavailable":
+        return None
+    if _ocr_engine is None:
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+            _ocr_engine = RapidOCR()
+        except Exception:
+            _ocr_engine = "unavailable"
+    return _ocr_engine
+
+
+def parse_qno(text):
+    """从 OCR 文本行提取题号；非题号行返回 None。
+    "3. x+1=5" → 3；"13、回答下列问题" → 13；"姓名：张三" → None。"""
+    m = _qno_re().match(str(text).strip())
+    if not m:
+        return None
+    try:
+        n = int(m.group(1))
+    except ValueError:
+        return None
+    return n if 1 <= n <= 99 else None
+
+
+def detect_question_anchors(image_path: str) -> list:
+    """OCR 找题号锚点 → [{"no", "top"}]，top 为原图像素坐标，按 top 排序。
+
+    过滤：只保留"自上而下题号递增"的锚点（页眉里的"1 / 3 页"、
+    倒序引用等伪锚点被丢弃）。失败返回 []。
+    """
+    ocr = _get_ocr()
+    if ocr is None:
+        return []
+    try:
+        img = ImageOps.exif_transpose(Image.open(image_path))
+        result, _ = ocr(img)
+        if not result:
+            return []
+        H = img.size[1]
+        raw = []
+        for box, text, _conf in result:
+            no = parse_qno(text)
+            if no is None:
+                continue
+            top = min(p[1] for p in box)
+            if top < 0 or top > H:
+                continue
+            raw.append({"no": no, "top": round(top)})
+        raw.sort(key=lambda a: a["top"])
+        anchors, last_no = [], 0
+        for a in raw:
+            if a["no"] > last_no:
+                anchors.append(a)
+                last_no = a["no"]
+        return anchors
+    except Exception:
+        return []
+
+
+def regions_from_anchors(anchors, total_h):
+    """锚点 → 题目区域 [(top, bottom)]：每题从自身锚点到下一锚点。
+    首锚点之前的区域（页眉/标题/姓名栏）被天然剔除。"""
+    if len(anchors) < 2:
+        return []
+    out = []
+    tops = [a["top"] for a in anchors]
+    for i, top in enumerate(tops):
+        bottom = tops[i + 1] if i + 1 < len(tops) else total_h
+        if bottom - top >= MIN_REGION_H:
+            out.append((top, bottom))
+    return out[:MAX_REGIONS]
+
+
+def _strip_header(regions, header_top):
+    """行投影区域 × 单个锚点：剔除锚点以上（页眉）的区域。"""
+    return [(t, b) for (t, b) in regions if b > header_top]
+
 
 def get_split_config() -> Dict[str, Any]:
     """读取切题模式配置：enabled，存 AppConfig"""
@@ -125,12 +222,30 @@ def split_questions(image_path: str, out_dir: str) -> List[Dict[str, Any]]:
     if len(regions) < MIN_REGIONS_TO_SPLIT:
         return []
 
+    # g1: OCR 题号锚点优先——≥2 个锚点时直接按锚点重建区域（页眉天然剔除，
+    # 且比行投影更准）；仅 1 个锚点时用它剔除页眉以上的行投影区域；
+    # 无 OCR / 无锚点回退纯行投影。
+    try:
+        anchors = detect_question_anchors(image_path)
+    except Exception:
+        anchors = []
+    if len(anchors) >= 2:
+        regions = regions_from_anchors(anchors, H)
+    elif len(anchors) == 1:
+        regions = _strip_header(regions, anchors[0]["top"])
+    if len(regions) < MIN_REGIONS_TO_SPLIT:
+        return []
+
     os.makedirs(out_dir, exist_ok=True)
     margin = max(4, round(min(W, H) * MARGIN_RATIO))
     crops = []
     for idx, (top, bottom) in enumerate(regions):
-        o_top = max(0, round(top / scale) - margin)
-        o_bot = min(H, round(bottom / scale) + margin)
+        if len(anchors) >= 2:
+            o_top = max(0, round(top) - margin)
+            o_bot = min(H, round(bottom) + margin)
+        else:
+            o_top = max(0, round(top / scale) - margin)
+            o_bot = min(H, round(bottom / scale) + margin)
         if o_bot - o_top < MIN_REGION_H / scale:
             continue
         crop = img.crop((0, o_top, W, o_bot))
