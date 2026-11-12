@@ -95,4 +95,5 @@ g4) 真实模型结构化prompt: 一次返回题号/学生答案/判分/错因�
 - 题干列（v0.5.5）：prompt 加 question_text（整卷+选择题快路径），export-wrong-all 从 QuestionResult.llm_raw_output 提取（llm_raw_output 在 QuestionResult 不在 Submission，勿再踩）。3项新测试共242 passed。
 - 错题讲评清单 ✅（v0.5.4）：export-wrong-all 一行一题（wrong/partial/unclear 或 needs_review），按知识点错题次数降序分组（错误最多的考点排前），组内按学生题号排；工作台「错题讲评清单」按钮。5项新测试共239 passed。功能待办仍为空，后续等真实API Key或用户反馈。
 - 得分矩阵导出 ✅（v0.5.8）：export-question-matrix/{id}，学生×题号 √/×/△/?/复核，末两行每题正确率/正确数（分母=√+△+×，复核不计）；工作台按钮已更名「成绩单:/得分矩阵:」区分。4项测试共256 passed。坑：CSV 的 Content-Disposition 是 URL 编码后的 filename*，测试别断言中文原文；首个 writer.writerow 是标题行，纯表头需另写一行。
+- 测试外网检查 ✅（v0.5.9）：PRD 缺口审计发现 3.3 节「测试外网」未落地（grep 外网无命中）→ /api/network/check-internet 依次探测 baidu/qq（5s 超时，任一可达即通），设置页手机连接引导卡加「测试外网」按钮 + 同一 WiFi/防火墙提示。4项测试共260 passed。坑：main 的 site/download.html 曾漏同步（线上 gh-pages v0.5.8、源码 v0.5.7），本轮已补齐——两处同步别只推 gh-pages。
 - 学生个人错题本 ✅（v0.5.6）：export-student/{student_id}（days 过滤），按知识点分组（错得最多的在前），题干列复用 _question_text_of；dashboard /summary 新增 students 列表；工作台导出区学生下拉+「学生错题本」按钮。6 项新测试共 248 passed。坑：ORM 对象 db.close() 后访问属性会 DetachedInstanceError，测试里必须在 close 前取 id；Submission 按天过滤用 created_at 不是 assignment.created_at。功能待办仍为空，后续等真实 API Key 或用户反馈。

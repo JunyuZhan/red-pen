@@ -35,6 +35,43 @@ def qr_data_url(text: str) -> str:
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+INTERNET_PROBES = ["https://www.baidu.com", "https://www.qq.com"]
+
+
+@router.get("/check-internet")
+async def check_internet():
+    """PRD 3.3：安装/连接引导里的"测试外网"检查——电脑需能上外网调云端 API。
+
+    依次探测常见站点（带超时），任一可达即视为外网正常；全部失败给出人话引导。
+    """
+    import time
+    import urllib.request
+
+    last_err = ""
+    for url in INTERNET_PROBES:
+        start = time.time()
+        try:
+            req = urllib.request.Request(url, method="GET", headers={"User-Agent": "RedPen/1.0"})
+            urllib.request.urlopen(req, timeout=5)
+            return {
+                "success": True,
+                "reachable": True,
+                "probe": url,
+                "latency_ms": int((time.time() - start) * 1000),
+                "message": "外网连接正常，可以调用云端 AI 批改。",
+            }
+        except Exception as e:  # noqa: BLE001
+            last_err = str(e)
+    return {
+        "success": True,
+        "reachable": False,
+        "probe": None,
+        "latency_ms": None,
+        "message": "连不上外网。请检查电脑网络，或确认防火墙没有拦截红笔；外网不通时无法调用云端 AI。",
+        "error": last_err,
+    }
+
+
 @router.get("/info")
 async def network_info():
     """返回局域网访问地址与二维码，供设置页"手机连接引导"展示。"""

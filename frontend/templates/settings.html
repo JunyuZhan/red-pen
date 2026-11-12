@@ -713,7 +713,12 @@ async function loadNetwork() {
         <div>
           <div style="font-size:16px;font-weight:bold;color:#c0392b">${d.url}</div>
           <div class="hint" style="margin-top:6px">手机扫左侧二维码直达；扫不了码就在手机浏览器手动输入上面的地址。</div>
-          <button style="width:auto;padding:8px 16px;margin-top:10px;font-size:13px" onclick="location.reload()">刷新 IP</button>
+          <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+            <button style="width:auto;padding:8px 16px;font-size:13px" onclick="location.reload()">刷新 IP</button>
+            <button style="width:auto;padding:8px 16px;font-size:13px" class="ghost" onclick="checkInternet(this)">测试外网</button>
+          </div>
+          <div id="netCheckOut" class="msg" style="margin-top:8px"></div>
+          <div class="hint" style="margin-top:6px">注意：手机和电脑必须连同一个 WiFi；连不上时检查电脑防火墙是否允许本程序（首次运行弹窗点「允许访问」）。</div>
         </div>
       </div>`;
   } catch (e) {
@@ -721,6 +726,23 @@ async function loadNetwork() {
   }
 }
 loadNetwork();
+
+// PRD 3.3：测试外网（电脑需能上外网调云端 AI；引导防防火墙拦截）
+async function checkInternet(btn) {
+  const out = $("netCheckOut");
+  btn.disabled = true;
+  out.textContent = "⏳ 正在检测外网连接…";
+  try {
+    const d = await (await fetch("/api/network/check-internet")).json();
+    out.textContent = d.reachable
+      ? `✅ ${d.message}（${d.latency_ms}ms）`
+      : `⚠️ ${d.message}`;
+  } catch (e) {
+    out.textContent = "⚠️ 检测失败，请稍后重试。";
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 
 async function pinUnlock() {
