@@ -85,3 +85,4 @@ g4) 真实模型结构化prompt: 一次返回题号/学生答案/判分/错因�
 
 ## 增补记录
 - g2 ✅ 手写墨迹块聚类 bbox（v0.4.13）：question_splitter.detect_ink_blocks / tighten_band_to_ink；grading.py 三处切带定位统一走 _tighten() 收紧到手写墨迹外接框。坑：墨迹检测的连通块合并 gap 用格子数（BLOCK_MERGE_GAP=6，相对 520 网格），改分辨率要同步调；下轮候选 g3：印刷题干与手写墨迹区分（红笔只压手写答案）或待办队列下一项。
+- g3 ✅ 标注渲染升级（v0.4.14）：错题只画贴角小错号（✗/?/部分），短错因（error_type 优先，截6字）白底红字文字条放 bbox 外侧（place_chip：右→左→下），不再整框遮挡原字；对错改贴角小对勾。坑：gh-pages 分支是手动同步（CI 不部署官网），同步时必须 checkout gh-pages 只改 download.html，勿把 site/ 混入；github.io 有 301 需 curl -sL 验证。新增6项测试共199 passed。下轮候选：错因文字条与相邻题带防重叠；或待真实API Key后做准确率度量。
