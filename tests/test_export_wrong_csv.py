@@ -56,7 +56,7 @@ def test_export_wrong_all_basic(client, tmp_db):
     assert r.headers["content-type"].startswith("text/csv")
     body = r.content.decode("utf-8-sig")
     lines = [l for l in body.strip().split("\r\n") if l]
-    assert lines[0] == ("作业,班级,学生,题号,学生答案,参考答案,判定,错因,"
+    assert lines[0] == ("作业,班级,学生,题号,题干,学生答案,参考答案,判定,错因,"
                         "知识点(原始),需复核")
     # 3 行错题，退位减法（2 错）组在前、进位加法（1 错）在后
     assert len(lines) == 4
@@ -131,3 +131,66 @@ def test_export_wrong_all_empty(client, tmp_db):
 def test_frontend_has_wrong_export_button():
     html = open(os.path.join(ROOT, "frontend", "templates", "index.html"), encoding="utf-8").read()
     assert "export-wrong-all" in html and "错题讲评清单" in html
+
+
+def test_export_wrong_all_question_text(client, tmp_db):
+    """题干列从 llm_raw_output 的 questions/choices 提取；llm_raw_output 缺失时留空"""
+    from backend.database import SessionLocal, Submission, QuestionResult, Class as Cls, Student, Assignment
+    import json as _json
+    db = SessionLocal()
+    cls = Cls(name="测试班", teacher_id=1, stage_id=1, subject_id=1)
+    db.add(cls); db.flush()
+    st = Student(name="小刚", class_id=cls.id)
+    db.add(st); db.flush()
+    asg = Assignment(class_id=cls.id, title="随堂测", subject_id=1)
+    db.add(asg); db.flush()
+    sub = Submission(assignment_id=asg.id, student_id=st.id,
+                     original_image_path="/tmp/c.jpg", status="completed")
+    db.add(sub); db.flush()
+    raw = _json.dumps({"questions": [
+        {"question_no": 1, "question_text": "25 × 4 = ？", "judgement": "wrong"},
+        {"question_no": 2, "question_text": "", "judgement": "wrong"},
+    ]})
+    db.add_all([
+        QuestionResult(submission_id=sub.id, question_no=1, question_type="计算题",
+                       judgement_final="wrong", confidence_final=0.9, knowledge_point="乘法",
+                       llm_raw_output=raw),
+        QuestionResult(submission_id=sub.id, question_no=2, question_type="计算题",
+                       judgement_final="wrong", confidence_final=0.9, knowledge_point="除法",
+                       llm_raw_output=raw),
+    ])
+    db.commit(); db.close()
+    r = client.get("/api/grading/export-wrong-all?days=0")
+    assert r.status_code == 200
+    body = r.content.decode("utf-8-sig")
+    assert "题干" in body.split("\r\n")[0]
+    assert "25 × 4 = ？" in body
+
+
+def test_export_wrong_all_question_text_missing_raw(client, tmp_db):
+    """无 llm_raw_output（老数据）时题干列留空，导出不报错"""
+    from backend.database import SessionLocal, Submission, QuestionResult, Class as Cls, Student, Assignment
+    db = SessionLocal()
+    cls = Cls(name="老班", teacher_id=1, stage_id=1, subject_id=1)
+    db.add(cls); db.flush()
+    st = Student(name="小丽", class_id=cls.id)
+    db.add(st); db.flush()
+    asg = Assignment(class_id=cls.id, title="旧作业", subject_id=1)
+    db.add(asg); db.flush()
+    sub = Submission(assignment_id=asg.id, student_id=st.id,
+                     original_image_path="/tmp/d.jpg", status="completed")
+    db.add(sub); db.flush()
+    db.add(QuestionResult(submission_id=sub.id, question_no=1, question_type="计算题",
+                          judgement_final="wrong", confidence_final=0.9, knowledge_point="加法"))
+    db.commit(); db.close()
+    r = client.get("/api/grading/export-wrong-all?days=0")
+    assert r.status_code == 200
+    lines = [l for l in r.content.decode("utf-8-sig").strip().split("\r\n") if l]
+    assert len(lines) == 2  # 表头 + 1 行错题（题干为空但不缺列）
+
+
+def test_prompt_asks_question_text():
+    """批改 prompt 与选择题快路径 prompt 都要求模型输出 question_text"""
+    from backend.models.grading_engine import _build_prompt, _build_read_prompt
+    assert "question_text" in _build_prompt("math", "数学")
+    assert "question_text" in _build_read_prompt({"1": "A", "2": "B"})

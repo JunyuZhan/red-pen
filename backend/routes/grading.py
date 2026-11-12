@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import asyncio
+import json
 import os
 import time
 from ..config import settings
@@ -739,6 +740,22 @@ async def export_wrong_all_csv(
                .filter(QuestionResult.submission_id.in_(sids or [0])).all())
     sub_by_id = {s.id: s for s in subs}
 
+    # 从 llm_raw_output 提取题干摘要（v0.5.5 起 prompt 返回 question_text；老数据留空）
+    def _qtext_of(r):
+        raw = r.llm_raw_output
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except Exception:
+                raw = None
+        if not isinstance(raw, dict):
+            return ""
+        items = raw.get("questions") or raw.get("choices") or []
+        for it in items:
+            if isinstance(it, dict) and it.get("question_no") == r.question_no:
+                return (it.get("question_text") or "").strip()
+        return ""
+
     # 每个知识点的错题总数（错误次数最多的知识点排前面 = 全班最薄弱的考点）
     kp_errors = {}
     for r in results:
@@ -770,6 +787,7 @@ async def export_wrong_all_csv(
             class_names.get(st.class_id) or "-",
             st.name,
             r.question_no,
+            _qtext_of(r),
             r.student_answer_text or "",
             r.correct_answer_text or "",
             _judgement_cn(r.judgement_final),
@@ -780,7 +798,7 @@ async def export_wrong_all_csv(
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["作业", "班级", "学生", "题号", "学生答案", "参考答案",
+    writer.writerow(["作业", "班级", "学生", "题号", "题干", "学生答案", "参考答案",
                      "判定", "错因", "知识点(原始)", "需复核"])
     for kp in sorted(rows_by_kp, key=_kp_sort_key):
         for row in sorted(rows_by_kp[kp], key=lambda x: (x[2], x[3], x[0])):

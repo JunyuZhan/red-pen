@@ -156,7 +156,7 @@ def _build_read_prompt(answers: Dict[str, str]) -> str:
         "严格按以下 JSON 格式输出，不要输出任何其他内容：\n"
         "{\n"
         '  "choices": [\n'
-        '    {"question_no": 1, "student_choice": "B"}\n'
+        '    {"question_no": 1, "question_text": "题目内容（如：3 × 5 = ？），简短，读不出就留空", "student_choice": "B"}\n'
         "  ]\n"
         "}\n"
         "student_choice 填学生所选的选项字母（A-H）；看不清或该题未作答填 null。"
@@ -174,6 +174,7 @@ def _build_prompt(question_type: str, subject: str, answers: Optional[Dict[str, 
         '  "questions": [\n'
         '    {"question_no": 1, "judgement": "correct|wrong|partial|unclear", '
         '"error_type": "计算错误|概念错误|粗心|未作答|其他 或 null", '
+        '"question_text": "题目内容摘要（如：25 × 4 = ？），简短，读不出就留空", '
         '"student_answer": "学生答案摘要", '
         '"correct_answer": "正确答案摘要", '
         '"analysis": "简要分析", '

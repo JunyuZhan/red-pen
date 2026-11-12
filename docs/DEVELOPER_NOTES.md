@@ -92,4 +92,5 @@ g4) 真实模型结构化prompt: 一次返回题号/学生答案/判分/错因�
 - w) 选择题快路径 ✅（v0.4.18）：_is_choice_only（参考答案全为单选项字母 A-H 且≥2题）→ _build_read_prompt 只让模型读 student_choice（不判题、不发送参考答案），_questions_from_choices 本地规则比对判题（correct/wrong 0.95，读不清 unclear 0.5 进复核），_parse_response 识别 "choices" 键返回 fast_path 标记；混合题型自动回退整卷模式。7项新测试共220 passed。教训：g4 结构化 prompt 此前已在 base prompt 落地（题号/答案/错因/知识点/bbox 一次返回），勿重复开发。
 - 批改结果导出 CSV ✅（v0.4.19）：/api/grading/export/{id}（UTF-8 BOM，Excel 中文不乱码，文件名 RFC5987 中文编码），详情页「导出 Excel(CSV)」按钮；3项新测试共223 passed。PRD 待办全部完成后的第一个口碑向增量。下轮候选：按作业批量导出全班成绩单（一个 CSV 多列=学生）；或待真实 API Key。
 - 知识点掌握列 ✅（v0.5.3）：export-class-all 按学生聚合知识点掌握率（canonical_key 归一化），全班并集薄弱优先追加列（上限12），无知识点时输出与旧版完全一致。2项新测试共234 passed。功能待办已全部完成，后续增量等真实API Key或用户反馈。
+- 题干列（v0.5.5）：prompt 加 question_text（整卷+选择题快路径），export-wrong-all 从 QuestionResult.llm_raw_output 提取（llm_raw_output 在 QuestionResult 不在 Submission，勿再踩）。3项新测试共242 passed。
 - 错题讲评清单 ✅（v0.5.4）：export-wrong-all 一行一题（wrong/partial/unclear 或 needs_review），按知识点错题次数降序分组（错误最多的考点排前），组内按学生题号排；工作台「错题讲评清单」按钮。5项新测试共239 passed。功能待办仍为空，后续等真实API Key或用户反馈。
