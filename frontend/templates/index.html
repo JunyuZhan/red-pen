@@ -160,7 +160,10 @@ async function load() {
     const bar = document.createElement("div");
     bar.id = "classExportBar";
     bar.style.cssText = "margin-top:8px;font-size:13px;color:#555;";
-    bar.innerHTML = "📄 导出全班成绩单：" + allAsg.map(a =>
+    bar.innerHTML = "📄 导出全班成绩单："
+      + `<button style="margin:2px 8px 2px 0;" onclick="window.location.href='/api/grading/export-class-all?days=30'">近30天汇总</button>`
+      + `<button style="margin:2px 8px 2px 0;" onclick="window.location.href='/api/grading/export-class-all?days=0'">全部汇总</button>`
+      + allAsg.map(a =>
       `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class/${a.assignment_id}'">${a.title || ("作业"+a.assignment_id)}</button>`).join("");
     (document.getElementById("assignmentGrades") || $("stats")).after(bar);
   }

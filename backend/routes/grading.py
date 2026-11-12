@@ -532,6 +532,95 @@ async def export_class_csv(assignment_id: int, db: Session = Depends(get_db)):
     )
 
 
+# ============ 跨作业合并导出全班成绩单（学生 × 各作业正确率矩阵） ============
+
+@router.get("/export-class-all")
+async def export_class_all_csv(
+    days: int = 30,
+    db: Session = Depends(get_db),
+):
+    """合并导出：一个 CSV 汇总近 N 天（days=0 为全部）每份作业 × 每名学生的正确率矩阵，
+    附平均正确率与平均等级（UTF-8 带 BOM）。"""
+    from datetime import datetime, timedelta
+    from ..database import Student as StudentModel
+    from ..models.grade_scale import get_thresholds, compute_grade
+
+    import csv
+    import io
+
+    now = datetime.utcnow()
+    q = db.query(Assignment)
+    if days and days > 0:
+        q = q.filter(Assignment.created_at >= now - timedelta(days=days))
+    assignments = q.order_by(Assignment.created_at).all()
+
+    thresholds = get_thresholds(db)
+    # 每个学生在每份作业的提交 → 正确率
+    subs = (db.query(Submission)
+            .filter(Submission.assignment_id.in_([a.id for a in assignments] or [0]))
+            .all())
+    # submission_id → accuracy
+    acc_by_sub = {}
+    sids = [s.id for s in subs]
+    if sids:
+        results = (db.query(QuestionResult)
+                   .filter(QuestionResult.submission_id.in_(sids)).all())
+        by_sub = {}
+        for r in results:
+            by_sub.setdefault(r.submission_id, []).append(r)
+        for s in subs:
+            rs = by_sub.get(s.id, [])
+            judged = sum(1 for r in rs if r.judgement_final in ("correct", "wrong", "partial"))
+            correct = sum(1 for r in rs if r.judgement_final == "correct")
+            if judged:
+                acc_by_sub[s.id] = correct / judged
+
+    sub_of = {}  # (student_id, assignment_id) → (submission, accuracy)
+    student_ids = []
+    for s in subs:
+        if s.student_id is None:
+            continue
+        if s.student_id not in student_ids:
+            student_ids.append(s.student_id)
+        sub_of[(s.student_id, s.assignment_id)] = (s, acc_by_sub.get(s.id))
+
+    students = (db.query(StudentModel)
+                .filter(StudentModel.id.in_(student_ids or [0]))
+                .order_by(StudentModel.id).all())
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["学生"] + [a.title or f"作业{a.id}" for a in assignments]
+                    + ["平均正确率", "平均等级"])
+    for st in students:
+        accs = []
+        row = [st.name]
+        for a in assignments:
+            pair = sub_of.get((st.id, a.id))
+            if pair is not None and pair[1] is not None:
+                accs.append(pair[1])
+                row.append(f"{pair[1] * 100:.0f}%")
+            else:
+                row.append("-")
+        if accs:
+            avg = sum(accs) / len(accs)
+            row.append(f"{avg * 100:.0f}%")
+            row.append(compute_grade(avg, thresholds) or "")
+        else:
+            row += ["", ""]
+        writer.writerow(row)
+
+    from urllib.parse import quote
+    from fastapi import Response
+    label = f"近{days}天" if days and days > 0 else "全部"
+    filename = quote(f"红笔成绩单_汇总_{label}.csv")
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
 @router.get("/export/{submission_id}")
 async def export_result_csv(submission_id: int, db: Session = Depends(get_db)):
     """导出单份批改结果为 CSV（UTF-8 带 BOM，Excel 双击直接打开中文不乱码）。"""

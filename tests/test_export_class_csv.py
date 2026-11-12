@@ -82,3 +82,56 @@ def test_export_class_csv_empty(client, tmp_db):
 def test_frontend_has_class_export():
     html = open(os.path.join(ROOT, "frontend", "templates", "index.html"), encoding="utf-8").read()
     assert "classExportBar" in html and "/api/grading/export-class/" in html
+
+
+# ============ 跨作业合并导出 ============
+
+def test_export_class_all_csv(client, tmp_db):
+    from backend.database import SessionLocal, Submission, QuestionResult, Class as Cls, Student, Assignment
+    from datetime import datetime, timedelta
+    db = SessionLocal()
+    cls = Cls(name="三年二班", teacher_id=1, stage_id=1, subject_id=1)
+    db.add(cls); db.flush()
+    s1 = Student(name="小明", class_id=cls.id)
+    s2 = Student(name="小红", class_id=cls.id)
+    db.add_all([s1, s2]); db.flush()
+    a1 = Assignment(class_id=cls.id, title="口算练习", subject_id=1)
+    a2 = Assignment(class_id=cls.id, title="单元测", subject_id=1)
+    old = Assignment(class_id=cls.id, title="很久以前", subject_id=1,
+                     created_at=datetime.utcnow() - timedelta(days=60))
+    db.add_all([a1, a2, old]); db.flush()
+    for asg, s, acc_res in ((a1, s1, "wrong"), (a2, s1, "correct"), (a1, s2, "correct")):
+        sub = Submission(assignment_id=asg.id, student_id=s.id,
+                         original_image_path="/tmp/x.jpg", status="completed")
+        db.add(sub); db.flush()
+        db.add(QuestionResult(submission_id=sub.id, question_no=1, question_type="选择题",
+                              judgement_final=acc_res, confidence_final=0.9))
+    db.commit()
+    r = client.get("/api/grading/export-class-all?days=30")
+    assert r.status_code == 200
+    body = r.content.decode("utf-8-sig")
+    lines = [l for l in body.strip().split("\r\n") if l]
+    assert lines[0].startswith("学生,口算练习,单元测,平均正确率,平均等级")
+    # 小明：口算 0%，单元测 100% → 平均 50%
+    assert lines[1] == "小明,0%,100%,50%,D"
+    # 小红：只有口算 100%
+    assert lines[2] == "小红,100%,-,100%,A"
+    # days=0 应包含很久以前的作业
+    r2 = client.get("/api/grading/export-class-all?days=0")
+    body2 = r2.content.decode("utf-8-sig")
+    assert "很久以前" in body2
+    # days 过滤 30 天内不含旧作业
+    assert "很久以前" not in body
+    db.close()
+
+
+def test_export_class_all_csv_empty(client, tmp_db):
+    r = client.get("/api/grading/export-class-all")
+    assert r.status_code == 200
+    body = r.content.decode("utf-8-sig")
+    assert body.startswith("学生,平均正确率,平均等级")
+
+
+def test_frontend_has_class_all_export():
+    html = open(os.path.join(ROOT, "frontend", "templates", "index.html"), encoding="utf-8").read()
+    assert "export-class-all" in html
