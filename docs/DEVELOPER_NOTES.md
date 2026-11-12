@@ -20,7 +20,7 @@ j) 月度预算护栏 + 模型价格预设表（含 DeepSeek/Qwen/GLM/豆包，�
 
 ## 增补待办（用户 2026-11-11 提出）
 k) AI学情报告：✅ 已落地（98d974d, v0.4.6，study_report.py + 学情页AI报告入口，7项测试）。教训：测试原生化后 release.yml 的测试步骤仍是旧脚本循环（smoke_*.py 已删导致 glob 失败）——改工作流时两份 workflow 要同步检查。
-l) 学情可视化：看板与学情页加图表（纯前端SVG或引入轻量图表库本地打包），错误类型分布饼图、学生正确率趋势折线图、班级对比条形图
+l) 学情可视化：✅ 已落地（d672901, v0.4.7）：学情页学生正确率趋势折线图+班级平均正确率对比条形图，/api/analytics/analytics/trends，3项测试。注：路由前缀是 /api/analytics，路径要写 /analytics/trends，最终 URL 是 /api/analytics/analytics/trends。错误类型分布已有条形图，饼图未做（现有环形图展示判定分布）
 注意：备份/恢复(/api/backup)已实现数据迁移；k/l 是在其之上的新功能。
 
 m) 官网(GitHub Pages)：新建 gh-pages 分支放静态落地页，启用 Pages 自动部署
