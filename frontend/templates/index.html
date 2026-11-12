@@ -152,6 +152,18 @@ async function load() {
       `<span style="display:inline-block;margin:2px 8px 2px 0;padding:2px 10px;border-radius:8px;background:#f0ead8;color:#6b5b2e;">${a.title || ("作业"+a.assignment_id)} <b>${a.grade}</b>（${(a.accuracy*100).toFixed(0)}%）</span>`).join("");
     $("stats").after(div);
   }
+  // 按作业导出全班成绩单（每行一名学生）
+  const allAsg = s.assignment_grades || [];
+  if (allAsg.length) {
+    const old2 = document.getElementById("classExportBar");
+    if (old2) old2.remove();
+    const bar = document.createElement("div");
+    bar.id = "classExportBar";
+    bar.style.cssText = "margin-top:8px;font-size:13px;color:#555;";
+    bar.innerHTML = "📄 导出全班成绩单：" + allAsg.map(a =>
+      `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class/${a.assignment_id}'">${a.title || ("作业"+a.assignment_id)}</button>`).join("");
+    (document.getElementById("assignmentGrades") || $("stats")).after(bar);
+  }
 }
 
 async function loadRows() {

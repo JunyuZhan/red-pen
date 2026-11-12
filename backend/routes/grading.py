@@ -14,7 +14,7 @@ from ..config import settings
 from ..logging_setup import get_logger
 from pydantic import BaseModel
 
-from ..database import get_db, Submission, QuestionResult, AnswerTemplate, SessionLocal, AppConfig
+from ..database import get_db, Submission, QuestionResult, AnswerTemplate, SessionLocal, AppConfig, Assignment
 from ..models.grading_engine import grading_manager, estimate_cost
 from ..models.annotator import annotate_image
 from .auth import require_admin
@@ -467,6 +467,69 @@ CSV_HEADERS = ["题号", "题型", "学生答案", "参考答案", "判定", "�
 def _judgement_cn(j: str) -> str:
     return {"correct": "正确", "wrong": "错误", "partial": "部分正确",
             "unclear": "无法辨认"}.get(j, j or "")
+
+
+# ============ 按作业导出全班成绩单（每行一名学生） ============
+
+CLASS_HEADERS = ["学生", "状态", "批改题数", "正确", "错误", "部分正确", "无法辨认",
+                 "正确率", "等级", "需复核题数", "耗时(秒)", "提交时间"]
+
+
+@router.get("/export-class/{assignment_id}")
+async def export_class_csv(assignment_id: int, db: Session = Depends(get_db)):
+    """按作业导出全班成绩单 CSV（UTF-8 带 BOM，每行一名学生）。"""
+    from ..database import Student as StudentModel
+    from ..models.grade_scale import get_thresholds, compute_grade
+
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+
+    import csv
+    import io
+
+    thresholds = get_thresholds(db)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([f"作业：{assignment.title}"] + CLASS_HEADERS)
+
+    subs = (db.query(Submission, StudentModel.name)
+            .outerjoin(StudentModel, StudentModel.id == Submission.student_id)
+            .filter(Submission.assignment_id == assignment_id)
+            .order_by(Submission.id).all())
+    for sub, student_name in subs:
+        results = (db.query(QuestionResult)
+                   .filter(QuestionResult.submission_id == sub.id).all())
+        counts = {"correct": 0, "wrong": 0, "partial": 0, "unclear": 0}
+        needs_review = 0
+        for r in results:
+            if r.judgement_final in counts:
+                counts[r.judgement_final] += 1
+            if r.needs_review:
+                needs_review += 1
+        judged = counts["correct"] + counts["wrong"] + counts["partial"]
+        accuracy = counts["correct"] / judged if judged else None
+        writer.writerow([
+            student_name or f"学生#{sub.student_id}",
+            sub.status,
+            len(results),
+            counts["correct"], counts["wrong"], counts["partial"], counts["unclear"],
+            f"{accuracy * 100:.0f}%" if accuracy is not None else "",
+            compute_grade(accuracy, thresholds) or "",
+            needs_review or "",
+            f"{sub.duration_seconds:.1f}" if sub.duration_seconds else "",
+            sub.created_at.strftime("%Y-%m-%d %H:%M") if sub.created_at else "",
+        ])
+
+    from urllib.parse import quote
+    from fastapi import Response
+    safe_title = assignment.title.replace('"', "")
+    filename = quote(f"红笔成绩单_{safe_title}.csv")
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
 
 
 @router.get("/export/{submission_id}")
