@@ -78,7 +78,7 @@ g3) 标注渲染升级：参考 AI-Marker/阅卷平台样式，红笔批注画�
 - **boxfish-ai/BAGS**：DeepLabv3+ 分割答案区下划线定位手写，91%；小学作业横线作答区=天然锚点
 - 2026论文：VLM整页+结构化prompt 98.4% > YOLO 88% → 真实模型prompt设计"返回题号+学生答案+错因+位置线索"
 修订路线：
-g1) 页眉剔除+题号OCR锚点(RapidOCR已装)：标记不再压页眉/标题
+g1) ✅ 页眉剔除+题号OCR锚点已落地（v0.4.12, ac432a5）：RapidOCR(onnxruntime,已入requirements+spec打包)识别题号锚点，≥2锚点重建切题区域(页眉天然剔除)，1锚点剔页眉，无OCR回退行投影；真实模拟页4锚点全中1.3s；19项测试共187 passed；exe已发v0.4.12 Release
 g2) 手写墨迹块聚类bbox(复用现有二值化) → 每题带内手写块=红笔目标
 g3) chinese-exam-question-regions 训 YOLO 切题(exe用onnx)
 g4) 真实模型结构化prompt: 一次返回题号/学生答案/判分/错因，定位判定一体
