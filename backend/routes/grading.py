@@ -700,6 +700,102 @@ async def export_result_csv(submission_id: int, db: Session = Depends(get_db)):
     )
 
 
+# ============ 全班错题讲评清单导出（按知识点薄弱优先分组） ============
+
+@router.get("/export-wrong-all")
+async def export_wrong_all_csv(
+    days: int = 30,
+    class_id: int = 0,
+    db: Session = Depends(get_db),
+):
+    """全班错题讲评清单：近 N 天（days=0 全部）所有作业中判定为错误/部分正确/无法辨认
+    或需复核的题目，一行一题。按知识点错题次数降序分组（全班错误最多的考点排前面），
+    同一知识点内按学生、题号排——老师讲评时按考点顺序过一遍即可。UTF-8 带 BOM。"""
+    from datetime import timedelta
+    from ..database import Student as StudentModel, Class as ClassModel
+    from ..models.knowledge_norm import canonical_key
+
+    import csv
+    import io
+
+    now = datetime.utcnow()
+    q = db.query(Assignment)
+    if days and days > 0:
+        q = q.filter(Assignment.created_at >= now - timedelta(days=days))
+    if class_id and class_id > 0:
+        q = q.filter(Assignment.class_id == class_id)
+    assignments = {a.id: a for a in q.all()}
+
+    subs = (db.query(Submission)
+            .filter(Submission.assignment_id.in_(list(assignments) or [0]))
+            .all())
+    student_ids = sorted({s.student_id for s in subs if s.student_id is not None})
+    students = {st.id: st for st in db.query(StudentModel)
+                .filter(StudentModel.id.in_(student_ids or [0])).all()}
+    class_names = {c.id: c.name for c in db.query(ClassModel).all()}
+
+    sids = [s.id for s in subs]
+    results = (db.query(QuestionResult)
+               .filter(QuestionResult.submission_id.in_(sids or [0])).all())
+    sub_by_id = {s.id: s for s in subs}
+
+    # 每个知识点的错题总数（错误次数最多的知识点排前面 = 全班最薄弱的考点）
+    kp_errors = {}
+    for r in results:
+        if r.judgement_final in ("correct",) and not r.needs_review:
+            continue
+        if not (r.judgement_final in ("wrong", "partial", "unclear") or r.needs_review):
+            continue
+        kp = canonical_key(r.knowledge_point) or "（未识别知识点）"
+        kp_errors[kp] = kp_errors.get(kp, 0) + 1
+
+    def _kp_sort_key(kp):
+        return (-kp_errors[kp], kp)
+
+    # 收集错题行，按知识点分组
+    rows_by_kp = {}
+    for r in results:
+        if r.judgement_final in ("correct",) and not r.needs_review:
+            continue
+        if not (r.judgement_final in ("wrong", "partial", "unclear") or r.needs_review):
+            continue
+        s = sub_by_id.get(r.submission_id)
+        if s is None or s.student_id is None or s.student_id not in students:
+            continue
+        st = students[s.student_id]
+        a = assignments.get(s.assignment_id)
+        kp = canonical_key(r.knowledge_point) or "（未识别知识点）"
+        rows_by_kp.setdefault(kp, []).append([
+            (a.title or f"作业{a.id}") if a else "-",
+            class_names.get(st.class_id) or "-",
+            st.name,
+            r.question_no,
+            r.student_answer_text or "",
+            r.correct_answer_text or "",
+            _judgement_cn(r.judgement_final),
+            r.error_type or "",
+            r.knowledge_point or "",
+            "是" if r.needs_review else "",
+        ])
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["作业", "班级", "学生", "题号", "学生答案", "参考答案",
+                     "判定", "错因", "知识点(原始)", "需复核"])
+    for kp in sorted(rows_by_kp, key=_kp_sort_key):
+        for row in sorted(rows_by_kp[kp], key=lambda x: (x[2], x[3], x[0])):
+            writer.writerow(row)
+
+    from urllib.parse import quote
+    from fastapi import Response
+    filename = quote("红笔错题讲评清单.csv")
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
 # ============ 答案模板（PRD 4.4/M4：同一练习册答案存一次，之后复用） ============
 
 class TemplateIn(BaseModel):
