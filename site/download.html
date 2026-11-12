@@ -44,7 +44,7 @@
 
 <section>
   <div class="dl-card" style="padding:40px 32px">
-    <h2 style="font-size:32px">最新版本 v0.4.5 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
+    <h2 style="font-size:32px">最新版本 v0.4.12 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
     <p style="margin-top:8px;color:rgba(255,255,255,0.7);font-size:14px">⚠️ 内测版：功能仍在完善，遇到问题请加 QQ 群 984644289 反馈</p>
     <a class="btn btn-primary" style="margin-top:20px;font-size:17px;padding:14px 36px" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 RedPen.exe（Windows x64）</a>
     <p style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.6)">请始终从本页或 GitHub Releases 官方渠道下载</p>
@@ -61,6 +61,48 @@
       <li>浏览器自动打开工作台，用默认 PIN <span class="kbd">123456</span> 登录后立即修改</li>
       <li>到设置页配置模型 API Key（详见<a href="guide.html" style="color:var(--notion-blue)">教程第 4 步</a>）</li>
     </ol>
+  </div>
+</section>
+
+<section>
+  <div class="ver-card">
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.12</span> 切题定位大升级（准确率专项）</h3>
+    <ul class="changelog">
+      <li>题号锚点定位：OCR 识别「1. / 12、/ (3)」等题号，按锚点重建题目区域，页眉/姓名栏/标题不再被误标（本地离线识别，数据不出机）</li>
+      <li>定位不可信时按老师答案表的题数切分，红笔标记铺满整份作业</li>
+      <li>隐私遮盖默认关闭（姓名不敏感，遮顶会伤识别）</li>
+      <li>GitHub Release 说明改为自动取自更新日志，每版写清更新内容</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="ver-card">
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.10 ~ v0.4.11</span> 隐私与置信度</h3>
+    <ul class="changelog">
+      <li>v0.4.11 置信度融合第四因子：知识点历史准确率，弱项题自动进复核、强项题少打扰</li>
+      <li>v0.4.10 敏感信息自动遮盖（送 AI 前可涂黑顶部姓名栏，可开关可调比例）</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="ver-card">
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.8 ~ v0.4.9</span> 成本护栏</h3>
+    <ul class="changelog">
+      <li>v0.4.9 单次请求 token 上限可配，防单次大额费用</li>
+      <li>v0.4.8 批改结果缓存：同一张照片+同样答案不重复计费</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="ver-card">
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.6 ~ v0.4.7</span> 学情升级</h3>
+    <ul class="changelog">
+      <li>v0.4.6 AI 学生学情报告：一键生成个人学习报告（掌握/薄弱/教学建议）</li>
+      <li>v0.4.7 学情可视化：正确率趋势折线图 + 班级平均对比条形图；修复标注面板重复</li>
+    </ul>
   </div>
 </section>
 

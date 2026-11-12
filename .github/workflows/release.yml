@@ -55,11 +55,18 @@ jobs:
         Get-Item dist/RedPen.exe | Select-Object Name, Length
         if ((Get-Item dist/RedPen.exe).Length -lt 10MB) { Write-Error "exe too small"; exit 1 }
 
-    - name: Extract release notes from commit
+    - name: Extract release notes from CHANGELOG
       id: notes
       shell: bash
       run: |
-        echo "body=$(git log -1 --pretty=%B $(git describe --tags --abbrev=0)^..$(git describe --tags --abbrev=0) 2>/dev/null || git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+        TAG="${GITHUB_REF_NAME#v}"
+        # 从 CHANGELOG.md 提取本版本段落（## [vX.Y.Z] 到下一个 ## 之间），转义 GitHub Actions 输出特殊字符
+        NOTES=$(awk -v t="$TAG" 'BEGIN{p=0} $0 ~ "^## \\[v"t"\\]"{p=1;next} /^## \[/{if(p)exit} p{print}' CHANGELOG.md)
+        if [ -z "$NOTES" ]; then NOTES="（本版本说明缺失，请查看 CHANGELOG.md）"; fi
+        NOTES="${NOTES//'%'/'%25'}"
+        NOTES="${NOTES//$'\n'/'%0A'}"
+        NOTES="${NOTES//$'\r'/'%0D'}"
+        echo "notes=$NOTES" >> $GITHUB_OUTPUT
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
@@ -67,6 +74,15 @@ jobs:
         name: 红笔 RedPen ${{ github.ref_name }}
         body: |
           ## 红笔 RedPen ${{ github.ref_name }}（Windows 单文件版）
+
+          ### 本版本更新
+          ${{ steps.notes.outputs.notes }}
+
+          ---
+
+          **开发者**：詹俊宇 ｜ **联系邮箱**：junyuzhan@outlook.com ｜ 问题反馈请到 [Issues](https://github.com/JunyuZhan/red-pen/issues) 或邮件联系
+
+          **安装使用**：下载 `RedPen.exe`，放到任意文件夹双击即可运行（无需安装 Python）。
 
           **开发者**：詹俊宇 ｜ **联系邮箱**：junyuzhan@outlook.com ｜ 问题反馈请到 [Issues](https://github.com/JunyuZhan/red-pen/issues) 或邮件联系
 
