@@ -172,7 +172,8 @@ async function load() {
       + (s.classes || []).map(c =>
       `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class-all?days=30&class_id=${c.id}'">近30天·${c.name}</button>`).join("")
       + allAsg.map(a =>
-      `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class/${a.assignment_id}'">${a.title || ("作业"+a.assignment_id)}</button>`).join("");
+      `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class/${a.assignment_id}'">成绩单:${a.title || ("作业"+a.assignment_id)}</button>`
+      + `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-question-matrix/${a.assignment_id}'">得分矩阵:${a.title || ("作业"+a.assignment_id)}</button>`).join("");
     (document.getElementById("assignmentGrades") || $("stats")).after(bar);
   }
 }

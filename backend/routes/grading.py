@@ -625,6 +625,93 @@ async def export_class_csv(assignment_id: int, db: Session = Depends(get_db)):
     )
 
 
+
+
+# ============ 按作业导出「学生 × 题号」得分矩阵（讲评：看全班哪道题错得多） ============
+
+MATRIX_CELL = {
+    "correct": "√",
+    "wrong": "×",
+    "partial": "△",
+    "unclear": "?",
+}
+
+
+@router.get("/export-question-matrix/{assignment_id}")
+async def export_question_matrix_csv(assignment_id: int, db: Session = Depends(get_db)):
+    """按作业导出学生×题号得分矩阵 CSV（UTF-8 BOM）。
+
+    行=学生，列=题1..题N；单元格 √/×/△/?/复核；末两行为每题正确数与正确率，
+    正确率最低的题在最易讲评位置（列顺序仍按题号，正确率行用百分比标注）。
+    """
+    from ..database import Student as StudentModel
+    import csv
+    import io
+    from urllib.parse import quote
+    from fastapi import Response
+
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="作业不存在")
+
+    subs = (db.query(Submission, StudentModel.name)
+            .outerjoin(StudentModel, StudentModel.id == Submission.student_id)
+            .filter(Submission.assignment_id == assignment_id)
+            .order_by(Submission.id).all())
+    max_no = 0
+    rows = []  # (student_label, {question_no: cell})
+    for sub, student_name in subs:
+        results = (db.query(QuestionResult)
+                   .filter(QuestionResult.submission_id == sub.id)
+                   .order_by(QuestionResult.question_no).all())
+        cells = {}
+        for r in results:
+            no = r.question_no
+            max_no = max(max_no, no)
+            if r.needs_review:
+                cells[no] = "复核"
+            elif r.teacher_override:
+                cells[no] = MATRIX_CELL.get(r.teacher_override.lower(), r.teacher_override)
+            else:
+                cells[no] = MATRIX_CELL.get((r.judgement_final or "").lower(), "")
+        rows.append((student_name or f"学生#{sub.student_id}", cells))
+
+    if max_no == 0:
+        raise HTTPException(status_code=404, detail="该作业暂无批改结果")
+
+    header = ["学生"] + [f"题{i}" for i in range(1, max_no + 1)]
+    correct_counts = {i: 0 for i in range(1, max_no + 1)}
+    judged_counts = {i: 0 for i in range(1, max_no + 1)}
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([f"得分矩阵：{assignment.title}"] + header[1:])
+    writer.writerow(header)
+    for label, cells in rows:
+        writer.writerow([label] + [cells.get(i, "") for i in range(1, max_no + 1)])
+        for i, cell in cells.items():
+            if cell == "√":
+                correct_counts[i] += 1
+            if cell in ("√", "×", "△"):
+                judged_counts[i] += 1
+
+    rate_row = ["正确率"]
+    count_row = ["正确数"]
+    for i in range(1, max_no + 1):
+        j = judged_counts[i]
+        rate_row.append(f"{correct_counts[i] / j * 100:.0f}%" if j else "")
+        count_row.append(correct_counts[i] if j else "")
+    writer.writerow(rate_row)
+    writer.writerow(count_row)
+
+    safe_title = assignment.title.replace('"', "")
+    filename = quote(f"得分矩阵_{safe_title}.csv")
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
 # ============ 跨作业合并导出全班成绩单（学生 × 各作业正确率矩阵） ============
 
 @router.get("/export-class-all")
