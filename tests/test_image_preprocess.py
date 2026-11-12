@@ -87,6 +87,41 @@ def test_low_contrast_enhanced(tmpdir_img):
     assert std_a >= std_b
 
 
+# ---------- CLAHE 增强（v0.4.17） ----------
+
+def test_clahe_improves_local_contrast():
+    """半边阴影的低对比图：CLAHE 后阴影侧手写（暗字）应与纸面拉开。"""
+    from backend.models.image_preprocess import _clahe_enhance
+    img = Image.new("RGB", (300, 200), (200, 200, 200))
+    d = ImageDraw.Draw(img)
+    # 阴影侧整体压暗（模拟拍照半边背光），暗字写在阴影侧
+    d.rectangle([0, 0, 150, 200], fill=(160, 160, 160))
+    d.text((30, 90), "12", fill=(140, 140, 140))
+    std_b = ImageStat.Stat(img.convert("L")).stddev[0]
+    out = _clahe_enhance(img)
+    std_a = ImageStat.Stat(out.convert("L")).stddev[0]
+    assert std_a > std_b
+    # 尺寸与模式不变
+    assert out.size == img.size and out.mode == "RGB"
+
+
+def test_clahe_fallback_no_cv2(monkeypatch):
+    """cv2 导入失败时回退 autocontrast，不抛异常。"""
+    import builtins
+    from backend.models import image_preprocess as ip
+    real_import = builtins.__import__
+
+    def fake_import(name, *a, **kw):
+        if name == "cv2":
+            raise ImportError("no cv2")
+        return real_import(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    img = Image.new("RGB", (100, 100), (120, 120, 120))
+    out = ip._clahe_enhance(img)
+    assert out.size == (100, 100)
+
+
 def test_crop_blank(tmpdir_img):
     img = Image.new("RGB", (1000, 1000), (255, 255, 255))
     ImageDraw.Draw(img).rectangle([400, 400, 600, 600], outline=0, width=5)

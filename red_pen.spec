@@ -23,6 +23,7 @@ a = Analysis(
         'uvicorn.protocols.websockets.auto',
         'uvicorn.lifespan',
         'uvicorn.lifespan.on',
+        'cv2',  # CLAHE 低对比度增强（缺失时运行时自动回退 autocontrast）
     ] + _rapid_hidden,
     hookspath=[],
     hooksconfig={},

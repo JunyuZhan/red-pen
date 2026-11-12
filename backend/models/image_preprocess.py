@@ -171,6 +171,32 @@ def _rectify(img: Image.Image, pts, small_w: int, small_h: int):
     return img.transform((out_w, out_h), Image.QUAD, quad, Image.BICUBIC)
 
 
+def _clahe_enhance(img: Image.Image):
+    """低对比度增强：优先 CLAHE（LAB 的 L 通道局部自适应直方图均衡，
+    阴影/光照不均下比全局 autocontrast 更能拉开手写与纸面）。
+    cv2 未安装或处理失败时回退 autocontrast。任何情况下不抛异常。
+    """
+    try:
+        import cv2
+        import numpy as np
+
+        arr = np.asarray(img)
+        lab = cv2.cvtColor(arr, cv2.COLOR_RGB2LAB)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+        out = Image.fromarray(cv2.cvtColor(lab, cv2.COLOR_LAB2RGB))
+        # 近似纯平的图 CLAHE 可能轻微压缩全局对比度（clip 所致），
+        # 此时回退 autocontrast，保证不劣化
+        if ImageStat.Stat(out.convert("L")).stddev[0] < ImageStat.Stat(img.convert("L")).stddev[0]:
+            return ImageOps.autocontrast(img, cutoff=AUTOCONTRAST_CUTOFF)
+        return out
+    except Exception:
+        try:
+            return ImageOps.autocontrast(img, cutoff=AUTOCONTRAST_CUTOFF)
+        except Exception:
+            return img
+
+
 def preprocess_image(image_path: str, out_dir: str) -> str:
     """预处理整页作业照，返回处理后文件路径。
 
@@ -199,10 +225,11 @@ def preprocess_image(image_path: str, out_dir: str) -> str:
             gray = img.convert("L")
             W, H = img.size
 
-        # 2) 对比度增强（仅低对比度图）
+        # 2) 对比度增强（仅低对比度图）：优先 CLAHE（局部自适应，拍照阴影/光照
+        #    不均处也提升），cv2 不可用或失败时回退全局 autocontrast
         std = ImageStat.Stat(gray).stddev[0]
         if std < STD_ENHANCE_BELOW:
-            img = ImageOps.autocontrast(img, cutoff=AUTOCONTRAST_CUTOFF)
+            img = _clahe_enhance(img)
             gray = img.convert("L")
 
         # 2) 墨迹边界裁边（降采样图上算投影，映射回原坐标）
