@@ -93,7 +93,8 @@
   </div>
 
   <div class="card" id="detail" style="display:none;">
-    <h2 style="font-size:16px;margin:0 0 12px;">批改详情</h2>
+    <h2 style="font-size:16px;margin:0 0 12px;">批改详情
+      <button id="exportCsvBtn" style="float:right;display:none;" onclick="exportCsv()">导出 Excel(CSV)</button></h2>
     <img id="detailImg" class="result" alt="红笔标注">
     <div id="detailBody" style="margin-top:12px;font-size:14px;"></div>
   </div>
@@ -270,6 +271,8 @@ loadTemplates();
 async function view(id) {
   const d = await (await fetch("/api/grading/result/" + id)).json();
   $("detail").style.display = "block";
+  $("exportCsvBtn").style.display = (d.results && d.results.length) ? "inline-block" : "none";
+  $("exportCsvBtn").onclick = () => exportCsv(id);
   if (d.annotated_image_url) {
     $("detailImg").src = d.annotated_image_url + "?t=" + Date.now();
     $("detailImg").style.display = "block";
@@ -286,6 +289,10 @@ async function view(id) {
   });
   $("detailBody").innerHTML = html;
   $("detail").scrollIntoView({ behavior: "smooth" });
+}
+
+function exportCsv(id) {
+  window.location.href = "/api/grading/export/" + id;
 }
 
 // ---------- 班级/学生管理 ----------

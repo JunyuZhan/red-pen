@@ -458,6 +458,56 @@ async def get_result(submission_id: int, db: Session = Depends(get_db)):
     }
 
 
+# ============ 批改结果导出 CSV（老师导入 Excel/成绩单） ============
+
+CSV_HEADERS = ["题号", "题型", "学生答案", "参考答案", "判定", "错误类型",
+               "置信度", "知识点", "需复核", "教师复核"]
+
+
+def _judgement_cn(j: str) -> str:
+    return {"correct": "正确", "wrong": "错误", "partial": "部分正确",
+            "unclear": "无法辨认"}.get(j, j or "")
+
+
+@router.get("/export/{submission_id}")
+async def export_result_csv(submission_id: int, db: Session = Depends(get_db)):
+    """导出单份批改结果为 CSV（UTF-8 带 BOM，Excel 双击直接打开中文不乱码）。"""
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="提交记录不存在")
+
+    import csv
+    import io
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(CSV_HEADERS)
+    results = (db.query(QuestionResult)
+               .filter(QuestionResult.submission_id == submission_id)
+               .order_by(QuestionResult.question_no).all())
+    for r in results:
+        writer.writerow([
+            r.question_no,
+            r.question_type,
+            r.student_answer_text or "",
+            r.correct_answer_text or "",
+            _judgement_cn(r.judgement_final),
+            r.error_type or "",
+            f"{r.confidence_final:.2f}" if r.confidence_final is not None else "",
+            r.knowledge_point or "",
+            "是" if r.needs_review else "",
+            r.teacher_override or "",
+        ])
+
+    from urllib.parse import quote
+    filename = quote(f"红笔批改_作业{submission_id}.csv")
+    from fastapi import Response
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
 # ============ 答案模板（PRD 4.4/M4：同一练习册答案存一次，之后复用） ============
 
 class TemplateIn(BaseModel):
