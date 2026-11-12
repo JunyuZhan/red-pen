@@ -5,11 +5,12 @@ AI模型适配器
 """
 
 import os
+import re
 
 import httpx
 import base64
 import mimetypes
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from ..config import settings
 from ..database import AppConfig, SessionLocal
@@ -133,8 +134,39 @@ def save_fallback_config(provider, base_url: str, model: str,
 
 # ---------- 批改引擎 ----------
 
+# ---------- 选择题快路径（PRD 4.3：只读不判，省输出 token + 规则精确判题） ----------
+
+_CHOICE_VAL_RE = re.compile(r"^[（(]?[A-Ha-h][）.)。]?$")
+
+
+def _is_choice_only(answers: Optional[Dict[str, str]]) -> bool:
+    """参考答案全部为单个选项字母（A-H，容忍括号/点号包裹）且至少 2 题时，启用快路径"""
+    if not answers or len(answers) < 2:
+        return False
+    vals = [str(v).strip() for v in answers.values()]
+    return all(_CHOICE_VAL_RE.match(v) for v in vals)
+
+
+def _build_read_prompt(answers: Dict[str, str]) -> str:
+    """选择题快路径提示词：模型只负责读出学生所选选项，判题交给本地规则层"""
+    nos = "、".join(str(k) for k in answers)
+    return (
+        "你是一位阅卷助手。这张图片是一份选择题作业，只需读出学生每题所选的选项字母，不要判题。\n"
+        f"图片中应包含第 {nos} 题。\n"
+        "严格按以下 JSON 格式输出，不要输出任何其他内容：\n"
+        "{\n"
+        '  "choices": [\n'
+        '    {"question_no": 1, "student_choice": "B"}\n'
+        "  ]\n"
+        "}\n"
+        "student_choice 填学生所选的选项字母（A-H）；看不清或该题未作答填 null。"
+    )
+
+
 def _build_prompt(question_type: str, subject: str, answers: Optional[Dict[str, str]] = None) -> str:
-    """构建批改提示词，要求模型输出结构化 JSON"""
+    """构建批改提示词，要求模型输出结构化 JSON；纯选择题走快路径（只读不判）"""
+    if _is_choice_only(answers):
+        return _build_read_prompt(answers)
     base = (
         f"你是一位{subject}老师。请仔细分析这张作业图片，逐题批改。\n"
         "严格按以下 JSON 格式输出，不要输出任何其他内容：\n"
@@ -167,6 +199,39 @@ def _build_prompt(question_type: str, subject: str, answers: Optional[Dict[str, 
             "正确答案（correct_answer）字段请填写参考答案。"
         )
     return prompt
+
+
+def _questions_from_choices(parsed: Dict[str, Any],
+                            answers: Optional[Dict[str, str]]) -> List[Dict[str, Any]]:
+    """快路径：模型读出的选项 + 教师参考答案 → 本地规则精确判题（准确性第一，不依赖模型判题）"""
+    from backend.models.rule_validator import answers_equivalent
+    questions: List[Dict[str, Any]] = []
+    for item in parsed.get("choices", []):
+        if not isinstance(item, dict):
+            continue
+        no = item.get("question_no")
+        choice = item.get("student_choice")
+        choice = str(choice).strip() if choice else ""
+        ref = (answers or {}).get(str(no))
+        eq = answers_equivalent(choice, ref) if (choice and ref) else None
+        if eq is True:
+            j, conf, note = "correct", 0.95, "选择题快路径：选项与参考答案一致"
+        elif eq is False:
+            j, conf, note = "wrong", 0.95, "选择题快路径：选项与参考答案不一致"
+        else:
+            j, conf, note = "unclear", 0.5, "选项读取不完整或缺参考答案，需人工复核"
+        questions.append({
+            "question_no": no,
+            "judgement": j,
+            "error_type": None,
+            "student_answer": choice or "未作答",
+            "correct_answer": ref or "",
+            "analysis": note,
+            "knowledge_point": "",
+            "confidence": conf,
+            "bbox": None,
+        })
+    return questions
 
 
 def _parse_llm_json(text: str) -> Optional[dict]:
@@ -315,6 +380,27 @@ class GradingEngine:
                 "completion_tokens": usage.get("output_tokens") or usage.get("completion_tokens") or 0,
             }
             parsed = _parse_llm_json(content)
+            # 选择题快路径：模型只读了选项，判题由本地规则完成
+            if parsed and parsed.get("choices"):
+                questions = _questions_from_choices(parsed, answers)
+                if questions:
+                    jc: Dict[str, int] = {}
+                    for q in questions:
+                        jc[q["judgement"]] = jc.get(q["judgement"], 0) + 1
+                    confidences = [q["confidence"] for q in questions]
+                    overall = ("correct" if jc.get("wrong", 0) == 0 and jc.get("correct", 0) > 0
+                               else ("wrong" if jc.get("wrong", 0) > 0 else "unclear"))
+                    return {
+                        "success": True,
+                        "raw_output": response,
+                        "judgement": overall,
+                        "confidence": round(sum(confidences) / len(confidences), 2),
+                        "analysis": "选择题快路径：模型只读选项，本地规则比对参考答案判题（省输出 token）",
+                        "questions": questions,
+                        "rule_validation": {"fast_path": True, "checked": len(questions)},
+                        "fast_path": True,
+                        **usage_info,
+                    }
             if parsed and parsed.get("questions"):
                 questions = parsed.get("questions", [])
                 # 规则交叉校验层：用教师参考答案约束模型结论（准确性第一）
