@@ -428,6 +428,22 @@ async function loadAnalytics() {
       `<text x="${76 + bw + 6}" y="${y + barH - 6}" font-size="12" fill="#555">${v}次</text>`;
   }).join("");
   const errSvgH = Math.max(errs.length, 1) * (barH + gap) + 4;
+  // 错误类型占比饼图（PRD 七章：错误类型分布的占比视图）
+  const total_err = errs.reduce((a, e) => a + e[1], 0);
+  const er = 40, eC = 2 * Math.PI * er;
+  let eOff = 0;
+  const errArcs = total_err > 0 ? errs.map(([k, v]) => {
+    const frac = v / total_err;
+    const seg = `<circle r="${er}" cx="50" cy="50" fill="none" stroke="${errColors[k] || "#615d59"}" stroke-width="16"` +
+      ` stroke-dasharray="${(frac * eC).toFixed(1)} ${eC.toFixed(1)}" stroke-dashoffset="${(-eOff * eC).toFixed(1)}"` +
+      ` transform="rotate(-90 50 50)"><title>${esc(k)} ${v}次</title></circle>`;
+    eOff += frac;
+    return seg;
+  }).join("") : "";
+  const errLegend = total_err > 0 ? errs.map(([k, v]) =>
+    `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:12px;color:#555;">` +
+    `<span style="width:10px;height:10px;border-radius:3px;display:inline-block;background:${errColors[k]||"#615d59"}"></span>` +
+    `${esc(k)} ${Math.round(v/total_err*100)}%</span>`).join("") : "";
   // 判定分布环形图
   const jd = d.judgement_distribution || {};
   const jdColors = {correct:"#27ae60", wrong:"#e74c3c", partial:"#f39c12", unclear:"#95a5a6"};
@@ -530,6 +546,10 @@ async function loadAnalytics() {
       <div style="flex:1;min-width:260px;">
         <p style="margin:0 0 6px;font-size:14px;"><b>错误类型分布</b></p>
         <svg width="${76 + bw + 48}" height="${errSvgH}" role="img" aria-label="错误类型条形图">${errBars || `<text x="0" y="14" font-size="12" fill="#999">暂无错误记录 🎉</text>`}</svg>
+        ${total_err > 0 ? `<div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+          <svg width="100" height="100" role="img" aria-label="错误类型占比饼图">${errArcs}</svg>
+          <div>${errLegend}</div>
+        </div>` : ""}
       </div>
     </div>
     <p style="margin:0 0 6px;font-size:14px;"><b>判定分布</b></p>
