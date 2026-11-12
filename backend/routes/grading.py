@@ -537,10 +537,11 @@ async def export_class_csv(assignment_id: int, db: Session = Depends(get_db)):
 @router.get("/export-class-all")
 async def export_class_all_csv(
     days: int = 30,
+    class_id: int = 0,
     db: Session = Depends(get_db),
 ):
     """合并导出：一个 CSV 汇总近 N 天（days=0 为全部）每份作业 × 每名学生的正确率矩阵，
-    附平均正确率与平均等级（UTF-8 带 BOM）。"""
+    附平均正确率与平均等级（UTF-8 带 BOM）。class_id>0 时只导出该班级。"""
     from datetime import datetime, timedelta
     from ..database import Student as StudentModel
     from ..models.grade_scale import get_thresholds, compute_grade
@@ -552,6 +553,8 @@ async def export_class_all_csv(
     q = db.query(Assignment)
     if days and days > 0:
         q = q.filter(Assignment.created_at >= now - timedelta(days=days))
+    if class_id and class_id > 0:
+        q = q.filter(Assignment.class_id == class_id)
     assignments = q.order_by(Assignment.created_at).all()
 
     thresholds = get_thresholds(db)
@@ -584,17 +587,19 @@ async def export_class_all_csv(
             student_ids.append(s.student_id)
         sub_of[(s.student_id, s.assignment_id)] = (s, acc_by_sub.get(s.id))
 
-    students = (db.query(StudentModel)
+    from ..database import Class as ClassModel
+    students = (db.query(StudentModel, ClassModel.name)
+                .outerjoin(ClassModel, ClassModel.id == StudentModel.class_id)
                 .filter(StudentModel.id.in_(student_ids or [0]))
                 .order_by(StudentModel.id).all())
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["学生"] + [a.title or f"作业{a.id}" for a in assignments]
+    writer.writerow(["班级", "学生"] + [a.title or f"作业{a.id}" for a in assignments]
                     + ["平均正确率", "平均等级"])
-    for st in students:
+    for st, class_name in students:
         accs = []
-        row = [st.name]
+        row = [class_name or "-", st.name]
         for a in assignments:
             pair = sub_of.get((st.id, a.id))
             if pair is not None and pair[1] is not None:
@@ -613,6 +618,10 @@ async def export_class_all_csv(
     from urllib.parse import quote
     from fastapi import Response
     label = f"近{days}天" if days and days > 0 else "全部"
+    if class_id and class_id > 0:
+        cls = db.query(ClassModel).filter(ClassModel.id == class_id).first()
+        if cls:
+            label = f"{label}_{cls.name}"
     filename = quote(f"红笔成绩单_汇总_{label}.csv")
     return Response(
         content="\ufeff" + buf.getvalue(),

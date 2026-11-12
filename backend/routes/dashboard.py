@@ -28,6 +28,7 @@ async def dashboard_summary(db: Session = Depends(get_db)):
 
     # 作业等级换算（PRD 待办 n）：每个作业的正确率 → A/B/C/D
     thresholds = get_thresholds(db)
+    from ..database import Class as ClassModel
     assignment_grades = []
     for a in db.query(Assignment).order_by(Assignment.id.desc()).all():
         acc, n_q = accuracy_for_assignment(db, a.id)
@@ -51,4 +52,6 @@ async def dashboard_summary(db: Session = Depends(get_db)):
         "total_tokens": total_tokens,
         "total_cost": total_cost,
         "assignment_grades": assignment_grades,
+        "classes": [{"id": c.id, "name": c.name}
+                    for c in db.query(ClassModel).order_by(ClassModel.id).all()],
     }
