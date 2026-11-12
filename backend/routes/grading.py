@@ -109,6 +109,15 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         # 重批清旧：删除本次提交的历史逐题结果，避免重复累积
         db.query(QuestionResult).filter(QuestionResult.submission_id == submission.id).delete()
 
+        # 置信度融合第四因子（PRD 待办 bb）：知识点历史准确率先调置信度，
+        # 使低置信度复核通道（下方）按融合后的置信度选题主
+        fusion_stats = None
+        try:
+            from ..models.confidence_fusion import fuse_knowledge_history
+            fusion_stats = fuse_knowledge_history(questions, db, submission.id)
+        except Exception:
+            fusion_stats = None  # 融合链路任何异常都不能影响正常批改结果
+
         # 低置信度二次复核（PRD 待办 f）：不一致的题标 needs_review 进复核队列
         review_stats = None
         try:
@@ -217,6 +226,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             "analysis": result.get("analysis"),
             "duration_seconds": duration,
             "review": review_stats,
+            "fusion": fusion_stats,
         }
     finally:
         db.close()
