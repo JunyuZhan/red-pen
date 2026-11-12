@@ -57,6 +57,19 @@ def annotate_image(image_path: str, questions: List[Dict[str, Any]],
 
     draw = ImageDraw.Draw(img)
     marked = []
+    placed_chips: List[Tuple[float, float, float, float]] = []  # 防文字条压相邻题带
+    other_bboxes = []
+    for q in questions:
+        b = q.get("bbox")
+        if isinstance(b, (list, tuple)) and len(b) == 4:
+            try:
+                bx1, by1, bx2, by2 = [float(v) for v in b]
+                if all(0 <= v <= 1 for v in (bx1, by1, bx2, by2)):
+                    bx1, by2, bx2, by1 = bx1 * width, by2 * height, bx2 * width, by1 * height
+                if bx2 > bx1 and by2 > by1:
+                    other_bboxes.append((bx1, by1, bx2, by2))
+            except (TypeError, ValueError):
+                pass
 
     for q in questions:
         judgement = (q.get("judgement") or "unclear").lower()
@@ -83,8 +96,13 @@ def annotate_image(image_path: str, questions: List[Dict[str, Any]],
                             draw.text((x2 + 2, y1 - font_size), tag,
                                       fill=RED, font=font)
                         if reason:
-                            _draw_reason_chip(draw, (x1, y1, x2, y2), reason,
-                                              width, height, font, line_w)
+                            avoid = [r for r in other_bboxes + placed_chips
+                                     if r != (x1, y1, x2, y2)]
+                            chip_rect = _draw_reason_chip(draw, (x1, y1, x2, y2),
+                                                          reason, width, height,
+                                                          font, line_w, avoid)
+                            if chip_rect:
+                                placed_chips.append(chip_rect)
                     marked.append((no, judgement))
                     continue
             except (TypeError, ValueError):
@@ -140,39 +158,76 @@ def short_reason(q: Dict[str, Any], max_chars: int = 6) -> str:
     return ""
 
 
+def _rects_overlap(a, b, gap: float = 2.0) -> bool:
+    return not (a[2] + gap <= b[0] or b[2] + gap <= a[0] or
+                a[3] + gap <= b[1] or b[3] + gap <= a[1])
+
+
+def _overlap_area(a, b) -> float:
+    w = min(a[2], b[2]) - max(a[0], b[0])
+    h = min(a[3], b[3]) - max(a[1], b[1])
+    return max(0.0, w) * max(0.0, h)
+
+
 def place_chip(bbox: Tuple[float, float, float, float], text_w: int, text_h: int,
-               img_w: int, img_h: int, pad: int = 4) -> Tuple[float, float]:
-    """错因文字条放置位置（左上角）：右侧优先 → 左侧 → 下方"""
+               img_w: int, img_h: int, pad: int = 4,
+               avoid: Optional[List[Tuple[float, float, float, float]]] = None
+               ) -> Tuple[float, float]:
+    """错因文字条放置位置（左上角）：右侧优先 → 左侧 → 上方 → 下方。
+    avoid 中的矩形（其它题框/已放置文字条）尽量避开；全部避不开时
+    选与它们重叠面积最小的候选位。"""
     x1, y1, x2, y2 = bbox
     chip_w = text_w + pad * 2
-    # 右侧
-    if x2 + pad + chip_w <= img_w:
-        return (x2 + pad, y1)
-    # 左侧
-    if x1 - pad - chip_w >= 0:
-        return (x1 - pad - chip_w, y1)
-    # 下方
-    return (x1, min(y2 + pad, max(0, img_h - text_h - pad * 2)))
+    chip_h = text_h + pad * 2
+    below_y = min(y2 + pad, max(0, img_h - chip_h))
+    candidates = [
+        (x2 + pad, y1),                    # 右侧
+        (x1 - pad - chip_w, y1),           # 左侧
+        (x1, min(y1 - pad - chip_h, y1)),  # 上方
+        (x1, below_y),                     # 下方
+    ]
+    avoid = avoid or []
+
+    def rect_at(cx, cy):
+        return (cx - pad, cy - pad, cx + text_w + pad, cy + text_h + pad)
+
+    in_bounds = [c for c in candidates
+                 if 0 <= c[0] and c[0] + chip_w <= img_w
+                 and 0 <= c[1] and c[1] + chip_h <= img_h]
+    if not in_bounds:
+        in_bounds = [candidates[-1]]
+    for c in in_bounds:
+        r = rect_at(*c)
+        if not any(_rects_overlap(r, av) for av in avoid):
+            return c
+    # 全部相交：选重叠面积最小的
+    best = min(in_bounds, key=lambda c: sum(
+        _overlap_area(rect_at(*c), av) for av in avoid))
+    return best
 
 
 def _draw_reason_chip(draw: ImageDraw.ImageDraw,
                       bbox: Tuple[float, float, float, float],
                       reason: str, img_w: int, img_h: int,
-                      font: ImageFont.FreeTypeFont, line_w: int) -> None:
-    """在 bbox 外侧画错因文字条（白底红字），不遮挡原字"""
+                      font: ImageFont.FreeTypeFont, line_w: int,
+                      avoid: Optional[List[Tuple[float, float, float, float]]] = None
+                      ) -> Optional[Tuple[float, float, float, float]]:
+    """在 bbox 外侧画错因文字条（白底红字），不遮挡原字；
+    尽量避开 avoid 中的矩形。返回文字条实际矩形，失败返回 None"""
     try:
         tw, th = draw.textbbox((0, 0), reason, font=font)[2:]
     except Exception:
         tw, th = len(reason) * font.size, font.size
     if tw <= 0:
-        return
-    cx, cy = place_chip(bbox, tw, th, img_w, img_h)
+        return None
+    cx, cy = place_chip(bbox, tw, th, img_w, img_h, avoid=avoid)
     pad = 4
     bg = [cx - pad, cy - pad, cx + tw + pad, cy + th + pad]
     bg[0] = max(0, bg[0]); bg[1] = max(0, bg[1])
     bg[2] = min(img_w, bg[2]); bg[3] = min(img_h, bg[3])
     draw.rectangle(bg, fill=(255, 253, 250), outline=RED, width=max(1, line_w // 2))
     draw.text((bg[0] + pad, bg[1] + pad), reason, fill=RED, font=font)
+    return tuple(bg)
 
 
 def _draw_check(draw: ImageDraw.ImageDraw, x: float, y: float,
