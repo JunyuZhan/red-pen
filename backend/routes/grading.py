@@ -178,8 +178,17 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             except Exception as e:
                 get_logger().warning("内容感知切带失败: %s", str(e)[:120])
 
-        # 红笔回显
-        annotated = annotate_image(submission.original_image_path, questions,
+        # 红笔回显（去重防御：任何来源的重复题目条目都只保留一条，标注面板不重复）
+        seen_q = set()
+        uniq_questions = []
+        for qd in questions:
+            key = str(qd.get("question_no"))
+            if key in seen_q:
+                continue
+            seen_q.add(key)
+            uniq_questions.append(qd)
+        get_logger().info("标注题数: 引擎返回%s条/去重%s条", len(questions), len(uniq_questions))
+        annotated = annotate_image(submission.original_image_path, uniq_questions,
                                    result.get("analysis", ""))
         submission.annotated_image_path = annotated
         submission.grading_summary = result.get("analysis")
