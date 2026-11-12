@@ -1,14 +1,16 @@
 """
 红笔回显：在作业原图上绘制批改标注
-- correct  → 红色对勾 ✓
-- wrong    → 红色叉 ✗
-- partial  → 红色圆圈 + "部分"
-- unclear  → 红色圆圈 + "?"
+- correct  → 绿色对勾 ✓（贴角小标）
+- wrong    → 红色叉 ✗ + 短错因文字条（bbox 外侧，不遮挡原字）
+- partial  → 红色 "部分" + 短错因
+- unclear  → 红色 "?" + 短错因
+标注原则：只在 bbox 右上角画小符号，错因文字条放 bbox 外侧（右侧优先，
+放不下换左侧，再放下方），绝不整框圈住学生手写内容。
 有 bbox 时标在题目位置；没有 bbox 时按题号在图片右侧边栏列出。
 """
 
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -67,20 +69,22 @@ def annotate_image(image_path: str, questions: List[Dict[str, Any]],
                 # 模型可能返回 0~1 归一化坐标
                 if all(0 <= v <= 1 for v in (x1, y1, x2, y2)):
                     x1, y2, x2, y1 = x1 * width, y2 * height, x2 * width, y1 * height
-                    x1, y2 = x1, y2  # noqa
                 x1, y1, x2, y2 = max(0, x1), max(0, y1), min(width, x2), min(height, y2)
                 if x2 > x1 and y2 > y1:
-                    color = RED if judgement == "wrong" else GREEN_DARK
+                    reason = short_reason(q)
                     if judgement == "correct":
-                        draw.ellipse([x1, y1, x2, y2], outline=color, width=line_w)
-                        _draw_check(draw, x2, y1, font_size, color, line_w)
-                    elif judgement == "wrong":
-                        draw.ellipse([x1, y1, x2, y2], outline=color, width=line_w)
-                        _draw_cross(draw, x2, y1, font_size, color, line_w)
+                        _draw_check(draw, x2, y1, font_size, GREEN_DARK, line_w)
                     else:
-                        draw.ellipse([x1, y1, x2, y2], outline=RED, width=line_w)
-                        draw.text((x2 + 4, y1), "?" if judgement == "unclear" else "部分",
-                                  fill=RED, font=font)
+                        color = RED
+                        if judgement == "wrong":
+                            _draw_cross(draw, x2, y1, font_size, color, line_w)
+                        else:
+                            tag = "?" if judgement == "unclear" else "部分"
+                            draw.text((x2 + 2, y1 - font_size), tag,
+                                      fill=RED, font=font)
+                        if reason:
+                            _draw_reason_chip(draw, (x1, y1, x2, y2), reason,
+                                              width, height, font, line_w)
                     marked.append((no, judgement))
                     continue
             except (TypeError, ValueError):
@@ -123,6 +127,52 @@ def annotate_image(image_path: str, questions: List[Dict[str, Any]],
         return out_path
     except Exception:
         return None
+
+
+def short_reason(q: Dict[str, Any], max_chars: int = 6) -> str:
+    """错题的短错因文字：优先 error_type，其次 analysis 截断"""
+    et = (q.get("error_type") or "").strip()
+    if et and et.lower() != "null":
+        return et[:max_chars]
+    an = (q.get("analysis") or "").strip()
+    if an and an.lower() != "null":
+        return an.replace("\n", " ")[:max_chars]
+    return ""
+
+
+def place_chip(bbox: Tuple[float, float, float, float], text_w: int, text_h: int,
+               img_w: int, img_h: int, pad: int = 4) -> Tuple[float, float]:
+    """错因文字条放置位置（左上角）：右侧优先 → 左侧 → 下方"""
+    x1, y1, x2, y2 = bbox
+    chip_w = text_w + pad * 2
+    # 右侧
+    if x2 + pad + chip_w <= img_w:
+        return (x2 + pad, y1)
+    # 左侧
+    if x1 - pad - chip_w >= 0:
+        return (x1 - pad - chip_w, y1)
+    # 下方
+    return (x1, min(y2 + pad, max(0, img_h - text_h - pad * 2)))
+
+
+def _draw_reason_chip(draw: ImageDraw.ImageDraw,
+                      bbox: Tuple[float, float, float, float],
+                      reason: str, img_w: int, img_h: int,
+                      font: ImageFont.FreeTypeFont, line_w: int) -> None:
+    """在 bbox 外侧画错因文字条（白底红字），不遮挡原字"""
+    try:
+        tw, th = draw.textbbox((0, 0), reason, font=font)[2:]
+    except Exception:
+        tw, th = len(reason) * font.size, font.size
+    if tw <= 0:
+        return
+    cx, cy = place_chip(bbox, tw, th, img_w, img_h)
+    pad = 4
+    bg = [cx - pad, cy - pad, cx + tw + pad, cy + th + pad]
+    bg[0] = max(0, bg[0]); bg[1] = max(0, bg[1])
+    bg[2] = min(img_w, bg[2]); bg[3] = min(img_h, bg[3])
+    draw.rectangle(bg, fill=(255, 253, 250), outline=RED, width=max(1, line_w // 2))
+    draw.text((bg[0] + pad, bg[1] + pad), reason, fill=RED, font=font)
 
 
 def _draw_check(draw: ImageDraw.ImageDraw, x: float, y: float,
