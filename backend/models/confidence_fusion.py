@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 
 from ..database import QuestionResult
+from .knowledge_norm import canonical_key
 
 MIN_SAMPLES = 5          # 该知识点至少累计 N 条有效判定才启用历史因子
 LOW_ACC = 0.5            # 低于此正确率 → 下调置信度
@@ -43,7 +44,7 @@ def knowledge_point_history(db: Session, exclude_submission_id: int) -> Dict[str
         judgement = (r.teacher_override or r.judgement_final or "").lower()
         if judgement not in ("correct", "wrong"):
             continue
-        name = (r.knowledge_point or "").strip()
+        name = canonical_key(r.knowledge_point)
         if not name:
             continue
         s = stats.setdefault(name, {"correct": 0, "total": 0})
@@ -64,7 +65,7 @@ def fuse_knowledge_history(questions: List[Dict[str, Any]], db: Session,
         conf = q.get("confidence")
         if not isinstance(conf, (int, float)) or not (0.0 <= conf <= 1.0):
             continue
-        name = (q.get("knowledge_point") or "").strip()
+        name = canonical_key(q.get("knowledge_point"))
         h = history.get(name)
         if not h or h["total"] < MIN_SAMPLES:
             stats["no_history"] += 1

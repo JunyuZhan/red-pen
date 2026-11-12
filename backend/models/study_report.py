@@ -14,6 +14,8 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from .knowledge_norm import canonical_key
+
 import httpx
 from sqlalchemy.orm import Session
 
@@ -73,7 +75,7 @@ def collect_student_stats(db: Session, student_id: int) -> Optional[Dict[str, An
     # 知识点掌握
     kp: Dict[str, Dict[str, int]] = defaultdict(lambda: {"total": 0, "correct": 0})
     for r in results:
-        name = (r.knowledge_point or "").strip()
+        name = canonical_key(r.knowledge_point)
         if not name:
             continue
         kp[name]["total"] += 1

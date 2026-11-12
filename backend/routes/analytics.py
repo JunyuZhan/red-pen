@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 
 from ..database import get_db, Class, QuestionResult, Submission, Student
 from ..models.grade_scale import get_thresholds, compute_grade
+from ..models.knowledge_norm import canonical_key
 from .auth import require_admin
 
 router = APIRouter()
@@ -69,7 +70,7 @@ async def analytics(db: Session = Depends(get_db)):
     # 知识点掌握统计（待办 i）：按知识点聚合正确率，薄弱的排前面
     kp_stats = defaultdict(lambda: {"total": 0, "correct": 0})
     for r in results:
-        kp = (r.knowledge_point or "").strip()
+        kp = canonical_key(r.knowledge_point)
         if not kp:
             continue
         kp_stats[kp]["total"] += 1
