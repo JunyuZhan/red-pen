@@ -160,20 +160,23 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         except Exception as e:
             get_logger().warning("CV切题失败: %s", str(e)[:120])
 
-        # 兜底定位：CV没切出/数量不符时，按题目序号把标注均匀分布到整页（估算位置，
-        # 精确定位待 CV 切题调优后替换），避免所有标记挤在引擎给的同一个小区域
+        # 兜底定位：CV切不出区域时，用"内容感知切带"——按墨迹分布找题目间的
+        # 空白谷把整页切成与题目数相同的水平带（构造性对位），仍优于均匀分布。
+        # 注：印刷连续版面可能一带多题；像素级精准待接入版面分析模型（待办 g）。
         if regions is None or len(regions) < len(questions):
             try:
-                from PIL import Image as _Img
-                _w, _h = _Img.open(submission.original_image_path).size
-                n = len(questions)
-                for i, qd in enumerate(questions):
-                    top = int(_h * (i + 0.15) / n)
-                    bot = int(_h * (i + 0.95) / n)
-                    qd["bbox"] = [0, top, _w, bot]
-                get_logger().info("标注使用均匀分布估算定位: %s题", n)
-            except Exception:
-                pass
+                from ..models.question_splitter import find_bands
+                bands = find_bands(submission.original_image_path, len(questions))
+                if len(bands) == len(questions):
+                    w = None
+                    for i, qd in enumerate(questions):
+                        if w is None:
+                            from PIL import Image as _Img
+                            w = _Img.open(submission.original_image_path).size[0]
+                        qd["bbox"] = [0, bands[i]["top"], w, bands[i]["bottom"]]
+                    get_logger().info("标注使用内容感知切带定位: %s题/%s带", len(questions), len(bands))
+            except Exception as e:
+                get_logger().warning("内容感知切带失败: %s", str(e)[:120])
 
         # 红笔回显
         annotated = annotate_image(submission.original_image_path, questions,
