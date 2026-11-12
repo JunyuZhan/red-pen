@@ -94,6 +94,26 @@ async def update_cache_settings(config: CacheConfigIn, _: None = Depends(require
     return {"success": True, "message": "批改缓存设置已保存", **get_cache_config()}
 
 
+# ---------- 单次请求 token 上限 ----------
+
+class MaxTokensIn(BaseModel):
+    max_tokens: int = 0   # 0 = 不限制
+
+
+@router.get("/max-tokens")
+async def get_max_tokens_settings():
+    from ..models.grading_engine import get_max_tokens
+    return {"success": True, **get_max_tokens()}
+
+
+@router.post("/max-tokens")
+async def update_max_tokens_settings(config: MaxTokensIn, _: None = Depends(require_admin)):
+    if config.max_tokens < 0 or config.max_tokens > 200000:
+        raise HTTPException(status_code=400, detail="max_tokens 须在 0（不限）到 200000 之间")
+    from ..models.grading_engine import save_max_tokens
+    return {"success": True, "message": "单次请求 token 上限已保存", **save_max_tokens(config.max_tokens)}
+
+
 @router.post("/split")
 async def update_split_settings(config: SplitConfigIn, _: None = Depends(require_admin)):
     from ..models.question_splitter import save_split_config, get_split_config

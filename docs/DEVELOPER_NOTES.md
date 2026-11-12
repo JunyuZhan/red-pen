@@ -44,7 +44,7 @@ u) 学段/学科配置表驱动 subject_config ✅（setup向导/引导页已表
 剩余缺口（按优先级）：
 v) 批改结果缓存：✅ 已落地（58c81c5, v0.4.8：GradingCache表+设置页开关，6项测试）
 w) PRD 4.3 快路径：选择题/单一数值填空先规则精确匹配命中不调 API——受限于学生答案需先由视觉模型读出，整页模式下无法跳过调用；可考虑对选择题仅让模型读答案不做判题（省输出token），或本地OCR机器印刷选项。低优先，待真实Key验证后评估
-x) PRD 4.3 单次请求 token 上限开关：LLM 请求加 max_tokens 上限 + 设置页可调
+x) PRD 4.3 单次请求 token 上限开关：✅ 已落地（v0.4.9：get_max_tokens/save_max_tokens + grade 请求体携带 max_tokens + 设置页可调 + /api/settings/max-tokens，6项测试共149 passed）
 y) 错误类型饼图：现有环形图展示判定分布+条形图错误类型，PRD 七章"错误类型分布"已覆盖，饼图可选
 z) CLAHE：PRD 六章提及，现用 autocontrast 替代低对比度增强，实测如不足再上（依赖真实Key验证）
 aa) 敏感信息自动遮盖（PRD 标 P1）：目前仅设置页文字提示，姓名栏自动打码待做

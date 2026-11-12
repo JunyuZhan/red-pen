@@ -133,6 +133,15 @@
   <div class="msg" id="cache_msg"></div>
 </div>
 
+<!-- 单次请求 token 上限 -->
+<div class="card" style="margin-top:20px">
+  <h1>单次请求 token 上限（成本护栏）</h1>
+  <div class="sub">限制每次批改调用 AI 时最多生成的 token 数，防止单次请求意外产生大额费用。0 = 不限制（默认）。设置过小会导致批改结果被截断、识别不完整，建议保持 0 或设为 2000～4000。</div>
+  <label>单次请求上限 <input type="number" id="max_tokens_input" min="0" max="200000" step="100" style="width:120px"> tokens（0 = 不限制）</label>
+  <button onclick="saveMaxTokens()">保存上限设置</button>
+  <div class="msg" id="max_tokens_msg"></div>
+</div>
+
 <!-- 切题前置图像预处理 -->
 <div class="card" style="margin-top:20px">
   <h1>图像预处理（切题前置）</h1>
@@ -406,6 +415,26 @@ async function loadCache() {
   const r = await fetch("/api/settings/grading-cache");
   const d = await r.json();
   if (d.success) document.getElementById("cache_enabled").checked = !!d.enabled;
+}
+
+async function loadMaxTokens() {
+  const r = await fetch("/api/settings/max-tokens");
+  const d = await r.json();
+  if (d.success) document.getElementById("max_tokens_input").value = d.max_tokens || 0;
+}
+
+async function saveMaxTokens() {
+  const msg = document.getElementById("max_tokens_msg");
+  try {
+    const v = parseInt(document.getElementById("max_tokens_input").value, 10) || 0;
+    const r = await fetch("/api/settings/max-tokens", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ max_tokens: v })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ " + d.message;
+  } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
 }
 
 async function saveCache() {
@@ -711,7 +740,7 @@ async function saveGrade() {
   msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadCache(); loadPreprocess(); loadReview(); loadGrade(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadCache(); loadMaxTokens(); loadPreprocess(); loadReview(); loadGrade(); } });
 </script>
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });

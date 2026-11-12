@@ -214,6 +214,40 @@ def estimate_cost(prompt_tokens: int, completion_tokens: int) -> Dict[str, Any]:
             "cost": round(cost, 4)}
 
 
+# ---------- 单次请求 token 上限（PRD 4.3 成本护栏） ----------
+
+def get_max_tokens() -> Dict[str, Any]:
+    """读取单次 LLM 请求 max_tokens 上限配置，0 = 不限制。存 AppConfig llm_max_tokens"""
+    db = SessionLocal()
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == "llm_max_tokens").first()
+        raw = row.value if row else "0"
+    finally:
+        db.close()
+    try:
+        limit = int(raw)
+    except (TypeError, ValueError):
+        limit = 0
+    if limit < 0:
+        limit = 0
+    return {"max_tokens": limit}
+
+
+def save_max_tokens(limit: int) -> Dict[str, Any]:
+    db = SessionLocal()
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == "llm_max_tokens").first()
+        value = str(int(limit))
+        if row:
+            row.value = value
+        else:
+            db.add(AppConfig(key="llm_max_tokens", value=value))
+        db.commit()
+    finally:
+        db.close()
+    return get_max_tokens()
+
+
 class GradingEngine:
     """基于 OpenAI 兼容 Chat Completions 接口的批改引擎（三家服务商均兼容）"""
 
@@ -246,6 +280,10 @@ class GradingEngine:
                 }
             ],
         }
+        # 单次请求 token 上限（设置页可调，0 = 不限制）
+        max_tokens = get_max_tokens()["max_tokens"]
+        if max_tokens > 0:
+            data["max_tokens"] = max_tokens
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
