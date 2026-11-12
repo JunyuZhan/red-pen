@@ -96,10 +96,10 @@ def test_exif_rotated_image_still_splits(split_env):
 
 
 def test_row_projection_groups_five_lines(split_env):
-    from backend.models.question_splitter import _find_regions, _row_means
+    from backend.models.question_splitter import _find_regions, _row_ink_fractions
 
     img = make_page(os.path.join(split_env, "proj.jpg"), lines=5)
-    assert len(_find_regions(_row_means(img.convert("L")))) == 5
+    assert len(_find_regions(_row_ink_fractions(img.convert("L")))) == 5
 
 
 def test_split_config_roundtrip(split_env):
