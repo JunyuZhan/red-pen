@@ -265,6 +265,148 @@ def split_questions(image_path: str, out_dir: str) -> List[Dict[str, Any]]:
     return crops
 
 
+# ---- g2: 手写墨迹块聚类 bbox ----
+# 在题目带内把墨迹像素聚成连通块（8-邻接），取并集得到"手写块"的外接框，
+# 红笔标注压在手写墨迹上而非整行题干/空白。纯 PIL + 纯 Python，无新依赖。
+BLOCK_GRID_MAX = 520     # 墨迹块检测前降采样的最长边（格子数）
+BLOCK_MERGE_GAP = 6      # 相邻块间距 ≤ 此格子数则合并（同一行字/连笔画）
+BLOCK_MIN_CELLS = 4      # 块最小像素格数（滤纸纹/噪点）
+BLOCK_PAD_RATIO = 0.02   # 结果外扩（相对带高），标注别贴死笔画
+
+
+def detect_ink_blocks(image_path: str, region=None) -> List[tuple]:
+    """墨迹连通块聚类 → [(x1, y1, x2, y2)]（原图像素坐标，按 y 排序）。
+
+    region=(x1,y1,x2,y2) 时只在该区域内检测，返回坐标已加回偏移。
+    任何失败返回 []（调用方回退原有 bbox，绝不阻塞）。
+    """
+    try:
+        img = ImageOps.exif_transpose(Image.open(image_path))
+        if region:
+            ox, oy = int(region[0]), int(region[1])
+            img = img.crop((ox, oy, int(region[2]), int(region[3])))
+        else:
+            ox, oy = 0, 0
+    except Exception:
+        return []
+    gray = img.convert("L")
+    w, h = gray.size
+    if w < 2 or h < 2:
+        return []
+    s = min(1.0, BLOCK_GRID_MAX / max(w, h))
+    gw, gh = max(2, round(w * s)), max(2, round(h * s))
+    gray = gray.resize((gw, gh))
+    radius = max(15, gw // 16)
+    bg = gray.filter(ImageFilter.GaussianBlur(radius))
+    diff = ImageChops.subtract(bg, gray)
+    bw = diff.point(lambda v: 255 if v > INK_CONTRAST_MIN else 0)
+    px = bw.load()
+
+    # 8-邻接连通域标记（迭代栈，避免深递归）
+    seen = bytearray(gw * gh)
+    raw = []  # [minx, miny, maxx, maxy, count]（格子坐标）
+    for y0 in range(gh):
+        row0 = y0 * gw
+        for x0 in range(gw):
+            if px[x0, y0] and not seen[row0 + x0]:
+                stack = [(x0, y0)]
+                seen[row0 + x0] = 1
+                minx = maxx = x0
+                miny = maxy = y0
+                cnt = 0
+                while stack:
+                    x, y = stack.pop()
+                    cnt += 1
+                    if x < minx:
+                        minx = x
+                    if x > maxx:
+                        maxx = x
+                    if y < miny:
+                        miny = y
+                    if y > maxy:
+                        maxy = y
+                    for dy in (-1, 0, 1):
+                        ny = y + dy
+                        if ny < 0 or ny >= gh:
+                            continue
+                        base = ny * gw
+                        for dx in (-1, 0, 1):
+                            nx = x + dx
+                            if 0 <= nx < gw and px[nx, ny] and not seen[base + nx]:
+                                seen[base + nx] = 1
+                                stack.append((nx, ny))
+                if cnt >= BLOCK_MIN_CELLS:
+                    raw.append([minx, miny, maxx, maxy, cnt])
+    if not raw:
+        return []
+
+    # 近邻块合并：间距 ≤ BLOCK_MERGE_GAP 视为同一手写块（迭代直到稳定）
+    gap = BLOCK_MERGE_GAP
+    merged = True
+    while merged and len(raw) > 1:
+        merged = False
+        out = []
+        while raw:
+            b = raw.pop()
+            hit = None
+            for o in out:
+                if (b[0] - gap <= o[2] and o[0] - gap <= b[2] and
+                        b[1] - gap <= o[3] and o[1] - gap <= b[3]):
+                    hit = o
+                    break
+            if hit:
+                hit[0] = min(hit[0], b[0])
+                hit[1] = min(hit[1], b[1])
+                hit[2] = max(hit[2], b[2])
+                hit[3] = max(hit[3], b[3])
+                hit[4] += b[4]
+                merged = True
+            else:
+                out.append(b)
+        raw = out
+    # 并回原图坐标
+    inv = 1.0 / s
+    blocks = []
+    for b in raw:
+        x1 = max(0, ox + round(b[0] * inv))
+        y1 = max(0, oy + round(b[1] * inv))
+        x2 = min(ox + w, ox + round((b[2] + 1) * inv))
+        y2 = min(oy + h, oy + round((b[3] + 1) * inv))
+        if x2 > x1 and y2 > y1:
+            blocks.append((x1, y1, x2, y2))
+    blocks.sort(key=lambda b: (b[1], b[0]))
+    return blocks[:MAX_REGIONS]
+
+
+def tighten_band_to_ink(image_path: str, top: int, bottom: int):
+    """把一道题的水平带 [top, bottom] 收紧为带内墨迹（手写块）的外接框。
+
+    返回 [x1, y1, x2, y2]；带内无墨迹/失败返回 None（调用方回退整带 bbox）。
+    """
+    try:
+        from PIL import Image as _Img
+        W, H = _Img.open(image_path).size
+    except Exception:
+        return None
+    top = max(0, int(top))
+    bottom = min(H, int(bottom))
+    if bottom - top < MIN_REGION_H:
+        return None
+    try:
+        blocks = detect_ink_blocks(image_path, (0, top, W, bottom))
+    except Exception:
+        return None
+    if not blocks:
+        return None
+    x1 = min(b[0] for b in blocks)
+    y1 = min(b[1] for b in blocks)
+    x2 = max(b[2] for b in blocks)
+    y2 = max(b[3] for b in blocks)
+    pad = max(4, round((bottom - top) * BLOCK_PAD_RATIO))
+    return [max(0, x1 - pad), max(top - pad, y1 - pad),
+            min(W, x2 + pad), min(bottom + pad, y2 + pad)]
+
+
 def find_bands(image_path: str, n: int) -> List[Dict[str, Any]]:
     """内容感知切分：把整页按墨迹分布切成 n 条水平带，每带对应一道题。
 

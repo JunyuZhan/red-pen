@@ -82,3 +82,6 @@ g1) ✅ 页眉剔除+题号OCR锚点已落地（v0.4.12, ac432a5）：RapidOCR(o
 g2) 手写墨迹块聚类bbox(复用现有二值化) → 每题带内手写块=红笔目标
 g3) chinese-exam-question-regions 训 YOLO 切题(exe用onnx)
 g4) 真实模型结构化prompt: 一次返回题号/学生答案/判分/错因，定位判定一体
+
+## 增补记录
+- g2 ✅ 手写墨迹块聚类 bbox（v0.4.13）：question_splitter.detect_ink_blocks / tighten_band_to_ink；grading.py 三处切带定位统一走 _tighten() 收紧到手写墨迹外接框。坑：墨迹检测的连通块合并 gap 用格子数（BLOCK_MERGE_GAP=6，相对 520 网格），改分辨率要同步调；下轮候选 g3：印刷题干与手写墨迹区分（红笔只压手写答案）或待办队列下一项。

@@ -154,17 +154,29 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
 
         # 标注坐标以本地 CV 切题为准（PRD 六章：LLM 视觉定位精度不足）：
         # CV 版面分析切出的区域数量与题目数一致时，按顺序用区域 bbox 覆盖引擎返回的坐标
+        # g2: 水平带 → 收紧到手写墨迹块外接框（红笔压手写而非整行/空白）
+        def _tighten(band_top, band_bottom):
+            try:
+                from ..models.question_splitter import tighten_band_to_ink
+                tight = tighten_band_to_ink(submission.original_image_path,
+                                            band_top, band_bottom)
+                if tight:
+                    return tight
+            except Exception as e:
+                get_logger().warning("墨迹收紧失败: %s", str(e)[:120])
+            return [0, band_top, img_w, band_bottom]
+
         try:
             from ..models.question_splitter import split_questions
             regions = split_questions(submission.original_image_path,
                                       os.path.join(settings.DATA_DIR, "splits")) or None
             if regions and len(regions) >= len(questions):
                 from PIL import Image as _Img
-                w = _Img.open(submission.original_image_path).size[0]
+                img_w = _Img.open(submission.original_image_path).size[0]
                 for i, qd in enumerate(questions):
                     if i < len(regions):
                         r = regions[i]
-                        qd["bbox"] = [0, r["top"], w, r["bottom"]]
+                        qd["bbox"] = _tighten(r["top"], r["bottom"])
                 get_logger().info("标注坐标改用CV切题区域: %s题/%s区域", len(questions), len(regions))
         except Exception as e:
             get_logger().warning("CV切题失败: %s", str(e)[:120])
@@ -182,7 +194,8 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                         if w is None:
                             from PIL import Image as _Img
                             w = _Img.open(submission.original_image_path).size[0]
-                        qd["bbox"] = [0, bands[i]["top"], w, bands[i]["bottom"]]
+                            img_w = w
+                        qd["bbox"] = _tighten(bands[i]["top"], bands[i]["bottom"])
                     get_logger().info("标注使用内容感知切带定位: %s题/%s带", len(questions), len(bands))
             except Exception as e:
                 get_logger().warning("内容感知切带失败: %s", str(e)[:120])
@@ -222,8 +235,9 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                 if len(bands2) == expected:
                     from PIL import Image as _Img
                     _w = _Img.open(submission.original_image_path).size[0]
+                    img_w = _w
                     for i, qd in enumerate(uniq_questions):
-                        qd["bbox"] = [0, bands2[i]["top"], _w, bands2[i]["bottom"]]
+                        qd["bbox"] = _tighten(bands2[i]["top"], bands2[i]["bottom"])
                 get_logger().info("按答案表真实题数切带: %s题/%s带", expected, len(bands2))
             except Exception as e:
                 get_logger().warning("真实题数切带失败: %s", str(e)[:120])
