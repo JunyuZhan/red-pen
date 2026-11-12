@@ -196,7 +196,39 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                 continue
             seen_q.add(key)
             uniq_questions.append(qd)
-        get_logger().info("标注题数: 引擎返回%s条/去重%s条", len(questions), len(uniq_questions))
+
+        # 用户规则：先识别（CV 内容感知）→ 再划分（按真实题数切带）→ 再覆盖回去（逐题标注）。
+        # 真实题数以老师录入的参考答案表为准，不信任引擎返回的题数（演示/模型可能漏题）。
+        n_before = len(uniq_questions)
+        expected = n_before
+        if template and getattr(template, "answers", None):
+            try:
+                import json as _json
+                _ans = template.answers if isinstance(template.answers, dict) else _json.loads(template.answers or "{}")
+                expected = max(expected, len(_ans))
+            except Exception:
+                pass
+        if expected > len(uniq_questions):
+            for i in range(len(uniq_questions), expected):
+                uniq_questions.append({"question_no": str(i + 1), "is_correct": None,
+                                       "verdict": "待批", "comment": "引擎未返回该题，按答案表占位标注"})
+            get_logger().info("题数以答案表为准: 引擎%s条 → 按答案表%s题补齐占位", len(questions), expected)
+
+        # 按真实题数重新切带覆盖坐标（发生过补齐 = 引擎题数不可信，必须重切，否则错位）
+        if template and expected > n_before:
+            try:
+                from ..models.question_splitter import find_bands
+                bands2 = find_bands(submission.original_image_path, expected)
+                if len(bands2) == expected:
+                    from PIL import Image as _Img
+                    _w = _Img.open(submission.original_image_path).size[0]
+                    for i, qd in enumerate(uniq_questions):
+                        qd["bbox"] = [0, bands2[i]["top"], _w, bands2[i]["bottom"]]
+                get_logger().info("按答案表真实题数切带: %s题/%s带", expected, len(bands2))
+            except Exception as e:
+                get_logger().warning("真实题数切带失败: %s", str(e)[:120])
+
+        get_logger().info("标注题数: 引擎返回%s条/去重%s条/最终%s条", len(questions), len(seen_q), len(uniq_questions))
         annotated = annotate_image(submission.original_image_path, uniq_questions,
                                    result.get("analysis", ""))
         submission.annotated_image_path = annotated
