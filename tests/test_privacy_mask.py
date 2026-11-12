@@ -14,7 +14,7 @@ from backend.models.privacy import (
 
 def test_default_config_enabled(tmp_db):
     cfg = get_mask_config()
-    assert cfg["enabled"] is True
+    assert cfg["enabled"] is False  # 用户决策：默认关闭
     assert cfg["percent"] == 12
 
 
@@ -91,7 +91,7 @@ def test_privacy_mask_settings_api(auth_client):
     r = auth_client.get("/api/settings/privacy-mask")
     assert r.status_code == 200
     d = r.json()
-    assert d["success"] and d["enabled"] is True and d["percent"] == 12
+    assert d["success"] and d["enabled"] is False and d["percent"] == 12
     r = auth_client.post("/api/settings/privacy-mask", json={"enabled": False, "percent": 25})
     assert r.status_code == 200 and r.json()["percent"] == 25
     assert auth_client.get("/api/settings/privacy-mask").json()["enabled"] is False

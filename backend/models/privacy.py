@@ -4,7 +4,7 @@
 涂黑遮盖，避免学生姓名等个人信息随图片发给第三方模型服务商。
 
 - 开关 + 遮盖比例可配，存 AppConfig（privacy_mask_enabled /
-  privacy_mask_percent），默认开启、默认 12%
+  privacy_mask_percent），默认关闭（用户可开）
 - 只遮盖"送模型的副本"（data/masked/ 下另存 JPEG），原图不动，
   老师在工作台/标注图里看到的仍是完整原图
 - 任何异常（图片损坏等）返回原图路径，绝不阻塞批改
@@ -20,6 +20,7 @@ from ..database import AppConfig, SessionLocal
 
 DEFAULT_ENABLED = True
 DEFAULT_PERCENT = 12          # 遮盖顶部 12%（试卷头：姓名/学号/班级栏）
+DEFAULT_ENABLED = False       # 默认关闭：作业照片多为姓名+题目混排，遮顶部会伤识别（用户决策）
 PERCENT_MIN = 3
 PERCENT_MAX = 40              # 不允许遮掉太多，防止误把题目全遮掉
 
@@ -35,7 +36,7 @@ def get_mask_config() -> Dict[str, Any]:
         db.close()
 
     enabled = str(rows.get("privacy_mask_enabled", "")).lower()
-    enabled = (enabled != "false")  # 缺省/脏值 → 默认开启
+    enabled = (enabled == "true")  # 缺省/脏值 → 默认关闭（用户决策：姓名不敏感，遮盖伤识别）
 
     try:
         percent = int(float(rows.get("privacy_mask_percent", DEFAULT_PERCENT)))
