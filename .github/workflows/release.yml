@@ -25,11 +25,7 @@ jobs:
     - name: Test-suite (tests/)
       run: |
         python -m pip install pytest httpx --quiet
-        set -e
-        for t in tests/smoke_*.py tests/test_*.py; do
-          echo "===== $t ====="
-          PYTHONPATH=. python "$t" || exit 1
-        done
+        PYTHONPATH=. python -m pytest tests/ -q
 
   release-windows:
     needs: test
