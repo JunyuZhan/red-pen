@@ -174,3 +174,73 @@ def test_export_class_all_csv_empty(client, tmp_db):
 def test_frontend_has_class_all_export():
     html = open(os.path.join(ROOT, "frontend", "templates", "index.html"), encoding="utf-8").read()
     assert "export-class-all" in html
+
+
+# ============ 汇总导出知识点掌握列 ============
+
+def test_export_class_all_knowledge_columns(client, tmp_db):
+    from backend.database import SessionLocal, Submission, QuestionResult, Class as Cls, Student, Assignment
+    db = SessionLocal()
+    cls = Cls(name="三年二班", teacher_id=1, stage_id=1, subject_id=1)
+    db.add(cls); db.flush()
+    s1 = Student(name="小明", class_id=cls.id)
+    s2 = Student(name="小红", class_id=cls.id)
+    db.add_all([s1, s2]); db.flush()
+    asg = Assignment(class_id=cls.id, title="口算练习", subject_id=1)
+    db.add(asg); db.flush()
+    sub1 = Submission(assignment_id=asg.id, student_id=s1.id,
+                      original_image_path="/tmp/a.jpg", status="completed")
+    sub2 = Submission(assignment_id=asg.id, student_id=s2.id,
+                      original_image_path="/tmp/b.jpg", status="completed")
+    db.add_all([sub1, sub2]); db.flush()
+    db.add_all([
+        # 小明：进位加法 1/2=50%，退位减法 0/1=0%
+        QuestionResult(submission_id=sub1.id, question_no=1, question_type="选择题", judgement_final="correct",
+                       confidence_final=0.9, knowledge_point="进位加法"),
+        QuestionResult(submission_id=sub1.id, question_no=2, question_type="计算题", judgement_final="wrong",
+                       confidence_final=0.9, knowledge_point="进位加法 "),
+        QuestionResult(submission_id=sub1.id, question_no=3, question_type="计算题", judgement_final="wrong",
+                       confidence_final=0.9, knowledge_point="退位减法"),
+        # 小红：进位加法 1/1，退位减法 1/1
+        QuestionResult(submission_id=sub2.id, question_no=1, question_type="选择题", judgement_final="correct",
+                       confidence_final=0.9, knowledge_point="进位加法"),
+        QuestionResult(submission_id=sub2.id, question_no=2, question_type="计算题", judgement_final="correct",
+                       confidence_final=0.9, knowledge_point="退位减法"),
+    ])
+    db.commit(); db.close()
+    r = client.get("/api/grading/export-class-all?days=0")
+    assert r.status_code == 200
+    body = r.content.decode("utf-8-sig")
+    lines = [l for l in body.strip().split("\r\n") if l]
+    # 全班并集：退位减法 50% 薄弱排前，进位加法 75% 排后；空格尾归一化为同名
+    assert lines[0] == "班级,学生,口算练习,平均正确率,平均等级,知识点:退位减法,知识点:进位加法"
+    assert lines[1] == "三年二班,小明,33%,33%,D,0%(0/1),50%(1/2)"
+    assert lines[2] == "三年二班,小红,100%,100%,A,100%(1/1),100%(1/1)"
+
+
+def test_export_class_all_knowledge_cap(client, tmp_db):
+    """知识点超过 12 个时只保留薄弱的前 12 列"""
+    from backend.database import SessionLocal, Submission, QuestionResult, Class as Cls, Student, Assignment
+    db = SessionLocal()
+    cls = Cls(name="三年二班", teacher_id=1, stage_id=1, subject_id=1)
+    db.add(cls); db.flush()
+    s1 = Student(name="小明", class_id=cls.id)
+    db.add(s1); db.flush()
+    asg = Assignment(class_id=cls.id, title="练习", subject_id=1)
+    db.add(asg); db.flush()
+    sub = Submission(assignment_id=asg.id, student_id=s1.id,
+                     original_image_path="/tmp/a.jpg", status="completed")
+    db.add(sub); db.flush()
+    for i in range(15):
+        db.add(QuestionResult(submission_id=sub.id, question_no=i + 1, question_type="计算题",
+                              judgement_final="correct" if i < 14 else "wrong",
+                              confidence_final=0.9, knowledge_point=f"知识点{i:02d}"))
+    db.commit(); db.close()
+    r = client.get("/api/grading/export-class-all?days=0")
+    body = r.content.decode("utf-8-sig")
+    lines = [l for l in body.strip().split("\r\n") if l]
+    header = lines[0].split(",")
+    kp_cols = [c for c in header if c.startswith("知识点:")]
+    assert len(kp_cols) == 12
+    # 最薄弱的知识点14（0%）必须在内
+    assert "知识点:知识点14" in kp_cols

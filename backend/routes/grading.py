@@ -564,13 +564,21 @@ async def export_class_all_csv(
             .all())
     # submission_id → accuracy
     acc_by_sub = {}
+    kp_by_sub = {}  # submission_id → {kp: [total, correct]}
     sids = [s.id for s in subs]
     if sids:
         results = (db.query(QuestionResult)
                    .filter(QuestionResult.submission_id.in_(sids)).all())
         by_sub = {}
+        from ..models.knowledge_norm import canonical_key
         for r in results:
             by_sub.setdefault(r.submission_id, []).append(r)
+            kp = canonical_key(r.knowledge_point)
+            if kp:
+                st = kp_by_sub.setdefault(r.submission_id, {}).setdefault(kp, [0, 0])
+                st[0] += 1
+                if r.judgement_final == "correct":
+                    st[1] += 1
         for s in subs:
             rs = by_sub.get(s.id, [])
             judged = sum(1 for r in rs if r.judgement_final in ("correct", "wrong", "partial"))
@@ -579,6 +587,7 @@ async def export_class_all_csv(
                 acc_by_sub[s.id] = correct / judged
 
     sub_of = {}  # (student_id, assignment_id) → (submission, accuracy)
+    kp_by_student = {}  # student_id → {kp: [total, correct]}
     student_ids = []
     for s in subs:
         if s.student_id is None:
@@ -586,6 +595,21 @@ async def export_class_all_csv(
         if s.student_id not in student_ids:
             student_ids.append(s.student_id)
         sub_of[(s.student_id, s.assignment_id)] = (s, acc_by_sub.get(s.id))
+        for kp, st in kp_by_sub.get(s.id, {}).items():
+            agg = kp_by_student.setdefault(s.student_id, {}).setdefault(kp, [0, 0])
+            agg[0] += st[0]
+            agg[1] += st[1]
+
+    # 知识点掌握列：全班出现的知识点求并集，薄弱（正确率低）的排前面，最多 12 列
+    kp_union = {}
+    for m in kp_by_student.values():
+        for kp, st in m.items():
+            u = kp_union.setdefault(kp, [0, 0])
+            u[0] += st[0]
+            u[1] += st[1]
+    def _kp_acc(st):
+        return st[1] / st[0] if st[0] else 1.0
+    kp_columns = sorted(kp_union, key=lambda k: (_kp_acc(kp_union[k]), -kp_union[k][0], k))[:12]
 
     from ..database import Class as ClassModel
     students = (db.query(StudentModel, ClassModel.name)
@@ -596,7 +620,7 @@ async def export_class_all_csv(
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["班级", "学生"] + [a.title or f"作业{a.id}" for a in assignments]
-                    + ["平均正确率", "平均等级"])
+                    + ["平均正确率", "平均等级"] + [f"知识点:{kp}" for kp in kp_columns])
     for st, class_name in students:
         accs = []
         row = [class_name or "-", st.name]
@@ -613,6 +637,13 @@ async def export_class_all_csv(
             row.append(compute_grade(avg, thresholds) or "")
         else:
             row += ["", ""]
+        m = kp_by_student.get(st.id, {})
+        for kp in kp_columns:
+            st_kp = m.get(kp)
+            if st_kp and st_kp[0]:
+                row.append(f"{_kp_acc(st_kp) * 100:.0f}%({st_kp[1]}/{st_kp[0]})")
+            else:
+                row.append("")
         writer.writerow(row)
 
     from urllib.parse import quote
