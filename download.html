@@ -44,11 +44,9 @@
 
 <section>
   <div class="dl-card" style="padding:40px 32px">
-    <h2 style="font-size:32px">最新版本 v0.4.17 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
+    <h2 style="font-size:32px">最新版本 v0.4.18 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
     <p style="margin-top:8px;color:rgba(255,255,255,0.7);font-size:14px">⚠️ 内测版：功能仍在完善，遇到问题请加 QQ 群 984644289 反馈</p>
-        <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.17</span> 阴影照片也能看清（准确率专项）</h3>
-    <p style="margin:0 0 18px;font-size:15px;line-height:1.7">低对比度照片增强升级为 CLAHE 局部自适应均衡：拍照半边背光、阴影下手写与纸面局部拉开，比全局拉伸更适合光照不均的实拍；效果不佳或环境不支持时自动回退，绝不劣化。</p>
-<a class="btn btn-primary" style="margin-top:20px;font-size:17px;padding:14px 36px" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 RedPen.exe（Windows x64）</a>
+    <a class="btn btn-primary" style="margin-top:20px;font-size:17px;padding:14px 36px" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 RedPen.exe（Windows x64）</a>
     <p style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.6)">请始终从本页或 GitHub Releases 官方渠道下载</p>
   </div>
 </section>
@@ -63,6 +61,24 @@
       <li>浏览器自动打开工作台，用默认 PIN <span class="kbd">123456</span> 登录后立即修改</li>
       <li>到设置页配置模型 API Key（详见<a href="guide.html" style="color:var(--notion-blue)">教程第 4 步</a>）</li>
     </ol>
+  </div>
+</section>
+
+<section>
+  <div class="ver-card">
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.18</span> 选择题快路径（省成本）</h3>
+    <ul class="changelog">
+      <li>参考答案全是选项字母时，AI 只负责"读出学生选了哪项"，判对判错由软件本地精确比对参考答案——更准、输出更省（更便宜）；读不清的题自动进人工复核</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="ver-card">
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.17</span> 阴影照片更清晰</h3>
+    <ul class="changelog">
+      <li>拍照背光/阴影下手写发暗的问题：图像增强升级为局部自适应（只调亮度、不改颜色），阴影处字迹拉清楚；纯平图自动回退不劣化</li>
+    </ul>
   </div>
 </section>
 
