@@ -49,9 +49,10 @@ def tmp_db(monkeypatch):
     import backend.models.teaching_advice as ta
     import backend.models.study_report as sr
     import backend.models.image_preprocess as ip
+    import backend.models.privacy as privacy_mod
     import backend.routes.grading as grading_mod
 
-    modules = [ge, rv, qs, budget, ta, sr, ip, grading_mod]
+    modules = [ge, rv, qs, budget, ta, sr, ip, privacy_mod, grading_mod]
     saved = [(m, getattr(m, "SessionLocal")) for m in modules if hasattr(m, "SessionLocal")]
     for m in modules:
         if hasattr(m, "SessionLocal"):

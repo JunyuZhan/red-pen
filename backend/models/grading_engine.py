@@ -476,6 +476,10 @@ class GradingManager:
                     answers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         cfg = get_llm_config()
 
+        # PRD 待办 aa 敏感信息遮盖：送模型前把顶部姓名/学号栏涂黑（只作用于送模型的副本）
+        from .privacy import apply_privacy_mask
+        image_path = apply_privacy_mask(image_path)
+
         # PRD 4.3 缓存：同题图+同答案重复提交不重复计费（设置页 grading_cache_enabled 可关）
         cache_key = _cache_key(image_path, question_type, subject, answers, cfg["provider"], cfg["model"])
         if cache_key is not None and get_cache_config()["enabled"]:

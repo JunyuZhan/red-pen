@@ -133,6 +133,16 @@
   <div class="msg" id="cache_msg"></div>
 </div>
 
+<!-- 敏感信息自动遮盖（PRD 4.2） -->
+<div class="card" style="margin-top:20px;border-left:4px solid #27ae60">
+  <h1>敏感信息自动遮盖（隐私保护）</h1>
+  <div class="sub">开启后，批改送 AI 前，会自动把作业照片<b>顶部区域</b>（通常放姓名/学号/班级栏）涂黑，学生姓名等个人信息不会发给模型服务商。只影响送模型的副本，您在工作台看到的原图不变。默认开启、遮盖顶部 12%。</div>
+  <label><input type="checkbox" id="privacy_enabled"> 启用顶部敏感信息遮盖（推荐开启）</label>
+  <label>遮盖顶部 <input type="number" id="privacy_percent" min="3" max="40" step="1" style="width:80px"> %</label>
+  <button onclick="savePrivacy()">保存遮盖设置</button>
+  <div class="msg" id="privacy_msg"></div>
+</div>
+
 <!-- 单次请求 token 上限 -->
 <div class="card" style="margin-top:20px">
   <h1>单次请求 token 上限（成本护栏）</h1>
@@ -415,6 +425,29 @@ async function loadCache() {
   const r = await fetch("/api/settings/grading-cache");
   const d = await r.json();
   if (d.success) document.getElementById("cache_enabled").checked = !!d.enabled;
+}
+
+async function loadPrivacy() {
+  const r = await fetch("/api/settings/privacy-mask");
+  const d = await r.json();
+  if (d.success) {
+    document.getElementById("privacy_enabled").checked = !!d.enabled;
+    document.getElementById("privacy_percent").value = d.percent;
+  }
+}
+
+async function savePrivacy() {
+  const msg = document.getElementById("privacy_msg");
+  try {
+    const v = parseInt(document.getElementById("privacy_percent").value, 10) || 12;
+    const r = await fetch("/api/settings/privacy-mask", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ enabled: document.getElementById("privacy_enabled").checked, percent: v })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ " + d.message;
+  } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
 }
 
 async function loadMaxTokens() {
@@ -740,7 +773,7 @@ async function saveGrade() {
   msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadCache(); loadMaxTokens(); loadPreprocess(); loadReview(); loadGrade(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadCache(); loadMaxTokens(); loadPrivacy(); loadPreprocess(); loadReview(); loadGrade(); } });
 </script>
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });

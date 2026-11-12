@@ -114,6 +114,28 @@ async def update_max_tokens_settings(config: MaxTokensIn, _: None = Depends(requ
     return {"success": True, "message": "单次请求 token 上限已保存", **save_max_tokens(config.max_tokens)}
 
 
+# ---------- 敏感信息自动遮盖（PRD 4.2 / 待办 aa） ----------
+
+class PrivacyMaskIn(BaseModel):
+    enabled: bool = True
+    percent: int = 12
+
+
+@router.get("/privacy-mask")
+async def get_privacy_settings():
+    from ..models.privacy import get_mask_config
+    return {"success": True, **get_mask_config()}
+
+
+@router.post("/privacy-mask")
+async def update_privacy_settings(config: PrivacyMaskIn, _: None = Depends(require_admin)):
+    from ..models.privacy import save_mask_config
+    try:
+        return {"success": True, "message": "敏感信息遮盖设置已保存", **save_mask_config(config.enabled, config.percent)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/split")
 async def update_split_settings(config: SplitConfigIn, _: None = Depends(require_admin)):
     from ..models.question_splitter import save_split_config, get_split_config
