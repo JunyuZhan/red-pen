@@ -94,3 +94,4 @@ g4) 真实模型结构化prompt: 一次返回题号/学生答案/判分/错因�
 - 知识点掌握列 ✅（v0.5.3）：export-class-all 按学生聚合知识点掌握率（canonical_key 归一化），全班并集薄弱优先追加列（上限12），无知识点时输出与旧版完全一致。2项新测试共234 passed。功能待办已全部完成，后续增量等真实API Key或用户反馈。
 - 题干列（v0.5.5）：prompt 加 question_text（整卷+选择题快路径），export-wrong-all 从 QuestionResult.llm_raw_output 提取（llm_raw_output 在 QuestionResult 不在 Submission，勿再踩）。3项新测试共242 passed。
 - 错题讲评清单 ✅（v0.5.4）：export-wrong-all 一行一题（wrong/partial/unclear 或 needs_review），按知识点错题次数降序分组（错误最多的考点排前），组内按学生题号排；工作台「错题讲评清单」按钮。5项新测试共239 passed。功能待办仍为空，后续等真实API Key或用户反馈。
+- 学生个人错题本 ✅（v0.5.6）：export-student/{student_id}（days 过滤），按知识点分组（错得最多的在前），题干列复用 _question_text_of；dashboard /summary 新增 students 列表；工作台导出区学生下拉+「学生错题本」按钮。6 项新测试共 248 passed。坑：ORM 对象 db.close() 后访问属性会 DetachedInstanceError，测试里必须在 close 前取 id；Submission 按天过滤用 created_at 不是 assignment.created_at。功能待办仍为空，后续等真实 API Key 或用户反馈。
