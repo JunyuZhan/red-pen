@@ -156,3 +156,20 @@ async def teaching_advice_latest():
 async def teaching_advice_generate():
     """重新生成 AI 教学建议（纯文本调用，成本一次几 KB）"""
     return await generate_advice()
+
+
+# ---------- AI 学生学情报告（待办 k） ----------
+
+from ..models.study_report import generate_student_report, get_latest_report  # noqa: E402
+
+
+@router.get("/student-report/{student_id}")
+async def student_report_latest(student_id: int):
+    """某学生最近一次 AI 学情报告（无则返回 null，前端显示未生成）"""
+    return {"success": True, "report": get_latest_report(student_id)}
+
+
+@router.post("/student-report/{student_id}/generate")
+async def student_report_generate(student_id: int):
+    """生成/重新生成某学生的 AI 学情报告（纯文本调用，成本一次几 KB）"""
+    return await generate_student_report(student_id)

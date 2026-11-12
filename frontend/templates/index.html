@@ -351,7 +351,8 @@ async function loadAnalytics() {
   const stuRows = (d.students || []).map(s => {
     const acc = s.accuracy == null ? "-" : (s.accuracy * 100).toFixed(0) + "%";
     const grade = s.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;">${s.grade}</span>` : "-";
-    return `<tr><td>${esc(s.name)}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td><td>${grade}</td></tr>`;
+    return `<tr><td>${esc(s.name)}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td><td>${grade}</td>` +
+      `<td><button onclick="openStudentReport(${s.student_id},'${esc(s.name)}')">AI报告</button></td></tr>`;
   }).join("");
   const review = d.needs_review || [];
   const reviewRows = review.map(r => {
@@ -447,8 +448,8 @@ async function loadAnalytics() {
     <details style="margin-top:6px;">
       <summary style="cursor:pointer;font-size:14px;"><b>学生明细表</b></summary>
       <table style="margin-top:8px;">
-        <thead><tr><th>学生</th><th>总题数</th><th>正确</th><th>正确率</th><th>等级</th></tr></thead>
-        <tbody>${stuRows || `<tr><td colspan="5" class="hint">暂无数据</td></tr>`}</tbody>
+        <thead><tr><th>学生</th><th>总题数</th><th>正确</th><th>正确率</th><th>等级</th><th>AI学情报告</th></tr></thead>
+        <tbody>${stuRows || `<tr><td colspan="6" class="hint">暂无数据</td></tr>`}</tbody>
       </table>
     </details>
     ${kpBlock}
@@ -458,6 +459,13 @@ async function loadAnalytics() {
         <span id="adviceStatus" class="hint" style="margin-left:8px;"></span>
       </p>
       <div id="adviceBody"><p class="hint">加载中…</p></div>
+    </div>
+    <div id="stuReportPanel" style="display:none;margin:18px 0 0;border-top:1px dashed #ddd;padding-top:12px;">
+      <p style="margin:0 0 6px;font-size:14px;"><b id="stuReportTitle">AI 学情报告</b>
+        <button id="stuReportGenBtn" style="margin-left:8px;" onclick="generateStudentReport()">生成 / 重新生成</button>
+        <span id="stuReportStatus" class="hint" style="margin-left:8px;"></span>
+      </p>
+      <div id="stuReportBody"><p class="hint">加载中…</p></div>
     </div>
     <p style="margin:14px 0 6px;font-size:14px;"><b>待复核题目（置信度 &lt; 60%）</b></p>
     <table>
@@ -511,6 +519,55 @@ async function generateAdvice() {
       return;
     }
     renderAdvice(d);
+    status.textContent = "✅ 已生成";
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { status.textContent = ""; }, 4000);
+  }
+}
+
+// ---------- AI 学生学情报告（待办 k） ----------
+async function openStudentReport(studentId, name) {
+  const panel = document.getElementById("stuReportPanel");
+  const body = document.getElementById("stuReportBody");
+  panel.style.display = "block";
+  body.innerHTML = `<p class="hint">加载中…</p>`;
+  panel.scrollIntoView({ behavior: "smooth", block: "center" });
+  const d = await (await fetch(`/api/analytics/student-report/${studentId}`)).json();
+  renderStudentReport(d.report, name, studentId);
+}
+function renderStudentReport(rep, name, studentId) {
+  const body = document.getElementById("stuReportBody");
+  const title = document.getElementById("stuReportTitle");
+  title.textContent = name ? `${name} · AI 学情报告` : "AI 学情报告";
+  if (!rep) { body.innerHTML = `<p class="hint">尚未生成。点击\"生成\"让 AI 基于该生的历史批改数据写学情报告。</p>`; return; }
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const lst = (label, items, icon) => (items || []).length
+    ? `<p style="margin:6px 0 2px;font-size:14px;"><b>${icon} ${label}</b></p><ul style="margin:2px 0;font-size:14px;">` +
+      items.map(s => `<li>${esc(s)}</li>`).join("") + `</ul>` : "";
+  document.getElementById("stuReportGenBtn").dataset.studentId = studentId || (rep && rep.student_id);
+  body.innerHTML = `
+    <p style="margin:4px 0;font-size:14px;">${esc(rep.report.summary || "")}</p>
+    ${lst("掌握较好", rep.report.strengths, "✅")}
+    ${lst("薄弱之处", rep.report.weaknesses, "⚠️")}
+    ${lst("教学建议", rep.report.advice, "💡")}
+    <p class="hint">生成时间 ${rep.created_at ? rep.created_at.slice(0,16).replace("T"," ") : "-"} · 模型 ${esc(rep.model || "-")}</p>`;
+}
+async function generateStudentReport() {
+  const btn = document.getElementById("stuReportGenBtn");
+  const status = document.getElementById("stuReportStatus");
+  const sid = btn.dataset.studentId;
+  if (!sid) { alert("请先在学生明细表点某个学生的\"AI报告\""); return; }
+  btn.disabled = true; status.textContent = "AI 正在撰写（约10-30秒）…";
+  try {
+    const r = await fetch(`/api/analytics/student-report/${sid}/generate`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok || !d.success) {
+      status.textContent = "";
+      alert(d.error || d.detail || "生成失败，请稍后重试");
+      return;
+    }
+    renderStudentReport(d, null);
     status.textContent = "✅ 已生成";
   } finally {
     btn.disabled = false;

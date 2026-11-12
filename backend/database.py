@@ -144,6 +144,18 @@ class TeachingAdvice(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class StudyReport(Base):
+    """AI 生成的单个学生学情报告（待办 k）：每个学生存最新几份，可重新生成"""
+    __tablename__ = "study_report"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, nullable=False, index=True)
+    stats_snapshot = Column(JSON, nullable=True)   # 生成时依据的该生统计数据
+    content = Column(JSON, nullable=False)         # {summary, strengths, weaknesses, advice}
+    model = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AppConfig(Base):
     __tablename__ = "app_config"
     
