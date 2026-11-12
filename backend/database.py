@@ -156,6 +156,17 @@ class StudyReport(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class GradingCache(Base):
+    """批改结果缓存（PRD 4.3：同题图+同答案重复提交不重复计费）"""
+    __tablename__ = "grading_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key_hash = Column(String(64), unique=True, nullable=False, index=True)
+    result_json = Column(Text, nullable=False)
+    model = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AppConfig(Base):
     __tablename__ = "app_config"
     

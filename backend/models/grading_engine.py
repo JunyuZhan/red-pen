@@ -310,6 +310,84 @@ class GradingEngine:
             return {"success": False, "error": str(e), "raw_output": response}
 
 
+# ---------- 批改结果缓存（PRD 4.3：同题图+同答案重复提交不重复计费） ----------
+
+def get_cache_config() -> Dict[str, Any]:
+    """读取缓存开关配置：enabled（默认开），存 AppConfig"""
+    db = SessionLocal()
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == "grading_cache_enabled").first()
+        val = row.value if row else "true"
+    finally:
+        db.close()
+    return {"enabled": str(val).lower() == "true"}
+
+
+def save_cache_config(enabled: bool) -> None:
+    db = SessionLocal()
+    try:
+        value = "true" if enabled else "false"
+        row = db.query(AppConfig).filter(AppConfig.key == "grading_cache_enabled").first()
+        if row:
+            row.value = value
+        else:
+            db.add(AppConfig(key="grading_cache_enabled", value=value))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _cache_key(image_path: str, question_type: str, subject: str,
+               answers: Optional[Dict[str, str]], provider: str, model: str) -> Optional[str]:
+    """缓存键 = 图片内容 sha256 + 题型 + 学科 + 标准答案 + provider/model。图片读不到则不缓存"""
+    import hashlib, json as _json
+    try:
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+    except Exception:
+        return None
+    h = hashlib.sha256()
+    h.update(image_bytes)
+    h.update(question_type.encode("utf-8", "ignore"))
+    h.update(subject.encode("utf-8", "ignore"))
+    h.update(_json.dumps(answers or {}, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+    h.update((provider or "").encode("utf-8", "ignore"))
+    h.update((model or "").encode("utf-8", "ignore"))
+    return h.hexdigest()
+
+
+def _cache_get(key_hash: str) -> Optional[Dict[str, Any]]:
+    from ..database import GradingCache
+    db = SessionLocal()
+    try:
+        row = db.query(GradingCache).filter(GradingCache.key_hash == key_hash).first()
+        if row:
+            import json as _json
+            return _json.loads(row.result_json)
+    except Exception:
+        return None
+    finally:
+        db.close()
+    return None
+
+
+def _cache_put(key_hash: str, result: Dict[str, Any], model: str) -> None:
+    from ..database import GradingCache
+    import json as _json
+    db = SessionLocal()
+    try:
+        db.add(GradingCache(
+            key_hash=key_hash,
+            result_json=_json.dumps(result, ensure_ascii=False),
+            model=model,
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
 class GradingManager:
     """批改管理器：根据老师配置选择服务商"""
 
@@ -360,6 +438,15 @@ class GradingManager:
                     answers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         cfg = get_llm_config()
 
+        # PRD 4.3 缓存：同题图+同答案重复提交不重复计费（设置页 grading_cache_enabled 可关）
+        cache_key = _cache_key(image_path, question_type, subject, answers, cfg["provider"], cfg["model"])
+        if cache_key is not None and get_cache_config()["enabled"]:
+            cached = _cache_get(cache_key)
+            if cached is not None:
+                cached["cache_hit"] = True
+                cached.setdefault("provider", cfg["provider"])
+                return cached
+
         if not cfg["api_key"]:
             return {
                 "success": False,
@@ -404,6 +491,8 @@ class GradingManager:
                     fb_result["fallback_used"] = True
                     fb_result["main_provider"] = cfg["provider"]
                     fb_result["main_error"] = result.get("error")
+                    if cache_key is not None and get_cache_config()["enabled"]:
+                        _cache_put(cache_key, fb_result, fb["model"])
                     return fb_result
                 return {
                     "success": False,
@@ -411,6 +500,9 @@ class GradingManager:
                         cfg["provider"], fb["provider"], result.get("error"), fb_result.get("error")),
                     "provider": cfg["provider"],
                 }
+        # 成功结果写入缓存（PRD 4.3）
+        if result.get("success") and cache_key is not None and get_cache_config()["enabled"]:
+            _cache_put(cache_key, result, cfg["model"])
         return result
 
 

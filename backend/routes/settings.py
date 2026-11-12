@@ -77,6 +77,23 @@ async def get_split_settings():
     return {"success": True, **get_split_config()}
 
 
+class CacheConfigIn(BaseModel):
+    enabled: bool
+
+
+@router.get("/grading-cache")
+async def get_cache_settings():
+    from ..models.grading_engine import get_cache_config
+    return {"success": True, **get_cache_config()}
+
+
+@router.post("/grading-cache")
+async def update_cache_settings(config: CacheConfigIn, _: None = Depends(require_admin)):
+    from ..models.grading_engine import save_cache_config, get_cache_config
+    save_cache_config(config.enabled)
+    return {"success": True, "message": "批改缓存设置已保存", **get_cache_config()}
+
+
 @router.post("/split")
 async def update_split_settings(config: SplitConfigIn, _: None = Depends(require_admin)):
     from ..models.question_splitter import save_split_config, get_split_config

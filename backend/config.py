@@ -15,7 +15,7 @@ RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", "."))
 class Settings(BaseSettings):
     # 基础配置
     APP_NAME: str = "红笔 · 教师单机自用版"
-    VERSION: str = "V0.4.7"
+    VERSION: str = "V0.4.8"
     DEBUG: bool = True
     HOST: str = "0.0.0.0"
     PORT: int = 8080

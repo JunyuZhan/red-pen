@@ -124,6 +124,15 @@
   <div class="msg" id="split_msg"></div>
 </div>
 
+<!-- 批改缓存 -->
+<div class="card" style="margin-top:20px">
+  <h1>批改缓存（防重复计费）</h1>
+  <div class="sub">开启后，同一张作业照片用同样的标准答案重复提交批改，将直接复用上次 AI 结果，不再调用 API、不再产生费用。改了照片或答案后会正常重新批改。</div>
+  <label><input type="checkbox" id="cache_enabled"> 启用批改缓存（推荐开启，省钱）</label>
+  <button onclick="saveCache()">保存缓存设置</button>
+  <div class="msg" id="cache_msg"></div>
+</div>
+
 <!-- 切题前置图像预处理 -->
 <div class="card" style="margin-top:20px">
   <h1>图像预处理（切题前置）</h1>
@@ -391,6 +400,25 @@ async function loadSplit() {
   const r = await fetch("/api/settings/split");
   const d = await r.json();
   if (d.success) document.getElementById("split_enabled").checked = !!d.enabled;
+}
+
+async function loadCache() {
+  const r = await fetch("/api/settings/grading-cache");
+  const d = await r.json();
+  if (d.success) document.getElementById("cache_enabled").checked = !!d.enabled;
+}
+
+async function saveCache() {
+  const msg = document.getElementById("cache_msg");
+  try {
+    const r = await fetch("/api/settings/grading-cache", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ enabled: document.getElementById("cache_enabled").checked })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ 缓存设置已保存";
+  } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
 }
 
 async function saveSplit() {
@@ -683,7 +711,7 @@ async function saveGrade() {
   msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadPreprocess(); loadReview(); loadGrade(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadCache(); loadPreprocess(); loadReview(); loadGrade(); } });
 </script>
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });
