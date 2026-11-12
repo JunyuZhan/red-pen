@@ -5,7 +5,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..database import get_db, Submission, Assignment, QuestionResult
+from ..database import get_db, Submission, Assignment, QuestionResult, Student as StudentModel
 from ..models.grade_scale import get_thresholds, compute_grade, accuracy_for_assignment
 
 router = APIRouter()
@@ -54,4 +54,7 @@ async def dashboard_summary(db: Session = Depends(get_db)):
         "assignment_grades": assignment_grades,
         "classes": [{"id": c.id, "name": c.name}
                     for c in db.query(ClassModel).order_by(ClassModel.id).all()],
+        # 学生列表（工作台「学生错题本」下拉用）
+        "students": [{"id": st.id, "name": st.name}
+                     for st in db.query(StudentModel).order_by(StudentModel.id).all()],
     }

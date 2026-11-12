@@ -465,9 +465,101 @@ CSV_HEADERS = ["题号", "题型", "学生答案", "参考答案", "判定", "�
                "置信度", "知识点", "需复核", "教师复核"]
 
 
+def _question_text_of(r):
+    """从 llm_raw_output 提取题干摘要（v0.5.5 起 prompt 返回 question_text；老数据留空）"""
+    raw = r.llm_raw_output
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = None
+    if not isinstance(raw, dict):
+        return ""
+    items = raw.get("questions") or raw.get("choices") or []
+    for it in items:
+        if isinstance(it, dict) and it.get("question_no") == r.question_no:
+            return (it.get("question_text") or "").strip()
+    return ""
+
+
 def _judgement_cn(j: str) -> str:
     return {"correct": "正确", "wrong": "错误", "partial": "部分正确",
             "unclear": "无法辨认"}.get(j, j or "")
+
+
+# ============ 学生个人错题本（打印发学生自己订正） ============
+
+@router.get("/export-student/{student_id}")
+async def export_student_wrong_csv(
+    student_id: int,
+    days: int = 0,
+    db: Session = Depends(get_db),
+):
+    """单个学生的错题本 CSV：近 N 天（days=0 全部）该生所有作业中判定为
+    错误/部分正确/无法辨认或需复核的题目，按知识点分组（错得最多的考点在前）。
+    文件名「红笔错题本_姓名.csv」，UTF-8 带 BOM。"""
+    from datetime import timedelta
+    from ..database import Student as StudentModel
+    from ..models.knowledge_norm import canonical_key
+
+    import csv
+    import io
+
+    student = db.query(StudentModel).filter(StudentModel.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="学生不存在")
+
+    now = datetime.utcnow()
+    sub_q = db.query(Submission).filter(Submission.student_id == student_id)
+    if days and days > 0:
+        sub_q = sub_q.filter(Submission.created_at >= now - timedelta(days=days))
+    subs = sub_q.all()
+    assignments = {a.id: a for a in db.query(Assignment)
+                   .filter(Assignment.id.in_([s.assignment_id for s in subs] or [0])).all()}
+    sids = [s.id for s in subs]
+    results = (db.query(QuestionResult)
+               .filter(QuestionResult.submission_id.in_(sids or [0])).all())
+
+    kp_errors = {}
+    rows_by_kp = {}
+    for r in results:
+        if r.judgement_final in ("correct",) and not r.needs_review:
+            continue
+        if not (r.judgement_final in ("wrong", "partial", "unclear") or r.needs_review):
+            continue
+        kp = canonical_key(r.knowledge_point) or "（未识别知识点）"
+        kp_errors[kp] = kp_errors.get(kp, 0) + 1
+        a = assignments.get(next(s.assignment_id for s in subs if s.id == r.submission_id))
+        rows_by_kp.setdefault(kp, []).append([
+            (a.title or f"作业{a.id}") if a else "-",
+            r.question_no,
+            _question_text_of(r),
+            r.student_answer_text or "",
+            r.correct_answer_text or "",
+            _judgement_cn(r.judgement_final),
+            r.error_type or "",
+            r.knowledge_point or "",
+            "是" if r.needs_review else "",
+        ])
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([f"学生：{student.name}"] +
+                    ["作业", "题号", "题干", "学生答案", "参考答案",
+                     "判定", "错因", "知识点(原始)", "需复核"])
+    for kp in sorted(rows_by_kp, key=lambda k: (-kp_errors[k], k)):
+        writer.writerow([f"【{kp}】"])
+        for row in sorted(rows_by_kp[kp], key=lambda x: (x[0], x[1])):
+            writer.writerow(row)
+
+    from urllib.parse import quote
+    from fastapi import Response
+    filename = quote(f"红笔错题本_{student.name}.csv")
+    return Response(
+        content="\ufeff" + buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
 
 
 # ============ 按作业导出全班成绩单（每行一名学生） ============
