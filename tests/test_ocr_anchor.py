@@ -167,3 +167,123 @@ def test_split_fallback_no_ocr(split_env, monkeypatch):
     out_dir = str(split_env / "splits")
     crops = qs.split_questions(path, out_dir)
     assert len(crops) >= 2
+
+
+# ---- 遗留①：说明段落误圈剔除 ----
+def test_instruction_spans_seed_merge():
+    """关键词种子行向上下合并邻近行，成段说明 → 一个竖直区间。"""
+    lines = [
+        {"text": "1. 计算 3+5", "top": 1000, "bottom": 1040},
+        {"text": "注意事项：", "top": 200, "bottom": 240},
+        {"text": "答题前请填写姓名", "top": 250, "bottom": 290},
+        {"text": "保持卷面整洁", "top": 300, "bottom": 340},
+        {"text": "2. 解方程 x+1=2", "top": 1500, "bottom": 1540},
+    ]
+    lines.sort(key=lambda l: l["top"])
+    spans = qs._instruction_spans(lines)
+    assert len(spans) == 1
+    assert spans[0][0] <= 200 and spans[0][1] >= 340
+
+
+def test_instruction_spans_far_apart():
+    """两处说明相距远 → 两个独立区间。"""
+    lines = [
+        {"text": "注意事项：", "top": 100, "bottom": 140},
+        {"text": "答题要求：写在答题卡上", "top": 1200, "bottom": 1240},
+    ]
+    spans = qs._instruction_spans(lines)
+    assert len(spans) == 2
+
+
+def test_instruction_spans_no_seed():
+    assert qs._instruction_spans([]) == []
+    assert qs._instruction_spans([{"text": "3. 计算", "top": 10, "bottom": 50}]) == []
+
+
+def test_drop_instruction_regions_full_overlap():
+    """行投影区域完全落在说明段落内 → 剔除；真实题目区域 → 保留。"""
+    spans = [(200, 400)]
+    regions = [(210, 390), (600, 900)]  # (210,390) 完全落在说明段落内
+    out = qs._drop_instruction_regions(regions, spans, coords_scale=1.0)
+    assert out == [(600, 900)]
+
+
+def test_drop_instruction_regions_partial_kept():
+    """说明只占题目区域一小部分 → 不剔除（只删不裁，防误伤）。"""
+    spans = [(200, 260)]
+    regions = [(150, 500)]
+    assert qs._drop_instruction_regions(regions, spans, coords_scale=1.0) == \
+        [(150, 500)]
+
+
+def test_drop_instruction_regions_projection_scale():
+    """行投影坐标换算：投影行号 / scale = 原图坐标。"""
+    spans = [(200, 400)]  # 原图坐标
+    regions = [(166, 330), (600, 900)]  # 投影行号，scale=0.5 → (332,660) 原图
+    out = qs._drop_instruction_regions(regions, spans, coords_scale=2.0)
+    # (166,330)→原图(332,660)，与说明段 200-400 重叠 68/328 <80% 保留？不，
+    # 重叠 200-332=132，区域高 328，比例 40% <80% → 保留
+    assert (166, 330) in out
+    # 构造真正命中的：投影 (90,210)→原图(180,420)，与 200-400 重叠 220/240
+    out2 = qs._drop_instruction_regions([(90, 210)], spans, coords_scale=2.0)
+    assert out2 == []
+
+
+def _make_page_with_instructions(path):
+    """页首放说明段落墨迹块 + 两道题的手写块。"""
+    W, H = 900, 2400
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    # 说明段落：三行密集墨迹（150-330）
+    for y in (150, 210, 270):
+        d.rectangle([60, y, 700, y + 45], fill=(40, 40, 40))
+    # 两道题：600-900 / 1300-1600
+    for top in (600, 1300):
+        d.text((60, top), "1.", fill=(0, 0, 0))
+        for r in range(10):
+            d.rectangle([120, top + 30 + r * 26, 700, top + 50 + r * 26],
+                        fill=(40, 40, 40))
+    img.save(path)
+    return path
+
+
+def test_split_drops_instruction_block(split_env, monkeypatch):
+    """无锚点（行投影兜底）时，说明段落块被剔除，不出现在裁切结果。"""
+    path = _make_page_with_instructions(str(split_env / "page2.png"))
+    fake_lines = [
+        ([[0, 150, 400, 190]], "注意事项：", 0.9),
+        ([[0, 200, 400, 240]], "答题前请填写姓名", 0.9),
+        ([[0, 250, 400, 290]], "保持卷面整洁", 0.9),
+    ]
+    monkeypatch.setattr(qs, "_get_ocr", lambda: (lambda img: (fake_lines, None)))
+    crops = qs.split_questions(path, str(split_env / "splits2"))
+    assert crops, "题目区域仍应切出"
+    assert all(c["top"] > 400 for c in crops), \
+        "说明段落（y<400）不得出现在任何裁切区域"
+    assert len(crops) == 2
+
+
+def test_split_anchor_mode_keeps_instruction_inside_region(split_env, monkeypatch):
+    """锚点模式下说明夹在两题之间，区域只含部分说明 → 保留，不误删题目。"""
+    path = _make_page_with_instructions(str(split_env / "page3.png"))
+    # 说明行只覆盖 150-330，题1锚点在 600、题2在 1300（说明整体在题1区域内）
+    fake_lines = [
+        ([[0, 150, 400, 190]], "注意事项：", 0.9),
+        ([[0, 620, 100, 650]], "1.", 0.9),
+        ([[0, 1320, 100, 1350]], "2.", 0.9),
+    ]
+    monkeypatch.setattr(qs, "_get_ocr", lambda: (lambda img: (fake_lines, None)))
+    crops = qs.split_questions(path, str(split_env / "splits3"))
+    assert len(crops) == 2
+    tops = [c["top"] for c in crops]
+    assert tops[0] <= 650 and tops[1] >= 1300
+
+
+def test_drop_instruction_regions_cluster():
+    """同一段说明被行投影切成多个子区域 → 聚簇后按整簇计算，整簇剔除。"""
+    spans = [(150, 290)]  # 原图坐标
+    # scale=0.8333，coords_scale=1.2：三个子区域 orig ≈(150,196)(210,256)(270,316)
+    regions = [(125, 163), (175, 213), (225, 263), (600, 900)]
+    out = qs._drop_instruction_regions(regions, spans, coords_scale=1.2)
+    # 关键断言：说明簇三个子区域全部被剔除，题目区域保留
+    assert out == [(600, 900)]

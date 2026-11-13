@@ -80,12 +80,24 @@ def parse_qno(text):
     return n if 1 <= n <= 99 else None
 
 
-def detect_question_anchors(image_path: str) -> list:
-    """OCR 找题号锚点 → [{"no", "top"}]，top 为原图像素坐标，按 top 排序。
+# ---- 遗留①：说明段落误圈剔除 ----
+# 说明段落（"注意事项：..."/"答题要求：..."）自成一块墨迹时会被行投影
+# 当成题目切出去，模型对它产出无意义判定。OCR 识别说明段落行，把与
+# 说明段落重叠 >=80% 的区域剔除；保守策略只删不裁，含说明文字的真实
+# 题目（说明只占区域一小部分）不受影响。
+import re as _re
 
-    过滤：只保留"自上而下题号递增"的锚点（页眉里的"1 / 3 页"、
-    倒序引用等伪锚点被丢弃）。失败返回 []。
-    """
+INSTR_RE = _re.compile(
+    r"(注意事项|考生须知|答题说明|答题要求|答题前|说明[:：]|要求[:：]"
+    r"|考试时间|满分[:：]|密封线|共\d+分|每小题\d+分|每题\d+分"
+    r"|请将答案|写在答题卡|填涂|交卷)")
+INSTR_MERGE_RATIO = 1.5   # 说明行向上下合并邻近行：距离 ≤ 行高×此倍数
+INSTR_DROP_RATIO = 0.7    # 区域与说明段落重叠比例 ≥ 此值才剔除
+
+
+def _ocr_lines(image_path: str) -> list:
+    """OCR 识别整页文字行 → [{"text", "top", "bottom"}]，按 top 排序。
+    失败/无引擎返回 []。一次调用同时供题号锚点与说明段落检测使用。"""
     ocr = _get_ocr()
     if ocr is None:
         return []
@@ -95,24 +107,37 @@ def detect_question_anchors(image_path: str) -> list:
         if not result:
             return []
         H = img.size[1]
-        raw = []
+        lines = []
         for box, text, _conf in result:
-            no = parse_qno(text)
-            if no is None:
+            nums = []
+            for p in box:
+                nums.extend(float(v) for v in p)
+            ys = nums[1::2]  # 兼容扁平 [x1,y1,x2,y2] 与四角点 [[x,y],...]
+            top, bottom = min(ys), max(ys)
+            if top < 0 or bottom > H:
                 continue
-            top = min(p[1] for p in box)
-            if top < 0 or top > H:
-                continue
-            raw.append({"no": no, "top": round(top)})
-        raw.sort(key=lambda a: a["top"])
-        anchors, last_no = [], 0
-        for a in raw:
-            if a["no"] > last_no:
-                anchors.append(a)
-                last_no = a["no"]
-        return anchors
+            lines.append({"text": str(text), "top": round(top),
+                          "bottom": round(bottom)})
+        lines.sort(key=lambda l: l["top"])
+        return lines
     except Exception:
         return []
+
+
+def detect_question_anchors(image_path: str) -> list:
+    """OCR 找题号锚点 → [{"no", "top"}]，top 为原图像素坐标，按 top 排序。
+
+    过滤：只保留"自上而下题号递增"的锚点（页眉里的"1 / 3 页"、
+    倒序引用等伪锚点被丢弃）。失败返回 []。
+    """
+    anchors, last_no = [], 0
+    for line in _ocr_lines(image_path):
+        no = parse_qno(line["text"])
+        if no is None or no <= last_no:
+            continue
+        anchors.append({"no": no, "top": line["top"]})
+        last_no = no
+    return anchors
 
 
 def regions_from_anchors(anchors, total_h):
@@ -132,6 +157,77 @@ def regions_from_anchors(anchors, total_h):
 def _strip_header(regions, header_top):
     """行投影区域 × 单个锚点：剔除锚点以上（页眉）的区域。"""
     return [(t, b) for (t, b) in regions if b > header_top]
+
+
+def _instruction_spans(lines: list) -> list:
+    """OCR 行 → 说明段落竖直区间 [(top, bottom)]（原图像素坐标）。
+
+    种子行：文本命中 INSTR_RE 的行；种子行向上下合并竖直距离 ≤ 行高×
+    INSTR_MERGE_RATIO 的邻近行（说明段落的后续行往往没有关键词），
+    重叠区间再归并。无种子返回 []。
+    """
+    if not lines:
+        return []
+    spans = []
+    for i, line in enumerate(lines):
+        if not INSTR_RE.search(line["text"]):
+            continue
+        h = max(1, line["bottom"] - line["top"])
+        top, bottom = line["top"], line["bottom"]
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(lines):
+                o = lines[j]
+                gap = o["top"] - bottom if j == i + 1 else top - o["bottom"]
+                if abs(gap) <= h * INSTR_MERGE_RATIO:
+                    top = min(top, o["top"])
+                    bottom = max(bottom, o["bottom"])
+        spans.append((top, bottom))
+    # 归并重叠区间
+    spans.sort()
+    out = []
+    for t, b in spans:
+        if out and t <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((t, b))
+    return out
+
+
+def _drop_instruction_regions(regions, spans, coords_scale=1.0):
+    """剔除与说明段落重叠 ≥ INSTR_DROP_RATIO 的区域。
+
+    coords_scale：区域坐标乘以它得到原图坐标（行投影区域是投影行号，
+    原图坐标 = 行号 / scale，故传 1/scale）；锚点模式传 1.0。
+    先把行距 < 2×MIN_GAP_ROWS（×coords_scale）的相邻区域聚成一簇
+    （同一段说明被行投影切成多个子区域），按整簇计算重叠率，命中
+    整簇剔除；未命中再逐区域判断，只删不裁。
+    """
+    if not spans:
+        return regions
+    gap_thr = 2 * MIN_GAP_ROWS * coords_scale
+    clusters = []  # [(start_idx, end_idx_exclusive)]
+    i = 0
+    while i < len(regions):
+        j = i + 1
+        while j < len(regions) and regions[j][0] - regions[j - 1][1] < gap_thr:
+            j += 1
+        clusters.append((i, j))
+        i = j
+    out = []
+    for ci, cj in clusters:
+        c_t = regions[ci][0]
+        c_b = regions[cj - 1][1]
+        o_t, o_b = c_t * coords_scale, c_b * coords_scale
+        h = max(1, o_b - o_t)
+        overlap = 0.0
+        for s_t, s_b in spans:
+            lo, hi = max(o_t, s_t), min(o_b, s_b)
+            if hi > lo:
+                overlap += hi - lo
+        if overlap / h >= INSTR_DROP_RATIO:
+            continue  # 整簇剔除
+        out.extend(regions[ci:cj])
+    return out
 
 
 def get_split_config() -> Dict[str, Any]:
@@ -224,15 +320,29 @@ def split_questions(image_path: str, out_dir: str) -> List[Dict[str, Any]]:
 
     # g1: OCR 题号锚点优先——≥2 个锚点时直接按锚点重建区域（页眉天然剔除，
     # 且比行投影更准）；仅 1 个锚点时用它剔除页眉以上的行投影区域；
-    # 无 OCR / 无锚点回退纯行投影。
+    # 无 OCR / 无锚点回退纯行投影。同一次 OCR 行同时检测说明段落，
+    # 剔除与说明段落重叠 ≥80% 的区域（遗留①：说明段落误圈）。
     try:
-        anchors = detect_question_anchors(image_path)
+        lines = _ocr_lines(image_path)
     except Exception:
-        anchors = []
+        lines = []
+    anchors = []
+    last_no = 0
+    for line in lines:
+        no = parse_qno(line["text"])
+        if no is None or no <= last_no:
+            continue
+        anchors.append({"no": no, "top": line["top"]})
+        last_no = no
+    instr_spans = _instruction_spans(lines)
     if len(anchors) >= 2:
         regions = regions_from_anchors(anchors, H)
     elif len(anchors) == 1:
         regions = _strip_header(regions, anchors[0]["top"])
+    # 行投影区域坐标是投影行号，原图坐标 = 行号/scale；锚点区域已是原图坐标
+    regions = _drop_instruction_regions(regions, instr_spans,
+                                        coords_scale=(1.0 / scale if scale else 1.0)
+                                        if len(anchors) < 2 else 1.0)
     if len(regions) < MIN_REGIONS_TO_SPLIT:
         return []
 
