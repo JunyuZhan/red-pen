@@ -240,6 +240,51 @@ def _questions_from_choices(parsed: Dict[str, Any],
     return questions
 
 
+def _is_blank_answer(ans: Any) -> bool:
+    """答案是否为空/未作答类（切题去重用，与 rule_validator 空白词表口径一致）"""
+    if ans is None:
+        return True
+    s = str(ans).strip().lower()
+    return s in {"", "未作答", "未答", "无", "空", "未填", "null", "none", "没写", "空白"}
+
+
+def _dedupe_split_questions(questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """切题模式合并去重（遗留项②）：同一题可能跨两个裁剪区（第二块只有题干没手写），
+    合并时对同一题号保留有真实答案的记录，剔除冗余「未作答」；无题号且空答案的碎片
+    （页眉/残留条带被当成题）在已有题号结果时一并剔除。
+    真实「学生确实没写」的空白答案不受影响：题号相同但有作答的记录优先保留；
+    整卷都无题号时保守不动。"""
+    if not questions:
+        return questions
+    groups: Dict[Any, List[Dict[str, Any]]] = {}
+    order: List[Any] = []
+    unnumbered: List[Dict[str, Any]] = []
+    for q in questions:
+        if not isinstance(q, dict):
+            continue
+        no = q.get("question_no")
+        if no is None or str(no).strip() == "":
+            unnumbered.append(q)
+            continue
+        key = str(no).strip()
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(q)
+
+    merged: List[Dict[str, Any]] = []
+    for key in order:
+        group = groups[key]
+        answered = [q for q in group if not _is_blank_answer(q.get("student_answer"))]
+        merged.append((answered or group)[0])
+    # 无题号 + 空答案 = 裁剪碎片，已有题号结果时剔除；整卷无题号则保守保留
+    if merged:
+        merged.extend(q for q in unnumbered if not _is_blank_answer(q.get("student_answer")))
+    else:
+        merged = list(unnumbered)
+    return merged
+
+
 def _clean_steps(steps: Any) -> Optional[List[Dict[str, Any]]]:
     """步骤级批改结果清洗（v0.5.11 g5）：只保留结构合法的错误步骤，最多 20 条防 prompt 失控"""
     if not isinstance(steps, list) or not steps:
@@ -581,6 +626,7 @@ class GradingManager:
                 part.setdefault("region_index", crop["index"])
                 merged_questions.extend(part.get("questions", []))
 
+        merged_questions = _dedupe_split_questions(merged_questions)
         if not merged_questions:
             return None  # 一个区域都没批出来，回退整页模式
         return {
