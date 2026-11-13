@@ -180,11 +180,15 @@ def _build_prompt(question_type: str, subject: str, answers: Optional[Dict[str, 
         '"analysis": "简要分析", '
         '"knowledge_point": "该题考查的知识点（如：两位数乘法、拼音声调），一句话，拿不准就留空", '
         '"confidence": 0.0到1.0, '
-        '"bbox": [x1, y1, x2, y2] 或 null}\n'
+        '"bbox": [x1, y1, x2, y2] 或 null, '
+        '"steps": [{"step_no": 1, "content": "该步内容摘要", "correct": false, "error_reason": "这步错在哪"}] 或 null}\n'
         "  ],\n"
         '  "summary": "整体点评一句话"\n'
         "}\n"
-        "bbox 是该题在图片中的大致位置（像素坐标，基于图片实际尺寸估计，拿不准就给 null）。"
+        "bbox 是该题在图片中的大致位置（像素坐标，基于图片实际尺寸估计，拿不准就给 null）。\n"
+        "steps 是步骤级批改：仅当该题是解答题/多步计算（学生作答≥2步）才逐步列出；"
+        "只列做错的步骤（correct=false 并给出 error_reason），全对的题 steps 给 null（省 token）；"
+        "口算、选项类简单题一律给 null。"
     )
     prompts = {
         "math": f"{base}\n学科: 数学",
@@ -231,8 +235,33 @@ def _questions_from_choices(parsed: Dict[str, Any],
             "knowledge_point": "",
             "confidence": conf,
             "bbox": None,
+            "steps": None,
         })
     return questions
+
+
+def _clean_steps(steps: Any) -> Optional[List[Dict[str, Any]]]:
+    """步骤级批改结果清洗（v0.5.11 g5）：只保留结构合法的错误步骤，最多 20 条防 prompt 失控"""
+    if not isinstance(steps, list) or not steps:
+        return None
+    cleaned: List[Dict[str, Any]] = []
+    for s in steps[:20]:
+        if not isinstance(s, dict):
+            continue
+        if s.get("correct") is True:
+            continue  # 只记错误步骤，减少存储与展示噪音
+        try:
+            no = int(s.get("step_no") or 0)
+        except (TypeError, ValueError):
+            continue
+        if no <= 0:
+            continue
+        cleaned.append({
+            "step_no": no,
+            "content": str(s.get("content") or "")[:200],
+            "error_reason": str(s.get("error_reason") or "")[:200],
+        })
+    return cleaned or None
 
 
 def _parse_llm_json(text: str) -> Optional[dict]:
@@ -407,6 +436,10 @@ class GradingEngine:
                 # 规则交叉校验层：用教师参考答案约束模型结论（准确性第一）
                 from backend.models.rule_validator import rule_validate
                 rule_stats = rule_validate(questions, answers)
+                # 步骤级批改（v0.5.11 g5）：清洗各题 steps
+                for q in questions:
+                    if isinstance(q, dict):
+                        q["steps"] = _clean_steps(q.get("steps"))
                 judgement_counts: Dict[str, int] = {}
                 for q in questions:
                     j = q.get("judgement", "unclear")

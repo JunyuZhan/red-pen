@@ -146,6 +146,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                 error_type=qd.get("error_type"),
                 confidence_final=float(conf) if isinstance(conf, (int, float)) else None,
                 bbox_answer=qd.get("bbox"),
+                steps=qd.get("steps"),
                 needs_review=1 if qd.get("needs_review") else 0,
                 review_note=qd.get("review_note"),
             )
@@ -453,6 +454,7 @@ async def get_result(submission_id: int, db: Session = Depends(get_db)):
                 "confidence": r.confidence_final,
                 "student_answer": r.student_answer_text,
                 "correct_answer": r.correct_answer_text,
+                "steps": r.steps,
             }
             for r in results
         ],

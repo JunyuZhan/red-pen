@@ -356,6 +356,9 @@ async function view(id) {
       + (q.confidence != null ? ` · 置信度 ${(q.confidence*100).toFixed(0)}%` : "")
       + (q.student_answer ? `<br>学生答案：${q.student_answer}` : "")
       + (q.correct_answer ? `<br>参考答案：${q.correct_answer}` : "")
+      + (Array.isArray(q.steps) && q.steps.length ? `<br>🔍 步骤批改：` + q.steps.map(s =>
+          `<span style="color:#b45309">第${s.step_no}步</span> ` + (s.content ? `${s.content} — ` : "")
+          + (s.error_reason || "有误")).join("<br>") : "")
       + `</p>`;
   });
   $("detailBody").innerHTML = html;

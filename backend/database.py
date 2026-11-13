@@ -122,6 +122,7 @@ class QuestionResult(Base):
     teacher_override = Column(String(20), nullable=True)
     bbox_answer = Column(JSON, nullable=True)
     bbox_question = Column(JSON, nullable=True)
+    steps = Column(JSON, nullable=True)  # 步骤级批改（v0.5.11 g5）：错误步骤列表 [{step_no, content, error_reason}]
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class KnowledgePoint(Base):
@@ -200,6 +201,8 @@ def init_db():
             conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN review_note TEXT")
         if "knowledge_point" not in qcols:
             conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN knowledge_point TEXT")
+        if "steps" not in qcols:
+            conn.exec_driver_sql("ALTER TABLE question_result ADD COLUMN steps JSON")
         conn.commit()
 
     # 插入默认数据
