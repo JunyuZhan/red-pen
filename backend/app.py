@@ -14,7 +14,7 @@ import os
 
 # 导入路由
 from .routes import auth, upload, grading, dashboard, mobile, settings as settings_routes
-from .routes import manage, analytics, backup, network, setup as setup_routes
+from .routes import manage, analytics, backup, network, setup as setup_routes, demo
 from .routes.auth import require_admin
 from fastapi import Depends
 from .database import init_db
@@ -80,6 +80,9 @@ app.include_router(backup.router, prefix="/api/backup", tags=["备份恢复"],
 app.include_router(setup_routes.router, prefix="/api/setup", tags=["首次引导"])
 # 网络信息：公开（不落敏感数据，仅本机局域网 IP/端口），手机端扫码前无需登录
 app.include_router(network.router, prefix="/api/network", tags=["网络"])
+# 演示数据：需要管理员权限（会写入/清除班级数据）
+app.include_router(demo.router, prefix="/api/demo", tags=["演示数据"],
+                   dependencies=[Depends(require_admin)])
 
 # 根路径
 from fastapi import Request

@@ -56,6 +56,16 @@
     <p class="hint" id="emptyHint" style="display:none;">暂无提交记录 —— 用手机端拍照上传开始批改</p>
   </div>
 
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 12px;">一键体验演示 <span class="hint">（没填 AI Key 也能先看完整流程）</span></h2>
+    <p class="hint" style="margin:0 0 10px;">生成一个「【演示】一年级1班」和演示作业，判定为内置示例数据（<b>非 AI 批改</b>），可随时一键清除，不影响真实班级。</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="demoSeed()">🎬 生成演示数据</button>
+      <button onclick="demoClear()" style="background:#fff;color:#555;border:1px solid #ddd;">🗑 清除演示数据</button>
+    </div>
+    <p id="demoMsg" class="hint" style="margin:8px 0 0;color:#c0392b;"></p>
+  </div>
+
   <div class="card mgr">
     <h2 style="font-size:16px;margin:0 0 12px;">班级 / 学生管理</h2>
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
@@ -183,6 +193,36 @@ function exportStudentWrong() {
   const id = sel && sel.value;
   if (!id) { alert("请先在下拉框选择学生"); return; }
   window.location.href = "/api/grading/export-student/" + id + "?days=0";
+}
+
+async function demoSeed() {
+  if (!(await ensureAdmin())) return;
+  const msg = $("demoMsg"); msg.textContent = "正在生成演示数据…";
+  const r = await fetch("/api/demo/seed", { method: "POST" });
+  if (r.ok) {
+    const d = await r.json();
+    msg.textContent = "✅ 演示数据已生成（判定为内置示例，非 AI 批改）。刷新列表查看，体验完可一键清除。";
+    loadRows(); load();
+  } else if (r.status === 401) {
+    msg.textContent = "请先解锁管理员 PIN";
+  } else {
+    msg.textContent = "生成失败：" + ((await r.json()).detail || r.status);
+  }
+}
+
+async function demoClear() {
+  if (!(await ensureAdmin())) return;
+  if (!confirm("确定清除所有【演示】数据？（不影响真实班级）")) return;
+  const msg = $("demoMsg"); msg.textContent = "正在清除…";
+  const r = await fetch("/api/demo/clear", { method: "POST" });
+  if (r.ok) {
+    msg.textContent = "✅ 演示数据已清除。";
+    loadRows(); load();
+  } else if (r.status === 401) {
+    msg.textContent = "请先解锁管理员 PIN";
+  } else {
+    msg.textContent = "清除失败：" + ((await r.json()).detail || r.status);
+  }
 }
 
 async function loadRows() {
