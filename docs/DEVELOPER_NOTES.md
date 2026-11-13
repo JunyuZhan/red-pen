@@ -84,6 +84,7 @@ g3) chinese-exam-question-regions 训 YOLO 切题(exe用onnx)
 g4) 真实模型结构化prompt: 一次返回题号/学生答案/判分/错因，定位判定一体
 
 ## 增补记录
+- 一键体验演示 ✅（v0.5.10）：/api/demo/seed+clear，【演示】标记班/作业/汇总注明"非AI批改"，幂等、需管理员PIN，工作台演示卡。6项测试共266 passed。坑：PIL L 模式 Image.new/draw.text 的颜色都必须传 int，不能传 (r,g,b)。真实 API Key 仍是准确率度量唯一卡点。
 - 知识点归一化 ✅（v0.4.16）：knowledge_norm.py canonical_key（去空白/全角→半角/去尾标点+别名表），学情分析、confidence_fusion 历史因子、study_report 三处聚合统一走归一化 key；相近知识点绝不合并（无相似度层，安全底线）。9项新测试共211 passed。CI/Release 绿，exe已发。下轮候选：别名表按真实数据扩充；或待真实API Key。
 - g2 ✅ 手写墨迹块聚类 bbox（v0.4.13）：question_splitter.detect_ink_blocks / tighten_band_to_ink；grading.py 三处切带定位统一走 _tighten() 收紧到手写墨迹外接框。坑：墨迹检测的连通块合并 gap 用格子数（BLOCK_MERGE_GAP=6，相对 520 网格），改分辨率要同步调；下轮候选 g3：印刷题干与手写墨迹区分（红笔只压手写答案）或待办队列下一项。
 - g3 防重叠收尾 ✅（v0.4.15）：place_chip 增 avoid 参数（其它题框+已放置文字条），候选位右→左→上→下四级，全被占选重叠面积最小；_draw_reason_chip 返回实际矩形供避让。4项新测试共202 passed。坑：原测试断言"左右贴边→下方"，上方候选更优（不压下一题带），断言已同步改为"上或下"。下轮候选：i)知识点体系强化或待真实API Key做准确率度量。
