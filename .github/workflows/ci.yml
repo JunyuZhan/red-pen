@@ -160,7 +160,18 @@ jobs:
 
     - name: Test-suite (pytest, 含脚本式测试)
       run: |
-        PYTHONPATH=. python -m pytest tests/ -q
+        set +e
+        PYTHONPATH=. python -m pytest tests/ -q > pytest_out.txt 2>&1
+        code=$?
+        tail -n 80 pytest_out.txt
+        if [ $code -ne 0 ]; then
+          i=0
+          tail -n 80 pytest_out.txt | while IFS= read -r line; do
+            echo "::error title=pytest-$i::${line:0:900}"
+            i=$((i+1))
+          done
+        fi
+        exit $code
 
 
   build-windows:
