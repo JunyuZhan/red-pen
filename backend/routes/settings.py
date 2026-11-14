@@ -43,6 +43,8 @@ class TestConnectionIn(BaseModel):
 @router.post("/test-connection")
 async def test_llm_connection(config: TestConnectionIn):
     """设置页"测试连接"按钮：用内置测试图实测当前引擎是否支持视觉输入、Key 是否有效"""
+    if config.target not in ("main", "fallback"):
+        raise HTTPException(status_code=400, detail="target 须为 main 或 fallback")
     from ..models.grading_engine import test_connection as run_test, get_llm_config
     if config.target == "fallback":
         saved = get_fallback_config()
@@ -243,6 +245,10 @@ async def get_cost_settings():
 
 @router.post("/cost")
 async def update_cost_settings(config: CostConfigIn):
+    import math
+    if not (math.isfinite(config.cost_input_per_1k) and config.cost_input_per_1k >= 0
+            and math.isfinite(config.cost_output_per_1k) and config.cost_output_per_1k >= 0):
+        raise HTTPException(status_code=400, detail="单价不能为负数且必须是有效数字")
     from ..models.grading_engine import get_cost_config
     from ..database import AppConfig, SessionLocal
     db = SessionLocal()
