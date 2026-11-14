@@ -68,7 +68,7 @@ async def analytics(db: Session = Depends(get_db)):
     ]
 
     # 知识点掌握统计（待办 i）：按知识点聚合正确率，薄弱的排前面
-    kp_stats = defaultdict(lambda: {"total": 0, "correct": 0})
+    kp_stats = defaultdict(lambda: {"total": 0, "correct": 0, "error_types": Counter()})
     for r in results:
         kp = canonical_key(r.knowledge_point)
         if not kp:
@@ -76,12 +76,15 @@ async def analytics(db: Session = Depends(get_db)):
         kp_stats[kp]["total"] += 1
         if r.judgement_final == "correct":
             kp_stats[kp]["correct"] += 1
+        elif r.judgement_final == "wrong" and r.error_type:
+            kp_stats[kp]["error_types"][r.error_type] += 1
     knowledge_points = []
     for kp, st in kp_stats.items():
         acc = st["correct"] / st["total"] if st["total"] else None
         knowledge_points.append({
             "name": kp, "total": st["total"], "correct": st["correct"],
             "accuracy": round(acc, 3) if acc is not None else None,
+            "error_types": dict(st["error_types"].most_common()),
         })
     knowledge_points.sort(key=lambda x: (x["accuracy"] if x["accuracy"] is not None else 1.1, -x["total"]))
 
