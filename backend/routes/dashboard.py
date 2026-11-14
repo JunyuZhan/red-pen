@@ -23,8 +23,16 @@ async def dashboard_summary(db: Session = Depends(get_db)):
     correct = db.query(QuestionResult).filter(QuestionResult.judgement_final == "correct").count()
 
     subs = db.query(Submission).all()
-    total_tokens = sum((s.prompt_tokens or 0) + (s.completion_tokens or 0) for s in subs)
-    total_cost = round(sum(s.cost_estimate or 0 for s in subs), 4)
+    def _num(v):
+        """脏数据兜底：tokens/cost 字段若被写坏成字符串（如历史库/手工导入），
+        汇总时按 0 处理而不是整页 500。"""
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
+
+    total_tokens = sum(_num(s.prompt_tokens) + _num(s.completion_tokens) for s in subs)
+    total_cost = round(sum(_num(s.cost_estimate) for s in subs), 4)
 
     # 作业等级换算（PRD 待办 n）：每个作业的正确率 → A/B/C/D
     thresholds = get_thresholds(db)

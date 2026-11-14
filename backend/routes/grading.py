@@ -464,7 +464,13 @@ async def start_batch(data: BatchIn, db: Session = Depends(get_db)):
         _TASK_BY_SID[s.id] = t
         queued_ids.append(s.id)
 
+    # 第九轮健壮性：明确上报被跳过/不存在的提交，不让老师对着 queued:[] 猜
+    asked = set(data.submission_ids or [])
+    found = {s.id for s in subs}
+    missing = sorted(asked - found)
+    skipped = sorted(found - {s.id for s in eligible})
     return {"success": True, "queued": queued_ids, "count": len(queued_ids),
+            "skipped": skipped, "not_found": missing,
             "concurrency": get_concurrency()}
 
 
