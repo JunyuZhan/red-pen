@@ -198,3 +198,11 @@ app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获
 并发上传+批改混合压测落地（test_robustness_v0529.py）：4 路上传线程与批量批改（asyncio.run 驱动 start_batch）重叠，验证 10 份提交全 completed、逐题零串扰、duration_seconds 落库、峰值≤并发上限。376 passed。
 坑：①run_batch 返回后事件循环已关，不能再 asyncio.all_tasks()（RuntimeError）——start_batch 自建的 task 已在 run_batch 内 gather 收完；②SQLite group-by count 在该测试环境返回过 {1:10} 的诡异结果而逐行查询正确——校验改用 Python Counter 数行，不再信 group-by；③TestClient 单实例跨线程并发上传 OK（沿用 v0.5.22 模式）。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；PRD 复审或第十三轮健壮性。
+
+## PRD 对照复审 ✅（2026-11-15，文档轮，不升版）
+逐章 grep 代码核对 docs/prd.md（V0.4 全 11 章）。已落地：引导三步+记住+切换器、二维码/IP 引导、provider 适配层（qwen/glm/custom OpenAI 兼容）、测试连接+推荐视觉清单、主备 fallback、成本估算器+月度预算护栏+max_tokens 上限+快路径/缓存、重试/指数退避/429 降速、重启卡 processing 转可重试、合规提示（设置页）、手机连续上传+倒计时、质量门禁、EXIF/预处理/切题、JSON 约束（response_format）、规则交叉校验、teacher_override、置信度融合、知识点统计、LLM 教学建议、数据模型字段（uploader_user_id/llm_raw_output/bbox_answer）、一键备份恢复、答案模板复用。
+真实缺口（按优先级入队）：
+1. API Key 明文存 SQLite，PRD 4.2 要求"加密存储本地"——方案：本机密钥文件 + Fernet 加密 llm_api_key/llm_fallback_api_key 字段，启动时对旧明文自动迁移；单机场景风险低但属 PRD 明文条款。
+2. 推荐视觉模型清单缺豆包（PRD 4.1 点名 Doubao）——补 doubao-vision 系列走 custom provider（OpenAI 兼容），并入价格预设表。
+3. 知识点"热力图"现为列表统计，非热力图视觉形式——cosmetic，排在准确率验证之后。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；缺口1 Key 加密存储；缺口2 豆包清单。
