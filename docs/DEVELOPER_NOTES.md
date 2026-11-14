@@ -123,3 +123,11 @@ minor 位同理满十进 major。历史 tag 不改写。下一个里程碑（g2-
 ## ✅ 回归bug已修(2026-11-14)bbox全null两个根因
 1. 逐题结果入库在CV切题覆盖bbox之前 → 已移到覆盖之后保存(test_bbox_regression.py)。
 2. 去重在切题之后：引擎返回重复题号(如58条/8题)时CV按58题找区域全对不上 → 去重提前到切题前(复用_dedupe_split_questions)。
+
+## DeepSeek 全家桶应用 API（2026-11-13 发布，已核实官方公告 api-docs.deepseek.com/news/news261113）
+deepseek-flash 原生支持联网搜索/文件输入(含图片)/读链接；独立接口开放：OCR/ASR/TTS/Search/Fetch（工具另计费）。
+⚠️ 旧型号 deepseek-chat 已于 2026-07 退役——配置里不能再写，统一 deepseek-flash。
+决策（用户问"要不要嵌入"）：
+- 立即：默认模型切 deepseek-flash
+- 嵌入（待办 g7）：DeepSeek OCR 接口做"OCR 增强"开关（默认关）——题号锚点/跨页续题断裂检测用服务端OCR更强，成本每页几厘钱
+- 不嵌：联网搜索(批改不需要且引入干扰)、ASR/TTS(后议)
