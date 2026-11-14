@@ -30,8 +30,22 @@ MAX_RETRY = 3  # PRD 4.4：最多自动/手动重试 3 次
 QUEUE: dict = {}
 # 批改任务强引用集（asyncio 只持弱引用，无强引用任务可能被 GC 中途回收）
 _TASKS: set = set()
+# submission_id -> asyncio.Task 映射（第七轮健壮性：支持取消排队/处理中的批改）
+_TASK_BY_SID: dict = {}
 _sem: Optional[asyncio.Semaphore] = None
 _sem_size = 0
+
+# 第七轮健壮性：单份批改整体超时（秒），存 AppConfig，默认 300，范围 60-900
+def get_grading_timeout() -> int:
+    db = SessionLocal()
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == "grading_timeout").first()
+        n = int(row.value) if row else 300
+    except Exception:
+        n = 300
+    finally:
+        db.close()
+    return max(60, min(900, n))
 
 
 def get_concurrency() -> int:
@@ -59,6 +73,9 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
     """批改单份提交（自带独立 DB 会话，可在线程/任务里安全调用），记录耗时与队列状态"""
     db = SessionLocal()
     q = QUEUE.setdefault(submission_id, {"state": "queued", "duration_seconds": None, "error": None})
+    cur = asyncio.current_task()
+    if cur is not None:
+        _TASK_BY_SID[submission_id] = cur
     q["state"] = "processing"
     t0 = time.monotonic()
     # 月度预算护栏（PRD 待办 j）：block 模式下超预算停止新批改
@@ -82,12 +99,27 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         subject = template.subject if template else "数学"
         get_logger().info("开始批改 submission=%s subject=%s", submission.id, subject)
         try:
-            result = await grading_manager.grade(
-                image_path=submission.original_image_path,
-                question_type="default",
-                subject=subject,
-                answers=(template.answers if template else None),
+            # 第七轮健壮性：单份批改整体超时包裹，防止模型/网络挂死卡住队列
+            result = await asyncio.wait_for(
+                grading_manager.grade(
+                    image_path=submission.original_image_path,
+                    question_type="default",
+                    subject=subject,
+                    answers=(template.answers if template else None),
+                ),
+                timeout=get_grading_timeout(),
             )
+        except asyncio.TimeoutError:
+            submission.status = "failed"
+            submission.error_message = f"批改超时（超过 {get_grading_timeout()} 秒）已中止，请检查模型服务后重试"
+            submission.duration_seconds = round(time.monotonic() - t0, 2)
+            db.commit()
+            q.update(state="failed", error="批改超时已中止",
+                     duration_seconds=round(time.monotonic() - t0, 2))
+            get_logger().error("批改超时 submission=%s", submission.id)
+            return {"success": False, "error": "批改超时已中止，请重试"}
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             submission.status = "failed"
             submission.error_message = str(e)[:500]
@@ -311,6 +343,20 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             "fusion": fusion_stats,
             "cross_page": cross_page_stats,
         }
+    except asyncio.CancelledError:
+        # 第七轮健壮性：老师取消批改（排队中或处理中）——落可重批状态，不卡 processing
+        get_logger().info("批改已取消 submission=%s", submission_id)
+        q.update(state="cancelled", error="老师已取消批改",
+                 duration_seconds=round(time.monotonic() - t0, 2))
+        try:
+            sub = db.query(Submission).filter(Submission.id == submission_id).first()
+            if sub is not None and sub.status == "processing":
+                sub.status = "uploaded"
+                sub.error_message = "老师已取消批改，可重新发起"
+                db.commit()
+        except Exception:
+            db.rollback()
+        return {"success": False, "error": "已取消批改"}
     except Exception as e:
         # 兜底异常（兜底健壮性 v0.5.19）：批改中途任何未捕获异常都不能让提交
         # 永远卡在 processing / 队列卡在 processing——统一落到 failed 状态。
@@ -328,6 +374,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             db.rollback()
         return {"success": False, "error": str(e)}
     finally:
+        _TASK_BY_SID.pop(submission_id, None)
         db.close()
 
 
@@ -385,6 +432,23 @@ async def start_batch(data: BatchIn, db: Session = Depends(get_db)):
         try:
             async with sem_:
                 await _grade_one(sid, tid)
+        except asyncio.CancelledError:
+            # 第七轮健壮性：取消发生在进入 _grade_one 之前（worker 还在排队）——
+            # 队列落 cancelled，提交回 uploaded 可重批
+            QUEUE.setdefault(sid, {"state": "queued", "duration_seconds": None,
+                                   "error": None}).update(
+                state="cancelled", error="老师已取消批改")
+            db = SessionLocal()
+            try:
+                sub = db.query(Submission).filter(Submission.id == sid).first()
+                if sub is not None and sub.status == "processing":
+                    sub.status = "uploaded"
+                    sub.error_message = "老师已取消批改，可重新发起"
+                    db.commit()
+            except Exception:
+                db.rollback()
+            finally:
+                db.close()
         except Exception as e:
             QUEUE.setdefault(sid, {"state": "queued", "duration_seconds": None,
                                    "error": None}).update(
@@ -395,7 +459,9 @@ async def start_batch(data: BatchIn, db: Session = Depends(get_db)):
     queued_ids = []
     for s in eligible:
         QUEUE[s.id] = {"state": "queued", "duration_seconds": None, "error": None}
-        _TASKS.add(asyncio.create_task(_batch_worker(s.id, sem, data.template_id)))
+        t = asyncio.create_task(_batch_worker(s.id, sem, data.template_id))
+        _TASKS.add(t)
+        _TASK_BY_SID[s.id] = t
         queued_ids.append(s.id)
 
     return {"success": True, "queued": queued_ids, "count": len(queued_ids),
@@ -420,6 +486,63 @@ async def queue_status(db: Session = Depends(get_db)):
         "items": items[-100:],
         "db_processing": processing_db,
     }
+
+
+@router.post("/cancel/{submission_id}")
+async def cancel_grading(submission_id: int, db: Session = Depends(get_db)):
+    """取消一份排队中/处理中的批改（第七轮健壮性）。
+
+    取消后队列状态落 cancelled，提交回到 uploaded 可重新发起批改。
+    """
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="提交记录不存在")
+
+    task = _TASK_BY_SID.get(submission_id)
+    state = QUEUE.get(submission_id, {}).get("state")
+    if task is None or task.done():
+        raise HTTPException(
+            status_code=400,
+            detail=f"当前没有可取消的批改任务（队列状态: {state or '无'}，提交状态: {submission.status}）")
+
+    task.cancel()
+    # 未启动过/被外部杀掉的 task 不会执行任何 except 块，状态由端点直接落：
+    # 队列 cancelled、processing 的提交回 uploaded（_grade_one/worker 侧同状态幂等）
+    QUEUE.setdefault(submission_id, {"state": "queued", "duration_seconds": None,
+                                     "error": None}).update(
+        state="cancelled", error="老师已取消批改")
+    if submission.status == "processing":
+        submission.status = "uploaded"
+        submission.error_message = "老师已取消批改，可重新发起"
+        db.commit()
+    return {"success": True, "submission_id": submission_id,
+            "message": "已取消批改"}
+
+
+@router.get("/timeout")
+async def read_grading_timeout():
+    return {"success": True, "timeout_seconds": get_grading_timeout()}
+
+
+class TimeoutIn(BaseModel):
+    value: int
+
+
+@router.post("/timeout")
+async def write_grading_timeout(data: TimeoutIn, _: None = Depends(require_admin)):
+    if not 60 <= data.value <= 900:
+        raise HTTPException(status_code=400, detail="批改超时只能是 60-900 秒")
+    db = SessionLocal()
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == "grading_timeout").first()
+        if row:
+            row.value = str(data.value)
+        else:
+            db.add(AppConfig(key="grading_timeout", value=str(data.value)))
+        db.commit()
+    finally:
+        db.close()
+    return {"success": True, "timeout_seconds": get_grading_timeout()}
 
 
 @router.get("/concurrency")

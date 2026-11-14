@@ -251,8 +251,17 @@ async function loadRows() {
     <td>${gradeBadge}${x.summary || "-"}</td>
       <td>${x.status === "completed" ? `<a href="#" onclick="view(${x.id});return false;">查看详情</a>`
         : x.status === "uploaded" ? `<a href="#" onclick="startGrading(${x.id});return false;">开始批改</a>`
-        : x.status === "failed" ? `<a href="#" onclick="retry(${x.id});return false;">重试</a>` : "-"}</td>
+        : x.status === "failed" ? `<a href="#" onclick="retry(${x.id});return false;">重试</a>`
+        : (x.status === "processing" || x.status === "queued") ? `<a href="#" onclick="cancelGrading(${x.id});return false;">取消</a>` : "-"}</td>
     </tr>`;}).join("");
+}
+
+async function cancelGrading(id) {
+  if (!confirm(`确定取消第 ${id} 份的批改？取消后可重新发起。`)) return;
+  const r = await fetch(`/api/grading/cancel/${id}`, { method: "POST" });
+  const d = await r.json();
+  if (!r.ok || d.success === false) return alert(friendlyError(d.detail || d.error) || "取消失败");
+  loadRows(); load();
 }
 
 async function retry(id) {
