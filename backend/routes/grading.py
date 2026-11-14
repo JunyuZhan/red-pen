@@ -488,6 +488,64 @@ async def get_result(submission_id: int, db: Session = Depends(get_db)):
     }
 
 
+# ============ 手动改答案归属（g6 遗留兜底入口） ============
+
+@router.post("/reassign/{submission_id}")
+async def reassign_answer(submission_id: int, payload: dict, db: Session = Depends(get_db)):
+    """教师手动把一份学生答案从一个题移到另一个题（切题/归属错时的兜底）。
+
+    行为：source 的答案文本+bbox 并入 target；source 答案清空并注明去向；
+    target 标记 needs_review=1（合并后的判定不可信，进复核队列）。
+    """
+    source_id = payload.get("source_id")
+    target_id = payload.get("target_id")
+    if not source_id or not target_id:
+        raise HTTPException(status_code=400, detail="缺少 source_id / target_id")
+    if source_id == target_id:
+        raise HTTPException(status_code=400, detail="不能把答案移给自己")
+
+    rows = (db.query(QuestionResult)
+              .filter(QuestionResult.submission_id == submission_id,
+                      QuestionResult.id.in_([source_id, target_id]))
+              .all())
+    by_id = {r.id: r for r in rows}
+    if source_id not in by_id or target_id not in by_id:
+        raise HTTPException(status_code=404, detail="题目结果不存在或不属于该提交")
+
+    source, target = by_id[source_id], by_id[target_id]
+    if not (source.student_answer_text or source.bbox_answer):
+        raise HTTPException(status_code=400, detail=f"第{source.question_no}题没有可移动的答案")
+
+    # 答案文本合并（都有则空格拼接）
+    if source.student_answer_text:
+        target.student_answer_text = (
+            (target.student_answer_text + " " + source.student_answer_text).strip()
+            if target.student_answer_text else source.student_answer_text
+        )
+    # bbox 合并（列表拼接）
+    src_boxes = source.bbox_answer if isinstance(source.bbox_answer, list) else []
+    tgt_boxes = target.bbox_answer if isinstance(target.bbox_answer, list) else []
+    if src_boxes:
+        target.bbox_answer = tgt_boxes + src_boxes
+        target.confidence_final = None if target.confidence_final is None \
+            else min(target.confidence_final, 0.5)
+
+    target.needs_review = 1
+    target.review_note = f"已手动并入第{source.question_no}题的答案，判定待复核"
+
+    source.student_answer_text = None
+    source.bbox_answer = None
+    source.steps = None
+    source.review_note = f"答案已手动移至第{target.question_no}题"
+
+    db.commit()
+    return {"success": True,
+            "source": {"id": source.id, "question_no": source.question_no},
+            "target": {"id": target.id, "question_no": target.question_no,
+                       "student_answer": target.student_answer_text,
+                       "needs_review": target.needs_review}}
+
+
 # ============ 批改结果导出 CSV（老师导入 Excel/成绩单） ============
 
 CSV_HEADERS = ["题号", "题型", "学生答案", "参考答案", "判定", "错误类型",

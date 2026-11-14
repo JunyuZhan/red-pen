@@ -143,3 +143,7 @@ deepseek-flash 原生支持联网搜索/文件输入(含图片)/读链接；独�
 设置页新开关 ocr_enhanced（默认关）。开启后 question_splitter._ocr_lines 优先走 DeepSeek `POST /v1/tools/ocr`（multipart file+purpose=text_recognition，1.5元/千页，已核实官方文档 api-docs.deepseek.com）；仅 base_url 含 api.deepseek.com 且有 Key 时生效，失败/其它供应商静默回退本地 RapidOCR。
 坑：①服务端 OCR 只返回纯文本无坐标——用「文本行序 ↔ 墨迹行带」对齐还原行位置（align_text_to_ink，行带<2 回退本地）。②models/ 新模块里 SessionLocal/AppConfig 不能模块级 from 导入（tmp_db 换库后指旧库），要在函数内动态 import。③测试里 mock 服务调用时必须给 tmp_path 真实文件——server_ocr_lines 先 open 文件再发请求，本地残留的 /tmp 文件会掩盖 CI 上缺文件的 bug（本轮 CI 三连红的根因）。④拿不到 CI 日志时（无 token），在 workflow 里把 pytest 摘要行写成 ::error:: annotations，匿名 check-runs annotations API 可读。
 下一个候选：工作台手动改答案归属兜底入口（g6 遗留）。
+
+## g6遗留）工作台手动改答案归属兜底入口 ✅（2026-11-14, v0.5.16）
+POST /api/grading/reassign/{submission_id}：source 的答案文本+bbox 并入 target，source 清空注明去向；target needs_review=1 进复核队列，bbox 合并时置信度压到 ≤0.5。工作台每道有答案的题加「归属改错？」按钮（prompt 输入目标题号→confirm→重载 view）。6 项新测试共 312 passed。坑：CHANGELOG 里 v0.5.15 条目被写了两遍，本轮顺带去重——改 CHANGELOG 后 grep 一下确认没有重复版本头。
+下一候选：真实批改准确率验证（等用户素材/API Key）；否则 g-h 剩余待办按序推进。

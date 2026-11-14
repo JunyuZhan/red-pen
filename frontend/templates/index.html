@@ -339,17 +339,19 @@ async function delTemplate(id) {
 }
 loadTemplates();
 
+let currentResults = [];
+
 async function view(id) {
   const d = await (await fetch("/api/grading/result/" + id)).json();
-  $("detail").style.display = "block";
-  $("exportCsvBtn").style.display = (d.results && d.results.length) ? "inline-block" : "none";
+  $("detail").style.display = "block";  $("exportCsvBtn").style.display = (d.results && d.results.length) ? "inline-block" : "none";
   $("exportCsvBtn").onclick = () => exportCsv(id);
   if (d.annotated_image_url) {
     $("detailImg").src = d.annotated_image_url + "?t=" + Date.now();
     $("detailImg").style.display = "block";
   } else $("detailImg").style.display = "none";
   let html = `<p>📌 ${d.summary || "无总评"}</p>`;
-  (d.results || []).forEach(q => {
+  currentResults = d.results || [];
+  currentResults.forEach(q => {
     const tag = { correct:"✓", wrong:"✗", partial:"◐", unclear:"?" }[q.judgement] || "?";
     html += `<p><b>${tag} 第${q.question_no}题</b>`
       + (q.error_type ? ` · 错误类型：${q.error_type}` : "")
@@ -359,6 +361,7 @@ async function view(id) {
       + (Array.isArray(q.steps) && q.steps.length ? `<br>🔍 步骤批改：` + q.steps.map(s =>
           `<span style="color:#b45309">第${s.step_no}步</span> ` + (s.content ? `${s.content} — ` : "")
           + (s.error_reason || "有误")).join("<br>") : "")
+      + (q.student_answer ? ` <button style="font-size:12px;margin-left:6px;" onclick="reassignAnswer(${q.id},${d.submission_id},${q.question_no})">归属改错？</button>` : "")
       + `</p>`;
   });
   $("detailBody").innerHTML = html;
@@ -367,6 +370,24 @@ async function view(id) {
 
 function exportCsv(id) {
   window.location.href = "/api/grading/export/" + id;
+}
+
+// 手动改答案归属（切题/归属错时兜底）：把该题答案移到教师指定的题号
+async function reassignAnswer(sourceId, submissionId, sourceNo) {
+  const no = prompt(`这份答案实际属于第几题？输入题号（当前记在第${sourceNo}题）`);
+  if (!no) return;
+  const target = (currentResults || []).find(q => q.question_no === parseInt(no, 10));
+  if (!target) return alert(`没找到第${no}题的结果`);
+  if (target.id === sourceId) return alert("不能移给自己");
+  if (!confirm(`确定把第${sourceNo}题的答案并入第${target.question_no}题？合并后第${target.question_no}题判定会进入复核队列。`)) return;
+  const r = await fetch(`/api/grading/reassign/${submissionId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source_id: sourceId, target_id: target.id }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.success) return alert(d.detail || "操作失败");
+  view(submissionId);
 }
 
 // ---------- 班级/学生管理 ----------
