@@ -165,10 +165,8 @@ jobs:
         code=$?
         tail -n 80 pytest_out.txt
         if [ $code -ne 0 ]; then
-          i=0
-          tail -n 80 pytest_out.txt | while IFS= read -r line; do
-            echo "::error title=pytest-$i::${line:0:900}"
-            i=$((i+1))
+          grep -E "FAILED|ERROR|passed|failed|error|Error" pytest_out.txt | tail -n 30 | while IFS= read -r line; do
+            echo "::error title=pytest::${line:0:900}"
           done
         fi
         exit $code
