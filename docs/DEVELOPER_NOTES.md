@@ -168,3 +168,8 @@ backup.py 加固：restore 前置校验（BadZipFile→400、条目路径防 zip
 边界输入加固：新建 backend/models/input_limits.py 集中限长常量（名字 50 字/标题 100 字），班级/学生增改、首次引导、移动端上传（标题/学段/学科，含空白串拒绝）全部接入；quality_checker 加解压炸弹防护（MAX_PIXELS=1 亿，Image.MAX_IMAGE_PIXELS 对齐 + DecompressionBombError 专捕）；新增 20 路并发上传压测（线程池同 client 上传 20 个学生，断言全部 200、提交 id 唯一、每生恰好 1 份无串扰）。9 项新测试共 347 passed。
 坑：① setup.py 的 import 是 `from ..database import get_db, AppConfig, ...` 多名合并行，往 get_db 后插 import 会拼坏——patch 导入行先看全行；② 纯白 JPEG 会被质量门禁判过曝，测试造图要用随机噪声（亮度居中+对比足）；③ /upload 响应不含 student_id，并发归属校验改从 DB 按 student 分组计数。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则真人 Windows 装机走查清单文档。
+
+
+## Windows装机走查清单 ✅（2026-11-14，随 v0.5.22 发布）
+新增 docs/WINDOWS_WALKTHROUGH.md：9 步真人装机走查（下载/SmartScreen → PIN → 首次引导 → 测试连接 → 防火墙/手机扫码 → 外网检查 → 完整批改链路 → 备份 → 重启恢复），每步带预期结果与失败排查，末尾有走查记录表让老师填了反馈。顺带补齐 v0.5.22 的 CHANGELOG 条目并打 tag 发布 exe（上轮漏打）。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；等用户反馈装机走查结果。
