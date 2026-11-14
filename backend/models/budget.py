@@ -8,13 +8,14 @@
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from ..database import AppConfig, SessionLocal, Submission
+from .. import database as _db  # 调用期取 SessionLocal：惰性 import 时不能快照旧引擎
+from ..database import AppConfig, Submission
 
 BUDGET_KEYS = ("monthly_budget", "budget_action")
 
 
 def get_budget_config() -> Dict[str, Any]:
-    db = SessionLocal()
+    db = _db.SessionLocal()
     try:
         rows = db.query(AppConfig).filter(AppConfig.key.in_(BUDGET_KEYS)).all()
         stored = {r.key: r.value for r in rows}
@@ -31,7 +32,7 @@ def get_budget_config() -> Dict[str, Any]:
 
 
 def save_budget_config(monthly_budget: float, budget_action: str) -> None:
-    db = SessionLocal()
+    db = _db.SessionLocal()
     try:
         for key, value in [("monthly_budget", str(round(monthly_budget, 2))),
                            ("budget_action", budget_action)]:
@@ -50,7 +51,7 @@ def get_monthly_spent(now: datetime = None) -> float:
     now = now or datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0,
                               tzinfo=None)
-    db = SessionLocal()
+    db = _db.SessionLocal()
     try:
         rows = db.query(Submission.cost_estimate).filter(
             Submission.created_at >= month_start).all()
