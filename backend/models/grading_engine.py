@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 
 from ..config import settings
 from ..database import AppConfig, SessionLocal
+from .secret_box import decrypt_value, encrypt_value
 
 
 # ---------- 配置存取 ----------
@@ -53,7 +54,7 @@ def get_llm_config() -> Dict[str, str]:
         "provider": provider,
         "base_url": stored.get("llm_base_url") or defaults["base_url"],
         "model": stored.get("llm_model") or defaults["model"],
-        "api_key": stored.get("llm_api_key") or "",
+        "api_key": decrypt_value(stored.get("llm_api_key") or ""),
     }
 
 
@@ -68,7 +69,7 @@ def save_llm_config(provider: str, base_url: str, model: str, api_key: Optional[
             "llm_model": model,
         }
         if update_key and api_key:
-            values["llm_api_key"] = api_key
+            values["llm_api_key"] = encrypt_value(api_key)
         for key, value in values.items():
             row = db.query(AppConfig).filter(AppConfig.key == key).first()
             if row:
@@ -97,7 +98,7 @@ def get_fallback_config() -> Dict[str, Any]:
             "provider": provider,
             "base_url": stored.get("llm_fallback_base_url") or defaults["base_url"],
             "model": stored.get("llm_fallback_model") or defaults["model"],
-            "api_key": stored.get("llm_fallback_api_key") or "",
+            "api_key": decrypt_value(stored.get("llm_fallback_api_key") or ""),
         }
     return cfg
 
@@ -120,7 +121,7 @@ def save_fallback_config(provider, base_url: str, model: str,
             "llm_fallback_model": model,
         }
         if update_key and api_key:
-            values["llm_fallback_api_key"] = api_key
+            values["llm_fallback_api_key"] = encrypt_value(api_key)
         for key, value in values.items():
             row = db.query(AppConfig).filter(AppConfig.key == key).first()
             if row:

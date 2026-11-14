@@ -13,3 +13,4 @@ python-jose[cryptography]==3.3.0
 qrcode==7.4.2
 rapidocr-onnxruntime==1.4.4
 opencv-python-headless==4.10.0.84
+cryptography>=41.0.0
