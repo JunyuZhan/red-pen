@@ -54,12 +54,17 @@ async def create_class(data: ClassIn, db: Session = Depends(get_db)):
 
 @router.delete("/classes/{class_id}")
 async def delete_class(class_id: int, db: Session = Depends(get_db)):
+    from ..database import Assignment
     c = db.query(Class).filter(Class.id == class_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="班级不存在")
     n = db.query(Student).filter(Student.class_id == class_id).count()
     if n:
         raise HTTPException(status_code=400, detail=f"班级下还有 {n} 名学生，请先删除学生")
+    # 孤儿防护：班级下还有作业时禁止删除，否则作业/提交悬空
+    a = db.query(Assignment).filter(Assignment.class_id == class_id).count()
+    if a:
+        raise HTTPException(status_code=400, detail=f"班级下还有 {a} 份作业，请先删除作业")
     db.delete(c)
     db.commit()
     return {"success": True}
@@ -98,6 +103,8 @@ async def update_student(student_id: int, data: StudentUpdate, db: Session = Dep
     if data.name and data.name.strip():
         s.name = data.name.strip()
     if data.class_id:
+        if not db.query(Class).filter(Class.id == data.class_id).first():
+            raise HTTPException(status_code=404, detail="目标班级不存在")
         s.class_id = data.class_id
     db.commit()
     return {"success": True}
@@ -105,9 +112,14 @@ async def update_student(student_id: int, data: StudentUpdate, db: Session = Dep
 
 @router.delete("/students/{student_id}")
 async def delete_student(student_id: int, db: Session = Depends(get_db)):
+    from ..database import Submission
     s = db.query(Student).filter(Student.id == student_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="学生不存在")
+    # 孤儿防护：学生已有作业提交时禁止删除，否则提交/逐题结果悬空
+    n = db.query(Submission).filter(Submission.student_id == student_id).count()
+    if n:
+        raise HTTPException(status_code=400, detail=f"该学生已有 {n} 份作业记录，删除会让历史成绩悬空；如确需清理请先删除其作业")
     db.delete(s)
     db.commit()
     return {"success": True}
