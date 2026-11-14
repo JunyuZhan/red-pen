@@ -193,3 +193,8 @@ app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获
 ## 健壮性第十一轮 ✅（2026-11-14，v0.5.28）
 设置页/模型连接异常路径探针结论：设置路由鉴权由 include_router 的 dependencies=[require_admin] 统一覆盖（路由内个别缺失无害）；各配置读取函数对脏值（非数字字符串）已有默认值兜底；GradingEngine 走 settings.LLM_TIMEOUT，「测试连接」不会挂死。修复两个真问题：/cost 接受负数单价（污染成本统计与预算护栏）→ 400；test-connection 非法 target 静默按 main → 400。5 项新测试共 375 passed。坑：测试设置类路由要用 conftest 的 tmp_db/auth_client（换绑各模块 SessionLocal），别学备份测试 monkeypatch settings.DATA_DIR——AppConfig 写的是导入时绑定的旧库，会碰到真实 data/red_pen.db。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则并发上传+批改混合压测或 PRD 复审。
+
+## 健壮性第十二轮 ✅（2026-11-15，v0.5.29）
+并发上传+批改混合压测落地（test_robustness_v0529.py）：4 路上传线程与批量批改（asyncio.run 驱动 start_batch）重叠，验证 10 份提交全 completed、逐题零串扰、duration_seconds 落库、峰值≤并发上限。376 passed。
+坑：①run_batch 返回后事件循环已关，不能再 asyncio.all_tasks()（RuntimeError）——start_batch 自建的 task 已在 run_batch 内 gather 收完；②SQLite group-by count 在该测试环境返回过 {1:10} 的诡异结果而逐行查询正确——校验改用 Python Counter 数行，不再信 group-by；③TestClient 单实例跨线程并发上传 OK（沿用 v0.5.22 模式）。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；PRD 复审或第十三轮健壮性。
