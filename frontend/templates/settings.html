@@ -115,6 +115,16 @@
   <div class="msg" id="conc_msg"></div>
 </div>
 
+<!-- 批改超时 -->
+<div class="card" style="margin-top:20px">
+  <h1>批改超时</h1>
+  <div class="sub">单份作业批改的最长等待时间（60-900 秒）。超过后自动中止并标记失败，可重试——防止模型/网络卡死把队列堵死。默认 300 秒。</div>
+  <label>超时秒数（60-900）</label>
+  <input type="number" id="timeout_val" min="60" max="900" step="30">
+  <button onclick="saveTimeout()">保存超时设置</button>
+  <div class="msg" id="timeout_msg"></div>
+</div>
+
 <!-- CV 切题模式 -->
 <div class="card" style="margin-top:20px">
   <h1>切题模式（裁切放大）</h1>
@@ -412,6 +422,29 @@ async function loadConcurrency() {
   const r = await fetch("/api/grading/concurrency");
   const d = await r.json();
   if (d.success) document.getElementById("concurrency_sel").value = d.concurrency;
+}
+
+async function loadTimeout() {
+  const r = await fetch("/api/grading/timeout");
+  const d = await r.json();
+  if (d.success) document.getElementById("timeout_val").value = d.timeout_seconds;
+}
+
+async function saveTimeout() {
+  const msg = document.getElementById("timeout_msg");
+  try {
+    const v = parseInt(document.getElementById("timeout_val").value);
+    if (isNaN(v) || v < 60 || v > 900) throw new Error("超时需在 60-900 秒之间");
+    const r = await fetch("/api/grading/timeout", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ value: v })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ 批改超时已保存：" + d.timeout_seconds + " 秒";
+  } catch (e) {
+    msg.className = "msg err"; msg.textContent = "❌ " + e.message;
+  }
 }
 
 async function loadSplit() {
@@ -813,7 +846,7 @@ async function saveGrade() {
   msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadOcrEnhanced(); loadCache(); loadMaxTokens(); loadPrivacy(); loadPreprocess(); loadReview(); loadGrade(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadTimeout(); loadSplit(); loadOcrEnhanced(); loadCache(); loadMaxTokens(); loadPrivacy(); loadPreprocess(); loadReview(); loadGrade(); } });
 </script>
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });

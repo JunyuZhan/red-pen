@@ -184,3 +184,8 @@ app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获
 批改取消 + 批改整体超时：POST /api/grading/cancel/{id}（工作台"处理中/排队中"提交加「取消」按钮）；单份批改用 asyncio.wait_for(grading_manager.grade, timeout=get_grading_timeout()) 整体包裹，默认 300s，可配 60-900s（GET/POST /api/grading/timeout）。取消路径三层：_grade_one 外层 except CancelledError（正在批改中）、_batch_worker except CancelledError（排队中）、取消端点直接落状态（task 从未启动时 except 块不会执行，必须由端点兜底——这是本轮最大的坑）。取消/超时后提交回 uploaded/failed，均可重批。4 项新测试共 356 passed，tag v0.5.24，Release 已挂 exe，官网已同步。
 坑：①从未启动过的 asyncio task 被 cancel() 时协程体完全不运行，任何 except 都不执行；②测试里 asyncio.run() 返回后 loop 关闭，跨 loop 的 TestClient 队列任务会被静默取消——取消类测试要在同一个 asyncio.run 协程内完成 排队→取消→gather；③fixture teardown 里 asyncio.all_tasks() 无运行 loop 会 RuntimeError，需 try 包住。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；设置页补超时配置项 UI；第八轮健壮性（上传中断/断点续传路径）。
+
+## 健壮性第八轮 ✅（2026-11-14，v0.5.25）
+上传中断路径加固 + 设置页超时 UI 补齐：①上传改分块读取（_read_capped），超过 MAX_FILE_SIZE 立即 400 中止接收，超大文件不再整体吞进内存；空文件（上传被中断）→ 400 人话提示"请重新拍照上传"。②移动端质量门禁退回（422）时，本轮已误建的作业记录一并删除——此前每次重拍前被拒的都留一个空作业孤儿。③GET /api/upload/file/{file_id} 校验 file_id 仅允许 hex+连字符（防路径穿越）。④设置页新增「批改超时」卡片（60-900s，GET/POST /api/grading/timeout），补齐 v0.5.24 留下的 UI 欠账。6 项新测试共 362 passed。
+坑：上传路由挂在 /api/upload 前缀下，端点全路径是 /api/upload/upload 和 /api/upload/upload-mobile（第一版测试写漏前缀全 404）。fixture rx_env 仍在 test_robustness_v0524.py，通过 `from test_robustness_v0524 import rx_env` 复用即可。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则第九轮健壮性（工作台/详情页异常路径）或并发上传大文件压测。

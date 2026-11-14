@@ -30,6 +30,29 @@ def _corruption_flag(flags: list) -> Optional[str]:
     return None
 
 
+def _read_capped(file: UploadFile) -> bytes:
+    """分块读取上传内容，超出大小上限立即中止——客户端上传超大/中断文件时
+    不再把整个文件吞进内存，尽早失败并给出人话提示。"""
+    chunks = []
+    total = 0
+    limit = settings.MAX_FILE_SIZE
+    while True:
+        chunk = file.file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件过大（超过 {limit // (1024*1024)}MB 上限），已中止接收，请压缩或换个清晰度的照片"
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="文件内容为空（上传可能被中断），请重新拍照上传")
+    return data
+
+
 def _validate_upload_file(file: UploadFile) -> str:
     """校验文件名与扩展名，返回小写扩展名。"""
     filename = file.filename or ""
@@ -44,15 +67,8 @@ def _validate_upload_file(file: UploadFile) -> str:
     return file_extension
 
 
-def _read_and_validate(data: bytes) -> None:
+def _validate_content(data: bytes) -> None:
     """大小与内容完整性校验；损坏图片一律硬拒绝（不可强行上传）。"""
-    if len(data) > settings.MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
-        )
-    if len(data) == 0:
-        raise HTTPException(status_code=400, detail="文件内容为空")
     flag = _corruption_flag(check_image(data))
     if flag:
         raise HTTPException(status_code=400, detail=f"文件损坏，无法上传: {flag}")
@@ -69,9 +85,9 @@ async def upload_assignment(
     # 验证文件类型
     file_extension = _validate_upload_file(file)
 
-    # 验证文件大小（一次性读入，避免流被耗尽）
-    data = file.file.read()
-    _read_and_validate(data)
+    # 验证文件大小（分块读取+上限即停，超大文件不再整体吞进内存）
+    data = _read_capped(file)
+    _validate_content(data)
 
     # 生成文件名
     file_id = str(uuid.uuid4())
@@ -141,8 +157,8 @@ async def upload_mobile(
     file_extension = _validate_upload_file(file)
 
     # 验证文件大小与内容完整性（损坏图片硬拒绝，不可强行上传）
-    data = file.file.read()
-    _read_and_validate(data)
+    data = _read_capped(file)
+    _validate_content(data)
     
     try:
         # 生成文件名
@@ -182,10 +198,13 @@ async def upload_mobile(
         # 创建提交记录
         flags = check_image(data)
         if flags and not force_quality:
-            # 质量不合格且未强行上传：清理文件，退回让用户选择重拍/强行上传
+            # 质量不合格且未强行上传：清理文件和本轮误建的作业记录（避免留下空作业孤儿），
+            # 退回让用户选择重拍/强行上传
             p = Path(file_path)
             if p.exists():
                 p.unlink()
+            db.delete(assignment)
+            db.commit()
             return JSONResponse(status_code=422, content={
                 "success": False,
                 "quality_flags": flags,
@@ -229,7 +248,9 @@ async def upload_mobile(
 @router.get("/file/{file_id}")
 async def get_file(file_id: str):
     """获取文件"""
-    # 在实际应用中，这里应该进行权限检查
+    # file_id 仅允许十六进制 UUID（防路径穿越），只做存在性反馈
+    if not file_id or not all(c in "0123456789abcdefABCDEF-" for c in file_id):
+        raise HTTPException(status_code=400, detail="非法的文件标识")
     file_path = settings.UPLOAD_DIR / f"{file_id}.jpg"  # 简化处理
     
     if not os.path.exists(file_path):
