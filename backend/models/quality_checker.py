@@ -6,6 +6,7 @@
 - 亮度过低/过曝：灰度均值
 - 尺寸过小：最短边像素数
 - 图像损坏：无法解码
+- 像素总量过大：解压炸弹防护
 
 仅用 PIL（直方图统计），不引入 numpy 新依赖。
 """
@@ -19,6 +20,8 @@ DARK_MEAN_MAX = 45.0          # 平均亮度低于此视为太暗
 BRIGHT_MEAN_MIN = 246.0
 OVEREXPOSE_STD_MAX = 28.0     # 高亮且低对比才判过曝（白纸黑字对比大属正常）       # 平均亮度高于此视为过曝（白纸照片均值高，阈值需留余量）
 MIN_DIMENSION = 400           # 最短边低于此视为过小
+MAX_PIXELS = 100_000_000      # 像素总量上限（约 1 亿），防解压炸弹拖垮内存
+Image.MAX_IMAGE_PIXELS = MAX_PIXELS  # PIL 解压炸弹硬上限与我们对齐
 EVAL_MAX_DIM = 1200           # 评估时降采样上限，控制耗时
 
 _LAPLACIAN = ImageFilter.Kernel((3, 3), [0, 1, 0, 1, -4, 1, 0, 1, 0], scale=1)
@@ -52,10 +55,15 @@ def check_image(data: bytes) -> list:
     try:
         img = ImageOps.exif_transpose(img)  # EXIF 方向校正后再评估
         img.load()
+    except Image.DecompressionBombError:
+        return ["图片像素总量过大，请用手机常规模式拍摄"]
     except Exception:
         return ["图片数据不完整或已损坏"]
 
     w, h = img.size
+    if w * h > MAX_PIXELS:
+        return ["图片像素总量过大（{}×{}），请用手机常规模式拍摄".format(w, h)]
+
     if min(w, h) < MIN_DIMENSION:
         flags.append(f"图片尺寸过小（{w}×{h}），手写字可能看不清，请靠近拍摄")
 

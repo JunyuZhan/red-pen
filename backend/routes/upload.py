@@ -17,6 +17,7 @@ from ..database import get_db, Submission, Assignment, Class
 from ..config import settings
 from ..models.grading_engine import grading_manager
 from ..models.quality_checker import check_image
+from ..models.input_limits import check_name_len, check_title_len
 
 router = APIRouter()
 
@@ -128,7 +129,14 @@ async def upload_mobile(
     db: Session = Depends(get_db)
 ):
     """移动端上传作业"""
-    
+    assignment_name = assignment_name.strip()
+    stage, subject = stage.strip(), subject.strip()
+    if not assignment_name or not stage or not subject:
+        raise HTTPException(status_code=400, detail="作业标题/学段/学科不能为空")
+    check_title_len(assignment_name)
+    check_name_len(stage, "学段")
+    check_name_len(subject, "学科")
+
     # 验证文件类型
     file_extension = _validate_upload_file(file)
 

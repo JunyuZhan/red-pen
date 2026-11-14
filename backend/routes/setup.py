@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .auth import require_admin
 from ..database import get_db, AppConfig, StageConfig, SubjectConfig, Class
+from ..models.input_limits import check_name_len
 
 router = APIRouter()
 
@@ -110,6 +111,9 @@ def _apply(db: Session, stage: str, subject: str, class_name: str,
     stage, subject, class_name = stage.strip(), subject.strip(), class_name.strip()
     if not stage or not subject or not class_name:
         raise HTTPException(status_code=400, detail="学段/学科/班级都不能为空")
+    check_name_len(stage, "学段")
+    check_name_len(subject, "学科")
+    check_name_len(class_name, "班级名称")
     stage_id, subject_id = _resolve_ids(db, stage, subject)
     cls = db.query(Class).filter(Class.name == class_name).first()
     if not cls:

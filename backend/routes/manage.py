@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from ..database import get_db, Class, Student
+from ..models.input_limits import check_name_len
 
 router = APIRouter()
 
@@ -42,9 +43,11 @@ async def list_classes(db: Session = Depends(get_db)):
 
 @router.post("/classes")
 async def create_class(data: ClassIn, db: Session = Depends(get_db)):
-    if not data.name.strip():
+    name = data.name.strip()
+    if not name:
         raise HTTPException(status_code=400, detail="班级名称不能为空")
-    c = Class(name=data.name.strip(), teacher_id=1,
+    check_name_len(name, "班级名称")
+    c = Class(name=name, teacher_id=1,
               stage_id=data.stage_id, subject_id=data.subject_id)
     db.add(c)
     db.commit()
@@ -84,11 +87,13 @@ async def list_students(class_id: Optional[int] = None, db: Session = Depends(ge
 
 @router.post("/students")
 async def create_student(data: StudentIn, db: Session = Depends(get_db)):
-    if not data.name.strip():
+    name = data.name.strip()
+    if not name:
         raise HTTPException(status_code=400, detail="学生姓名不能为空")
+    check_name_len(name, "学生姓名")
     if not db.query(Class).filter(Class.id == data.class_id).first():
         raise HTTPException(status_code=404, detail="班级不存在")
-    s = Student(name=data.name.strip(), class_id=data.class_id)
+    s = Student(name=name, class_id=data.class_id)
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -101,6 +106,7 @@ async def update_student(student_id: int, data: StudentUpdate, db: Session = Dep
     if not s:
         raise HTTPException(status_code=404, detail="学生不存在")
     if data.name and data.name.strip():
+        check_name_len(data.name.strip(), "学生姓名")
         s.name = data.name.strip()
     if data.class_id:
         if not db.query(Class).filter(Class.id == data.class_id).first():
