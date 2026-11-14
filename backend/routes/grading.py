@@ -277,6 +277,20 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         db.commit()
 
         q.update(state="completed", duration_seconds=duration, error=None)
+
+        # 跨页续题（待办 g6）：上一页尾题无答案 + 本页首题有答案 → 拼图重批。
+        # 任何异常静默跳过，不影响已保存的批改结果。
+        cross_page_stats = None
+        try:
+            from ..models.cross_page import maybe_cross_page_merge
+            cross_page_stats = await maybe_cross_page_merge(
+                db, submission, subject=subject,
+                answers=(template.answers if template else None))
+            if cross_page_stats:
+                get_logger().info("跨页续题已合并: %s", cross_page_stats)
+        except Exception as e:
+            get_logger().warning("跨页续题处理异常: %s", str(e)[:120])
+
         return {
             "success": True,
             "submission_id": submission.id,
@@ -287,6 +301,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             "duration_seconds": duration,
             "review": review_stats,
             "fusion": fusion_stats,
+            "cross_page": cross_page_stats,
         }
     finally:
         db.close()
