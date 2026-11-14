@@ -44,7 +44,7 @@
 
 <section>
   <div class="dl-card" style="padding:40px 32px">
-    <h2 style="font-size:32px">最新版本 v0.5.19 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
+    <h2 style="font-size:32px">最新版本 v0.5.20 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
     <p style="margin-top:8px;color:rgba(255,255,255,0.7);font-size:14px">⚠️ 内测版：功能仍在完善，遇到问题请加 QQ 群 984644289 反馈</p>
     <a class="btn btn-primary" style="margin-top:20px;font-size:17px;padding:14px 36px" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 RedPen.exe（Windows x64）</a>
     <p style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.6)">请始终从本页或 GitHub Releases 官方渠道下载</p>
@@ -66,144 +66,14 @@
 
 <section>
   <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.19</span> 批改异常兜底</h3>
-    <p style="margin-bottom:16px;opacity:.85">批改中途任何异常会把作业正确落到「失败」状态并写明原因，不再永远卡在「批改中」转圈；并发批改队列异常捕获加固；模型返回无法解析时批改摘要顶部显式提示「本页判定不可信，建议重新批改」。</p>
-    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.18</span> 上传加固</h3>
-    <p style="margin-bottom:16px;opacity:.85">损坏/空图片文件上传直接拒绝（不可强行上传），避免坏文件流入批改环节；无扩展名或非法类型文件名给出明确提示；修复删除不存在的文件误报「删除失败」的问题。</p>
-    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.17</span> 看板与上次对比</h3>
-    <p style="margin-bottom:16px;opacity:.85">作业等级列表每份作业旁显示与同班上一份作业的正确率涨跌（↑↓，绿升红降），并汇总全班最高/最低作业。</p>
-    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.16</span> 手动改答案归属</h3>
-    <p style="margin-bottom:16px;opacity:.85">工作台批改结果里每道有答案的题新增「归属改错？」按钮：切题归属错时，输入实际题号即可把答案（文本+红笔标注框）移过去；目标题判定自动进复核队列。</p>
-    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.15</span> OCR 增强</h3>
-    <p style="margin-bottom:16px;opacity:.85">设置页新增「OCR 增强」开关（默认关）：开启后切题时识别页面文字改用 DeepSeek 服务端 OCR（约 1.5 元/1000 页），手写/印刷混排识别更稳；仅 DeepSeek API 生效，其它供应商自动回退本地识别。</p>
-    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.14</span> 跨页续题</h3>
-    <p style="margin-bottom:16px;opacity:.7">作业拍多页、题目被页边界切开时，自动把上一页尾题与下一页首题拼图重批补全答案与判定；另含拍照分组（同一位拍下一页/下一位）交互。</p>
-    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.13</span> 切题说明段落误圈剔除</h3>
-    <p style="margin-bottom:16px;opacity:.85">「注意事项/答题要求」等说明段落不再被当成题目切出；另含 v0.5.12 修复：切题冗余「未作答」清理。</p>
-    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.12</span> 切题冗余未作答清理</h3>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.20</span> 管理路由孤儿防护（健壮性加固第三轮）</h3>
     <ul class="changelog">
-      <li>解答题/多步计算题 AI 逐步骤定位：只列做错的步骤及错因，批改详情页直接展示「第几步错在哪」，讲评不用逐行找；口算、选择题自动跳过（省 token）</li>
-    </ul>
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.10</span> 一键体验演示</h3>
-    <ul class="changelog">
-      <li>工作台新增「生成演示数据」按钮：没填 AI Key 也能先看完整批改产物（作业列表、题目判定、学情统计、各导出）。所有数据带【演示】标记（内置示例、非 AI 批改），可一键清除，不影响真实班级</li>
-    </ul>
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.9</span> 设置页「测试外网」</h3>
-    <ul class="changelog">
-      <li>手机连接引导新增「测试外网」按钮：一键检测电脑能否上外网调云端 AI，不通时给出查网络/防火墙的人话引导，并补齐「手机与电脑须同一 WiFi」提示</li>
-    </ul>
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.8</span> 得分矩阵导出</h3>
-    <ul class="changelog">
-      <li>按作业导出「学生 × 题号」得分矩阵 CSV（√/×/△/复核），末两行为每题正确率与正确数——讲评时一眼看出全班哪道题错得最多</li>
-    </ul>
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.7</span> 错误类型占比饼图</h3>
-<p>学情页错误类型分布除条形图外新增占比饼图与图例百分比，哪类错误占大头一眼看出。</p>
-<h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.6</span> 学生个人错题本</h3>
-    <ul class="changelog">
-      <li>工作台新增「学生错题本」：选学生一键导出该生全部错题，按知识点分组（错得最多的考点在前），含题号、题干、学生答案、参考答案、判定、错因——打印发给学生自己订正</li>
+      <li>删除班级防护：班级下还有作业时禁止删除，避免历史作业/成绩悬空</li>
+      <li>删除学生防护：学生已有作业记录时禁止删除，避免错题本与学情分析数据失真</li>
+      <li>改学生班级时校验目标班级存在，不再把学生改成无主状态</li>
     </ul>
   </div>
 </section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.5</span> 错题讲评清单加题干列</h3>
-    <ul class="changelog">
-      <li>错题讲评清单新增「题干」列：每道错题带上题目内容摘要，讲评时不用只凭题号回忆原题（新批改的作业生效）</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.4</span> 全班错题讲评清单</h3>
-    <ul class="changelog">
-      <li>新增「错题讲评清单」一键导出：全班所有作业的错题汇成一个表格（学生、题号、学生答案、参考答案、错因、知识点），按全班错误最多的考点排最前，讲评课直接照着讲</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.3</span> 成绩单知识点掌握列</h3>
-    <ul class="changelog">
-      <li>汇总导出新增知识点掌握列：每名学生在各知识点的掌握率（如 75%(3/4)），薄弱知识点排前面，跨作业合并一眼看出全班薄弱点</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.2</span> 成绩单汇总导出</h3>
-    <ul class="changelog">
-      <li>汇总导出班级维度细分：可按班级过滤导出，CSV 新增「班级」列，工作台新增按班级一键导出按钮</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.1</span> 成绩单汇总导出</h3>
-    <ul class="changelog">
-      <li>工作台「导出全班成绩单」新增「近30天汇总」「全部汇总」：一个 CSV 汇总每名学生在每份作业的正确率矩阵 + 平均正确率与平均等级，不必再逐份导出拼表</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.0</span> 导出全班成绩单</h3>
-    <ul class="changelog">
-      <li>工作台新增「导出全班成绩单」：按作业一键导出每个学生的成绩行（对错统计/正确率/等级/需复核题数），Windows Excel 双击直接打开、中文不乱码</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.19</span> 批改结果导出 Excel</h3>
-    <ul class="changelog">
-      <li>批改详情页新增「导出 Excel(CSV)」按钮，一键导出逐题明细（学生答案/判定/错因/置信度/知识点等），Windows Excel 双击直接打开、中文不乱码，方便整理成绩单</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.18</span> 选择题快路径（省成本）</h3>
-    <ul class="changelog">
-      <li>参考答案全是选项字母时，AI 只负责"读出学生选了哪项"，判对判错由软件本地精确比对参考答案——更准、输出更省（更便宜）；读不清的题自动进人工复核</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.17</span> 阴影照片更清晰</h3>
-    <ul class="changelog">
-      <li>拍照背光/阴影下手写发暗的问题：图像增强升级为局部自适应（只调亮度、不改颜色），阴影处字迹拉清楚；纯平图自动回退不劣化</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.16</span> 知识点统计更准</h3>
-    <ul class="changelog">
-      <li>学情分析的知识点聚合做了名称归一化：LLM 写出的"两位数乘 法""二位数乘法"等同一知识点的变体现在会合并统计，薄弱知识点排序不再因写法差异被拆散</li>
-    </ul>
-  </div>
-</section>
-
-<section>
-  <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.15</span> 标注防重叠（准确率专项）</h3>
-    <ul class="changelog">
-      <li>错因文字条自动避开相邻题目区域和其它文字条（右→左→上→下四级候选选位），题带紧凑时标注不再互相压盖</li>
-    </ul>
-  </div>
-</section>
-
 <section>
   <div class="ver-card">
     <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.4.14</span> 标注不遮挡原字（准确率专项）</h3>
