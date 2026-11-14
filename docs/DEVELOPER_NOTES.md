@@ -179,3 +179,8 @@ app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获
 坑：①monkeypatch 路由函数本身不生效（注册的协程是导入时的引用）——要 patch 路由内调用的模块级函数（如 dashboard.get_thresholds）；②测试兜底 handler 必须用 TestClient(app, raise_server_exceptions=False)；③本机 /tmp 是 3.8G tmpfs，pytest 残留 rp_test_* 目录堆满会报 "database or disk is full" 且全量跑被 OOM kill(137)——先 rm /tmp/rp_test_* /tmp/pytest-of-root。
 上轮欠账：官网 gh-pages v0.5.22 卡片漏同步，本轮连同 v0.5.23 一起补上，线上已验证。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则第七轮健壮性（上传/批改超时与取消路径）或整理贡献文档。
+
+## 健壮性第七轮 ✅（2026-11-14，v0.5.24）
+批改取消 + 批改整体超时：POST /api/grading/cancel/{id}（工作台"处理中/排队中"提交加「取消」按钮）；单份批改用 asyncio.wait_for(grading_manager.grade, timeout=get_grading_timeout()) 整体包裹，默认 300s，可配 60-900s（GET/POST /api/grading/timeout）。取消路径三层：_grade_one 外层 except CancelledError（正在批改中）、_batch_worker except CancelledError（排队中）、取消端点直接落状态（task 从未启动时 except 块不会执行，必须由端点兜底——这是本轮最大的坑）。取消/超时后提交回 uploaded/failed，均可重批。4 项新测试共 356 passed，tag v0.5.24，Release 已挂 exe，官网已同步。
+坑：①从未启动过的 asyncio task 被 cancel() 时协程体完全不运行，任何 except 都不执行；②测试里 asyncio.run() 返回后 loop 关闭，跨 loop 的 TestClient 队列任务会被静默取消——取消类测试要在同一个 asyncio.run 协程内完成 排队→取消→gather；③fixture teardown 里 asyncio.all_tasks() 无运行 loop 会 RuntimeError，需 try 包住。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；设置页补超时配置项 UI；第八轮健壮性（上传中断/断点续传路径）。
