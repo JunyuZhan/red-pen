@@ -151,6 +151,12 @@ async function load() {
     <div class="stat"><b>${s.failed}</b><span>失败</span></div>
     <div class="stat"><b>${s.total_questions}</b><span>批改题数</span></div>
     <div class="stat"><b>${s.accuracy == null ? "-" : (s.accuracy*100).toFixed(0)+"%"}</b><span>正确率</span></div>`;
+  // PRD 七·第一层：与上次对比 + 最高/最低
+  const bw = s.best_worst;
+  let bwHtml = "";
+  if (bw && bw.best && bw.worst) {
+    bwHtml = `<div style="margin-top:6px;font-size:13px;color:#555;">📈 最高：${bw.best.title}（${(bw.best.accuracy*100).toFixed(0)}%）　最低：${bw.worst.title}（${(bw.worst.accuracy*100).toFixed(0)}%）</div>`;
+  }
   const ag = (s.assignment_grades || []).filter(a => a.grade);
   if (ag.length) {
     const old = document.getElementById("assignmentGrades");
@@ -158,8 +164,14 @@ async function load() {
     const div = document.createElement("div");
     div.id = "assignmentGrades";
     div.style.cssText = "margin-top:10px;font-size:13px;color:#555;";
-    div.innerHTML = "📋 作业等级：" + ag.map(a =>
-      `<span style="display:inline-block;margin:2px 8px 2px 0;padding:2px 10px;border-radius:8px;background:#f0ead8;color:#6b5b2e;">${a.title || ("作业"+a.assignment_id)} <b>${a.grade}</b>（${(a.accuracy*100).toFixed(0)}%）</span>`).join("");
+    div.innerHTML = "📋 作业等级：" + ag.map(a => {
+      let delta = "";
+      if (a.delta != null) {
+        const up = a.delta >= 0;
+        delta = ` <span style="color:${up ? "#2e7d32" : "#c62828"};">${up ? "↑" : "↓"}${Math.abs(a.delta*100).toFixed(0)}%</span>`;
+      }
+      return `<span style="display:inline-block;margin:2px 8px 2px 0;padding:2px 10px;border-radius:8px;background:#f0ead8;color:#6b5b2e;">${a.title || ("作业"+a.assignment_id)} <b>${a.grade}</b>（${(a.accuracy*100).toFixed(0)}%）${delta}</span>`;
+    }).join("") + bwHtml;
     $("stats").after(div);
   }
   // 按作业导出全班成绩单（每行一名学生）

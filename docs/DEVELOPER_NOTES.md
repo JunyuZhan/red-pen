@@ -147,3 +147,6 @@ deepseek-flash 原生支持联网搜索/文件输入(含图片)/读链接；独�
 ## g6遗留）工作台手动改答案归属兜底入口 ✅（2026-11-14, v0.5.16）
 POST /api/grading/reassign/{submission_id}：source 的答案文本+bbox 并入 target，source 清空注明去向；target needs_review=1 进复核队列，bbox 合并时置信度压到 ≤0.5。工作台每道有答案的题加「归属改错？」按钮（prompt 输入目标题号→confirm→重载 view）。6 项新测试共 312 passed。坑：CHANGELOG 里 v0.5.15 条目被写了两遍，本轮顺带去重——改 CHANGELOG 后 grep 一下确认没有重复版本头。
 下一候选：真实批改准确率验证（等用户素材/API Key）；否则 g-h 剩余待办按序推进。
+
+## PRD缺口）看板第一层「与上次对比 + 最高/最低」 ✅（2026-11-14, v0.5.17）
+PRD 审计发现第七章看板第一层要求的「与上次对比、最高/最低」未落地。dashboard_summary 的 assignment_grades 每项新增 prev_accuracy/delta（同班上一份有成绩的作业，不跨班），顶层新增 best_worst；前端作业等级徽章带 ↑↓ 涨跌、上方最高/最低行。3项新测试共315 passed。坑：并列满分时 best 取哪份是遍历顺序决定的实现细节，测试只断言唯一确定的最低项 + 最高准确率，避免脆断言。PRD 剩余项已全部核对落地；下一候选：真实批改准确率验证（等用户素材/API Key）。

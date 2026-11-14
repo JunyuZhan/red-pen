@@ -29,16 +29,45 @@ async def dashboard_summary(db: Session = Depends(get_db)):
     # 作业等级换算（PRD 待办 n）：每个作业的正确率 → A/B/C/D
     thresholds = get_thresholds(db)
     from ..database import Class as ClassModel
+    # PRD 七·第一层：与上次对比 + 最高/最低
     assignment_grades = []
+    # 每个作业与「同班级上一份有成绩的作业」的正确率对比；同时给出全班最高/最低作业。
+    by_class = {}
+    for a in db.query(Assignment).order_by(Assignment.id.asc()).all():
+        by_class.setdefault(a.class_id, []).append(a)
+
+    best = worst = None  # (title, accuracy, assignment_id)
+
     for a in db.query(Assignment).order_by(Assignment.id.desc()).all():
         acc, n_q = accuracy_for_assignment(db, a.id)
+        prev_acc = None
+        if acc is not None:
+            for prev in reversed(by_class.get(a.class_id, [])):
+                if prev.id >= a.id:
+                    continue
+                p_acc, _ = accuracy_for_assignment(db, prev.id)
+                if p_acc is not None:
+                    prev_acc = p_acc
+                    break
+        if acc is not None:
+            if best is None or acc > best[1]:
+                best = (a.title or f"作业{a.id}", acc, a.id)
+            if worst is None or acc < worst[1]:
+                worst = (a.title or f"作业{a.id}", acc, a.id)
         assignment_grades.append({
             "assignment_id": a.id,
             "title": a.title,
             "questions": n_q,
             "accuracy": round(acc, 3) if acc is not None else None,
             "grade": compute_grade(acc, thresholds),
+            "prev_accuracy": round(prev_acc, 3) if prev_acc is not None else None,
+            "delta": round(acc - prev_acc, 3) if (acc is not None and prev_acc is not None) else None,
         })
+
+    best_worst = {
+        "best": {"title": best[0], "accuracy": round(best[1], 3)} if best else None,
+        "worst": {"title": worst[0], "accuracy": round(worst[1], 3)} if worst else None,
+    }
 
     return {
         "success": True,
@@ -52,6 +81,7 @@ async def dashboard_summary(db: Session = Depends(get_db)):
         "total_tokens": total_tokens,
         "total_cost": total_cost,
         "assignment_grades": assignment_grades,
+        "best_worst": best_worst,
         "classes": [{"id": c.id, "name": c.name}
                     for c in db.query(ClassModel).order_by(ClassModel.id).all()],
         # 学生列表（工作台「学生错题本」下拉用）
