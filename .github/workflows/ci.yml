@@ -160,16 +160,7 @@ jobs:
 
     - name: Test-suite (pytest, 含脚本式测试)
       run: |
-        set +e
-        PYTHONPATH=. python -m pytest tests/ -q > pytest_out.txt 2>&1
-        code=$?
-        tail -n 80 pytest_out.txt
-        if [ $code -ne 0 ]; then
-          grep -E "FAILED|ERROR|passed|failed|error|Error" pytest_out.txt | tail -n 30 | while IFS= read -r line; do
-            echo "::error title=pytest::${line:0:900}"
-          done
-        fi
-        exit $code
+        PYTHONPATH=. python -m pytest tests/ -q
 
 
   build-windows:
