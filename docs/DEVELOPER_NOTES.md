@@ -150,3 +150,8 @@ POST /api/grading/reassign/{submission_id}：source 的答案文本+bbox 并入 
 
 ## PRD缺口）看板第一层「与上次对比 + 最高/最低」 ✅（2026-11-14, v0.5.17）
 PRD 审计发现第七章看板第一层要求的「与上次对比、最高/最低」未落地。dashboard_summary 的 assignment_grades 每项新增 prev_accuracy/delta（同班上一份有成绩的作业，不跨班），顶层新增 best_worst；前端作业等级徽章带 ↑↓ 涨跌、上方最高/最低行。3项新测试共315 passed。坑：并列满分时 best 取哪份是遍历顺序决定的实现细节，测试只断言唯一确定的最低项 + 最高准确率，避免脆断言。PRD 剩余项已全部核对落地；下一候选：真实批改准确率验证（等用户素材/API Key）。
+
+## 健壮性第二轮 ✅（2026-11-14, v0.5.19）
+_grade_one 加顶层 except（未捕获异常落 failed，不再卡 processing）；批量 worker 异常捕获 + _TASKS 强引用集（asyncio 弱引用会被 GC）；模型 JSON 解析失败打 parse_failed 标记，摘要顶部警示「判定不可信建议重批」。5 项新测试共 327 passed，CI/Release/官网全同步。
+坑：monkeypatch g.grading_manager.grade 只覆盖引擎层 try；要测顶层兜底需 patch 模块级 annotate_image 之类中段函数。测试里直接调 start_batch 端点必须传 db=SessionLocal()。
+下一候选：真实批改准确率验证（等用户素材）；无素材则第三轮健壮性（工作台/模板路由异常路径）或 PRD 复审。
