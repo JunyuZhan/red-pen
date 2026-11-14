@@ -159,3 +159,7 @@ _grade_one 加顶层 except（未捕获异常落 failed，不再卡 processing�
 ## 健壮性第三轮 ✅（2026-11-14, v0.5.20）
 manage.py 孤儿防护：删班级检查班级下有作业(400)、删学生检查有提交记录(400)、改学生班级校验目标班级存在(404)。5项新测试共332 passed，CI/Release/官网全同步。
 ⚠️ 重大教训：官网 gh-pages 的 download.html 是权威完整版（含全部历史更新日志卡片），main 根目录的 download.html 是过时残缺副本——同步官网时必须先从 gh-pages worktree 取现版再打补丁，绝不能拿 main 的副本整个覆盖（本轮曾误覆盖删掉 24 个版本卡片，靠 git checkout ff96db3 -- download.html 恢复）。已把 main 的 download.html 对齐线上版防再犯。
+
+## 健壮性第四轮 ✅（2026-11-14, v0.5.21）
+backup.py 加固：restore 前置校验（BadZipFile→400、条目路径防 zip-slip、必须含 red_pen.db、解压到暂存区后校验 SQLite 头+integrity_check），全过才替换现有数据；create 改用 sqlite3 backup API 生成一致性快照；空数据备份 400。6项新测试共338 passed。坑：备份路由读写 settings.DATA_DIR/red_pen.db 与 tmp_db 的测试库无关——测试里 monkeypatch settings.DATA_DIR 到临时目录并用 sqlite3 直连该文件断言，不能复用 SessionLocal。
+下一候选：真实批改准确率验证（等用户素材/API Key）；无素材则 PRD 复审或第五轮健壮性。
