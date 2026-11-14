@@ -83,8 +83,9 @@ def test_non_deepseek_returns_none(client):
         assert ocr_enhanced.server_ocr_lines("/tmp/x.png") is None
 
 
-def test_server_success(client):
+def test_server_success(client, tmp_path):
     ocr_enhanced.save_ocr_enhanced(True)
+    p = _mk_page(str(tmp_path / "page.png"))
     payload = {"pages": [{"text": "1. 第一题\n2. 第二题\n\n注意事项：满分100分"}]}
     resp = mock.Mock(status_code=200)
     resp.raise_for_status = mock.Mock()
@@ -92,20 +93,21 @@ def test_server_success(client):
     with mock.patch.object(grading_engine, "get_llm_config",
                            return_value=_cfg("https://api.deepseek.com")), \
          mock.patch("httpx.post", return_value=resp) as mp:
-        lines = ocr_enhanced.server_ocr_lines("/tmp/page.png")
+        lines = ocr_enhanced.server_ocr_lines(p)
     assert lines == ["1. 第一题", "2. 第二题", "注意事项：满分100分"]
     url = mp.call_args.args[0]
     assert url == "https://api.deepseek.com/v1/tools/ocr"
 
 
-def test_server_http_error_returns_none(client):
+def test_server_http_error_returns_none(client, tmp_path):
     import httpx
 
     ocr_enhanced.save_ocr_enhanced(True)
+    p = _mk_page(str(tmp_path / "page.png"))
     with mock.patch.object(grading_engine, "get_llm_config",
                            return_value=_cfg("https://api.deepseek.com")), \
          mock.patch("httpx.post", side_effect=httpx.ConnectError("boom")):
-        assert ocr_enhanced.server_ocr_lines("/tmp/x.png") is None
+        assert ocr_enhanced.server_ocr_lines(p) is None
 
 
 def test_align_text_to_ink(client, tmp_path):
