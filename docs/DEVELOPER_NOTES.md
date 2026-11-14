@@ -173,3 +173,9 @@ backup.py 加固：restore 前置校验（BadZipFile→400、条目路径防 zip
 ## Windows装机走查清单 ✅（2026-11-14，随 v0.5.22 发布）
 新增 docs/WINDOWS_WALKTHROUGH.md：9 步真人装机走查（下载/SmartScreen → PIN → 首次引导 → 测试连接 → 防火墙/手机扫码 → 外网检查 → 完整批改链路 → 备份 → 重启恢复），每步带预期结果与失败排查，末尾有走查记录表让老师填了反馈。顺带补齐 v0.5.22 的 CHANGELOG 条目并打 tag 发布 exe（上轮漏打）。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；等用户反馈装机走查结果。
+
+## 健壮性第六轮 ✅（2026-11-14，v0.5.23）
+app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获异常统一 500 JSON {"success":false}，页面路由友好 HTML，全程写日志；HTTPException 不受影响（FastAPI 对 HTTPException 有更具体的 handler）。_render 包 try（模板缺失/损坏→友好 500 页），/settings 模板缺失同样兜底。5 项新测试共 352 passed，tag v0.5.23，Release 已挂 exe。
+坑：①monkeypatch 路由函数本身不生效（注册的协程是导入时的引用）——要 patch 路由内调用的模块级函数（如 dashboard.get_thresholds）；②测试兜底 handler 必须用 TestClient(app, raise_server_exceptions=False)；③本机 /tmp 是 3.8G tmpfs，pytest 残留 rp_test_* 目录堆满会报 "database or disk is full" 且全量跑被 OOM kill(137)——先 rm /tmp/rp_test_* /tmp/pytest-of-root。
+上轮欠账：官网 gh-pages v0.5.22 卡片漏同步，本轮连同 v0.5.23 一起补上，线上已验证。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则第七轮健壮性（上传/批改超时与取消路径）或整理贡献文档。
