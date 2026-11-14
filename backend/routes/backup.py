@@ -7,7 +7,8 @@
 健壮性约定（v0.5.21）：
 - create 用 SQLite 在线备份 API 生成一致性快照，不直接拷贝打开中的库文件；
 - restore 前置校验 zip 完整性、条目路径（防 zip-slip）、必须含 red_pen.db；
-- 校验全部通过后才清空旧数据，暂存区解压失败/库文件损坏都原数据不动。
+- 校验全部通过后才清空旧数据，暂存区解压失败/库文件损坏都原数据不动；
+- 清空旧数据前自动做一次当前数据快照（pre_restore_*.zip），误恢复可找回。
 """
 
 import shutil
@@ -62,36 +63,45 @@ async def list_backups():
     }
 
 
-@router.post("/create")
-async def create_backup():
+def _snapshot_into(zf: zipfile.ZipFile) -> None:
+    """把当前数据库（在线一致性快照）+ 上传文件写入 zf。"""
     db_file = settings.DATA_DIR / DB_NAME
     upload_dir = settings.UPLOAD_DIR
-    has_db = db_file.exists()
-    has_uploads = upload_dir.exists() and any(upload_dir.rglob("*"))
-    if not has_db and not has_uploads:
+    if db_file.exists():
+        # 在线备份 API 生成一致性快照，避免拷到打开中的库文件导致损坏
+        src = sqlite3.connect(str(db_file))
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                snap = Path(td) / DB_NAME
+                dst = sqlite3.connect(str(snap))
+                try:
+                    src.backup(dst)
+                finally:
+                    dst.close()
+                zf.write(snap, DB_NAME)
+        finally:
+            src.close()
+    if upload_dir.exists():
+        for f in upload_dir.rglob("*"):
+            if f.is_file():
+                zf.write(f, str(f.relative_to(upload_dir.parent)))
+
+
+def _has_data() -> bool:
+    db_file = settings.DATA_DIR / DB_NAME
+    upload_dir = settings.UPLOAD_DIR
+    return db_file.exists() or (upload_dir.exists() and any(upload_dir.rglob("*")))
+
+
+@router.post("/create")
+async def create_backup():
+    if not _has_data():
         raise HTTPException(status_code=400, detail="暂无数据可备份（数据库与上传目录均为空）")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = _backups_dir() / f"backup_{ts}.zip"
     with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        if has_db:
-            # 在线备份 API 生成一致性快照，避免拷到打开中的库文件导致损坏
-            src = sqlite3.connect(str(db_file))
-            try:
-                with tempfile.TemporaryDirectory() as td:
-                    snap = Path(td) / DB_NAME
-                    dst = sqlite3.connect(str(snap))
-                    try:
-                        src.backup(dst)
-                    finally:
-                        dst.close()
-                    zf.write(snap, DB_NAME)
-            finally:
-                src.close()
-        if upload_dir.exists():
-            for f in upload_dir.rglob("*"):
-                if f.is_file():
-                    zf.write(f, str(f.relative_to(upload_dir.parent)))
+        _snapshot_into(zf)
     return {
         "success": True,
         "message": f"备份已创建: {out_path.name}",
@@ -140,6 +150,12 @@ async def restore_backup(payload: RestoreIn):
 
         db_file = settings.DATA_DIR / DB_NAME
         upload_dir = settings.UPLOAD_DIR
+        # 恢复前自动快照当前数据（pre_restore_*.zip），误选错备份也能找回来
+        if _has_data():
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safety = _backups_dir() / f"pre_restore_{ts}.zip"
+            with zipfile.ZipFile(safety, "w", zipfile.ZIP_DEFLATED) as szf:
+                _snapshot_into(szf)
         if db_file.exists():
             db_file.unlink()
         if upload_dir.exists():
