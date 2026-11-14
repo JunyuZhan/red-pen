@@ -28,6 +28,8 @@ MAX_RETRY = 3  # PRD 4.4：最多自动/手动重试 3 次
 
 # 内存态队列状态：submission_id -> {state, duration_seconds, error}
 QUEUE: dict = {}
+# 批改任务强引用集（asyncio 只持弱引用，无强引用任务可能被 GC 中途回收）
+_TASKS: set = set()
 _sem: Optional[asyncio.Semaphore] = None
 _sem_size = 0
 
@@ -261,6 +263,12 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                                    result.get("analysis", ""))
         submission.annotated_image_path = annotated
         submission.grading_summary = result.get("analysis")
+        if result.get("parse_failed"):
+            # 模型回复无法解析为结构化 JSON：判定不可信，显式提示老师重批
+            submission.grading_summary = (
+                "⚠️ 模型返回内容无法解析为结构化结果，本页逐题判定不可信，建议重新批改。\n\n"
+                + (submission.grading_summary or ""))
+            get_logger().warning("submission=%s 模型返回解析失败，已标记判定不可信", submission.id)
 
         # 成本估算
         cost = estimate_cost(result.get("prompt_tokens", 0), result.get("completion_tokens", 0))
@@ -303,6 +311,22 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
             "fusion": fusion_stats,
             "cross_page": cross_page_stats,
         }
+    except Exception as e:
+        # 兜底异常（兜底健壮性 v0.5.19）：批改中途任何未捕获异常都不能让提交
+        # 永远卡在 processing / 队列卡在 processing——统一落到 failed 状态。
+        get_logger().error("批改异常 submission=%s: %s", submission_id, str(e)[:300])
+        q.update(state="failed", error=str(e)[:200],
+                 duration_seconds=round(time.monotonic() - t0, 2))
+        try:
+            sub = db.query(Submission).filter(Submission.id == submission_id).first()
+            if sub is not None:
+                sub.status = "failed"
+                sub.error_message = f"批改过程异常: {str(e)[:400]}"
+                sub.duration_seconds = round(time.monotonic() - t0, 2)
+                db.commit()
+        except Exception:
+            db.rollback()
+        return {"success": False, "error": str(e)}
     finally:
         db.close()
 
@@ -355,14 +379,23 @@ async def start_batch(data: BatchIn, db: Session = Depends(get_db)):
 
     sem = _get_semaphore()
 
-    async def worker(sid: int):
-        async with sem:
-            await _grade_one(sid, data.template_id)
+    # 兜底健壮性 v0.5.19：worker 内兜底捕获异常 + 任务强引用防 GC
+    # （asyncio 只持弱引用，无强引用的任务可能在执行中被垃圾回收）
+    async def _batch_worker(sid: int, sem_: asyncio.Semaphore, tid: Optional[int]):
+        try:
+            async with sem_:
+                await _grade_one(sid, tid)
+        except Exception as e:
+            QUEUE.setdefault(sid, {"state": "queued", "duration_seconds": None,
+                                   "error": None}).update(
+                state="failed", error=f"队列任务异常: {str(e)[:180]}")
+        finally:
+            _TASKS.discard(asyncio.current_task())
 
     queued_ids = []
     for s in eligible:
         QUEUE[s.id] = {"state": "queued", "duration_seconds": None, "error": None}
-        asyncio.create_task(worker(s.id))
+        _TASKS.add(asyncio.create_task(_batch_worker(s.id, sem, data.template_id)))
         queued_ids.append(s.id)
 
     return {"success": True, "queued": queued_ids, "count": len(queued_ids),

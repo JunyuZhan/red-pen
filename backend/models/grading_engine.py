@@ -500,9 +500,11 @@ class GradingEngine:
                     "rule_validation": rule_stats,
                     **usage_info,
                 }
-            # 无法结构化时降级为原始文本
+            # 无法结构化时降级为原始文本：标记 parse_failed，
+            # 让路由层把该页判定标注为不可信（健壮性 v0.5.19）
             return {
                 "success": True,
+                "parse_failed": True,
                 "raw_output": response,
                 "judgement": "unclear",
                 "confidence": 0.5,
