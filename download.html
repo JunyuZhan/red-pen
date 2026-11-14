@@ -44,7 +44,7 @@
 
 <section>
   <div class="dl-card" style="padding:40px 32px">
-    <h2 style="font-size:32px">最新版本 v0.5.28 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
+    <h2 style="font-size:32px">最新版本 v0.5.29 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
     <p style="margin-top:8px;color:rgba(255,255,255,0.7);font-size:14px">⚠️ 内测版：功能仍在完善，遇到问题请加 QQ 群 984644289 反馈</p>
     <a class="btn btn-primary" style="margin-top:20px;font-size:17px;padding:14px 36px" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 RedPen.exe（Windows x64）</a>
     <p style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.6)">请始终从本页或 GitHub Releases 官方渠道下载</p>
@@ -61,6 +61,11 @@
       <li>浏览器自动打开工作台，用默认 PIN <span class="kbd">123456</span> 登录后立即修改</li>
       <li>到设置页配置模型 API Key（详见<a href="guide.html" style="color:var(--notion-blue)">教程第 4 步</a>）</li>
     </ol>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.29</span> 并发更抗压（健壮性加固第十二轮）</h3>
+    <ul class="changelog">
+      <li><b>边收作业边批改压测通过</b>：模拟老师一边用手机收作业、一边批量批改的真实场景（并发上传+批改同时进行），验证互不干扰、结果零串扰、每份耗时正常记录</li>
+      <li>批改并发峰值不超过设置页配置的并发路数</li>
+    </ul>
     <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.28</span> 设置页加固（健壮性加固第十一轮）</h3>
     <p style="margin-bottom:16px;opacity:.85">设置页模型单价不再接受负数（避免污染成本统计与预算护栏）；「测试连接」参数校验更严格；未配置 API Key 时测试连接给出明确中文提示。</p>
     <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.27</span> 备份恢复更保险（健壮性加固第十轮）</h3>
