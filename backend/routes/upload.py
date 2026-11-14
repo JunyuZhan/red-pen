@@ -20,6 +20,43 @@ from ..models.quality_checker import check_image
 
 router = APIRouter()
 
+
+def _corruption_flag(flags: list) -> Optional[str]:
+    """从质量提示中取出硬性损坏标记（无法解码/数据不完整）。"""
+    for f in flags or []:
+        if "损坏" in f:
+            return f
+    return None
+
+
+def _validate_upload_file(file: UploadFile) -> str:
+    """校验文件名与扩展名，返回小写扩展名。"""
+    filename = file.filename or ""
+    if not filename or "." not in filename:
+        raise HTTPException(status_code=400, detail="缺少文件名或扩展名，无法识别文件类型")
+    file_extension = filename.rsplit(".", 1)[-1].lower()
+    if file_extension not in settings.ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型: {file_extension}"
+        )
+    return file_extension
+
+
+def _read_and_validate(data: bytes) -> None:
+    """大小与内容完整性校验；损坏图片一律硬拒绝（不可强行上传）。"""
+    if len(data) > settings.MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
+        )
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+    flag = _corruption_flag(check_image(data))
+    if flag:
+        raise HTTPException(status_code=400, detail=f"文件损坏，无法上传: {flag}")
+
+
 @router.post("/upload")
 async def upload_assignment(
     file: UploadFile = File(...),
@@ -28,22 +65,12 @@ async def upload_assignment(
     db: Session = Depends(get_db)
 ):
     """上传作业图片"""
-    
     # 验证文件类型
-    file_extension = file.filename.split('.')[-1].lower()
-    if file_extension not in settings.ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"不支持的文件类型: {file_extension}"
-        )
-    
+    file_extension = _validate_upload_file(file)
+
     # 验证文件大小（一次性读入，避免流被耗尽）
     data = file.file.read()
-    if len(data) > settings.MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
-        )
+    _read_and_validate(data)
 
     # 生成文件名
     file_id = str(uuid.uuid4())
@@ -103,20 +130,11 @@ async def upload_mobile(
     """移动端上传作业"""
     
     # 验证文件类型
-    file_extension = file.filename.split('.')[-1].lower()
-    if file_extension not in settings.ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"不支持的文件类型: {file_extension}"
-        )
-    
-    # 验证文件大小（一次性读入，避免流被耗尽）
+    file_extension = _validate_upload_file(file)
+
+    # 验证文件大小与内容完整性（损坏图片硬拒绝，不可强行上传）
     data = file.file.read()
-    if len(data) > settings.MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"文件过大，最大支持 {settings.MAX_FILE_SIZE} 字节"
-        )
+    _read_and_validate(data)
     
     try:
         # 生成文件名
@@ -244,6 +262,8 @@ async def delete_file(file_id: str, db: Session = Depends(get_db)):
             detail="文件不存在"
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
