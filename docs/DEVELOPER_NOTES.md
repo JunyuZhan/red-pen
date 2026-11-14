@@ -189,3 +189,7 @@ app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获
 上传中断路径加固 + 设置页超时 UI 补齐：①上传改分块读取（_read_capped），超过 MAX_FILE_SIZE 立即 400 中止接收，超大文件不再整体吞进内存；空文件（上传被中断）→ 400 人话提示"请重新拍照上传"。②移动端质量门禁退回（422）时，本轮已误建的作业记录一并删除——此前每次重拍前被拒的都留一个空作业孤儿。③GET /api/upload/file/{file_id} 校验 file_id 仅允许 hex+连字符（防路径穿越）。④设置页新增「批改超时」卡片（60-900s，GET/POST /api/grading/timeout），补齐 v0.5.24 留下的 UI 欠账。6 项新测试共 362 passed。
 坑：上传路由挂在 /api/upload 前缀下，端点全路径是 /api/upload/upload 和 /api/upload/upload-mobile（第一版测试写漏前缀全 404）。fixture rx_env 仍在 test_robustness_v0524.py，通过 `from test_robustness_v0524 import rx_env` 复用即可。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则第九轮健壮性（工作台/详情页异常路径）或并发上传大文件压测。
+
+## 健壮性第十一轮 ✅（2026-11-14，v0.5.28）
+设置页/模型连接异常路径探针结论：设置路由鉴权由 include_router 的 dependencies=[require_admin] 统一覆盖（路由内个别缺失无害）；各配置读取函数对脏值（非数字字符串）已有默认值兜底；GradingEngine 走 settings.LLM_TIMEOUT，「测试连接」不会挂死。修复两个真问题：/cost 接受负数单价（污染成本统计与预算护栏）→ 400；test-connection 非法 target 静默按 main → 400。5 项新测试共 375 passed。坑：测试设置类路由要用 conftest 的 tmp_db/auth_client（换绑各模块 SessionLocal），别学备份测试 monkeypatch settings.DATA_DIR——AppConfig 写的是导入时绑定的旧库，会碰到真实 data/red_pen.db。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则并发上传+批改混合压测或 PRD 复审。
