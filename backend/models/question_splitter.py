@@ -97,7 +97,22 @@ INSTR_DROP_RATIO = 0.7    # 区域与说明段落重叠比例 ≥ 此值才剔�
 
 def _ocr_lines(image_path: str) -> list:
     """OCR 识别整页文字行 → [{"text", "top", "bottom"}]，按 top 排序。
-    失败/无引擎返回 []。一次调用同时供题号锚点与说明段落检测使用。"""
+    失败/无引擎返回 []。一次调用同时供题号锚点与说明段落检测使用。
+
+    g7: 设置页开启「OCR 增强」时优先用 DeepSeek 服务端 OCR（纯文本，
+    行位置用墨迹行带对齐还原）；不可用/失败自动回退本地 RapidOCR。
+    """
+    try:
+        from .ocr_enhanced import align_text_to_ink, server_ocr_lines
+
+        texts = server_ocr_lines(image_path)
+        if texts is not None:
+            lines = align_text_to_ink(image_path, texts)
+            if lines is not None:
+                lines.sort(key=lambda l: l["top"])
+                return lines
+    except Exception:
+        pass
     ocr = _get_ocr()
     if ocr is None:
         return []

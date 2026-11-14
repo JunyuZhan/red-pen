@@ -124,6 +124,15 @@
   <div class="msg" id="split_msg"></div>
 </div>
 
+<!-- OCR 增强 -->
+<div class="card" style="margin-top:20px">
+  <h1>OCR 增强</h1>
+  <div class="sub">开启后，切题时识别页面文字（题号定位、说明段落剔除）改用 DeepSeek 服务端 OCR，识别更准（手写/印刷混排更稳）。费用约 1.5 元/1000 页（几厘钱一页）；仅当 AI 供应商为 DeepSeek 官方 API 时生效，其它供应商自动用本地识别。默认关闭。</div>
+  <label><input type="checkbox" id="ocr_enhanced"> 启用 OCR 增强（需 DeepSeek API）</label>
+  <button onclick="saveOcrEnhanced()">保存 OCR 增强设置</button>
+  <div class="msg" id="ocr_enhanced_msg"></div>
+</div>
+
 <!-- 批改缓存 -->
 <div class="card" style="margin-top:20px">
   <h1>批改缓存（防重复计费）</h1>
@@ -411,6 +420,12 @@ async function loadSplit() {
   if (d.success) document.getElementById("split_enabled").checked = !!d.enabled;
 }
 
+async function loadOcrEnhanced() {
+  const r = await fetch("/api/settings/ocr-enhanced");
+  const d = await r.json();
+  if (d.success) document.getElementById("ocr_enhanced").checked = !!d.enabled;
+}
+
 async function loadCache() {
   const r = await fetch("/api/settings/grading-cache");
   const d = await r.json();
@@ -483,6 +498,19 @@ async function saveSplit() {
     const d = await r.json();
     if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
     msg.className = "msg ok"; msg.textContent = "✅ 切题设置已保存";
+  } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
+}
+
+async function saveOcrEnhanced() {
+  const msg = document.getElementById("ocr_enhanced_msg");
+  try {
+    const r = await fetch("/api/settings/ocr-enhanced", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ enabled: document.getElementById("ocr_enhanced").checked })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) throw new Error(d.detail || "保存失败");
+    msg.className = "msg ok"; msg.textContent = "✅ OCR 增强设置已保存";
   } catch (e) { msg.className = "msg err"; msg.textContent = "❌ " + e.message; }
 }
 
@@ -785,7 +813,7 @@ async function saveGrade() {
   msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadCache(); loadMaxTokens(); loadPrivacy(); loadPreprocess(); loadReview(); loadGrade(); } });
+ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadSplit(); loadOcrEnhanced(); loadCache(); loadMaxTokens(); loadPrivacy(); loadPreprocess(); loadReview(); loadGrade(); } });
 </script>
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });

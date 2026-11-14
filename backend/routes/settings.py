@@ -81,6 +81,25 @@ class CacheConfigIn(BaseModel):
     enabled: bool
 
 
+# ---------- OCR 增强（待办 g7） ----------
+
+class OcrEnhancedIn(BaseModel):
+    enabled: bool = False
+
+
+@router.get("/ocr-enhanced")
+async def get_ocr_enhanced_settings():
+    from ..models.ocr_enhanced import get_ocr_enhanced_config
+    return {"success": True, **get_ocr_enhanced_config()}
+
+
+@router.post("/ocr-enhanced")
+async def update_ocr_enhanced_settings(config: OcrEnhancedIn, _: None = Depends(require_admin)):
+    from ..models.ocr_enhanced import save_ocr_enhanced, get_ocr_enhanced_config
+    save_ocr_enhanced(config.enabled)
+    return {"success": True, "message": "OCR 增强设置已保存", **get_ocr_enhanced_config()}
+
+
 @router.get("/grading-cache")
 async def get_cache_settings():
     from ..models.grading_engine import get_cache_config
