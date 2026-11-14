@@ -59,9 +59,19 @@ import inspect as _inspect
 def _render(template_name: str, request, **ctx):
     """兼容新旧 starlette 的 TemplateResponse 参数顺序"""
     params = list(_inspect.signature(templates.TemplateResponse).parameters)
-    if params and params[0] == "request":  # starlette >= 0.29
-        return templates.TemplateResponse(request, template_name, {"request": request, **ctx})
-    return templates.TemplateResponse(template_name, {"request": request, **ctx})
+    try:
+        if params and params[0] == "request":  # starlette >= 0.29
+            return templates.TemplateResponse(request, template_name, {"request": request, **ctx})
+        return templates.TemplateResponse(template_name, {"request": request, **ctx})
+    except Exception as e:  # noqa: BLE001  模板缺失/损坏时不给用户看 500 堆栈
+        logger = get_logger()
+        logger.error("页面模板渲染失败 %s: %s", template_name, e)
+        return HTMLResponse(
+            "<h2 style='font-family:sans-serif'>页面资源加载失败</h2>"
+            "<p style='font-family:sans-serif'>请重新安装程序，或在设置页使用备份恢复。"
+            "详情见日志文件。</p>",
+            status_code=500,
+        )
 
 # 包含路由
 app.include_router(auth.router, prefix="/api/auth", tags=["认证"])
@@ -87,6 +97,25 @@ app.include_router(demo.router, prefix="/api/demo", tags=["演示数据"],
 # 根路径
 from fastapi import Request
 
+# ---------- 全局兜底异常处理（第六轮健壮性）：未捕获异常不返回裸 500 ----------
+import traceback as _tb
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    get_logger().error("未捕获异常 %s %s: %s\n%s", request.method, request.url.path,
+                       exc, _tb.format_exc())
+    if request.url.path.startswith("/api"):
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "服务器内部错误，请重试；若反复出现请反馈日志文件"},
+        )
+    return HTMLResponse(
+        "<h2 style='font-family:sans-serif'>服务器内部错误</h2>"
+        "<p style='font-family:sans-serif'>操作未完成，请重试。详情见日志文件。</p>",
+        status_code=500,
+    )
+
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     return _render("index.html", request,
@@ -105,6 +134,13 @@ async def mobile_page(request: Request):
 async def settings_page():
     _tpl = _RES / "frontend" / "templates" / "settings.html"
     _tpl_path = _tpl if _tpl.exists() else _Path("frontend/templates/settings.html")
+    if not _tpl_path.exists():
+        get_logger().error("设置页模板缺失: %s", _tpl_path)
+        return HTMLResponse(
+            "<h2 style='font-family:sans-serif'>设置页面资源缺失</h2>"
+            "<p style='font-family:sans-serif'>请重新安装程序。详情见日志文件。</p>",
+            status_code=500,
+        )
     with open(_tpl_path, encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
