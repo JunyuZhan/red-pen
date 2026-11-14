@@ -163,3 +163,8 @@ manage.py 孤儿防护：删班级检查班级下有作业(400)、删学生检�
 ## 健壮性第四轮 ✅（2026-11-14, v0.5.21）
 backup.py 加固：restore 前置校验（BadZipFile→400、条目路径防 zip-slip、必须含 red_pen.db、解压到暂存区后校验 SQLite 头+integrity_check），全过才替换现有数据；create 改用 sqlite3 backup API 生成一致性快照；空数据备份 400。6项新测试共338 passed。坑：备份路由读写 settings.DATA_DIR/red_pen.db 与 tmp_db 的测试库无关——测试里 monkeypatch settings.DATA_DIR 到临时目录并用 sqlite3 直连该文件断言，不能复用 SessionLocal。
 下一候选：真实批改准确率验证（等用户素材/API Key）；无素材则 PRD 复审或第五轮健壮性。
+
+## 健壮性第五轮 ✅（2026-11-14, v0.5.22）
+边界输入加固：新建 backend/models/input_limits.py 集中限长常量（名字 50 字/标题 100 字），班级/学生增改、首次引导、移动端上传（标题/学段/学科，含空白串拒绝）全部接入；quality_checker 加解压炸弹防护（MAX_PIXELS=1 亿，Image.MAX_IMAGE_PIXELS 对齐 + DecompressionBombError 专捕）；新增 20 路并发上传压测（线程池同 client 上传 20 个学生，断言全部 200、提交 id 唯一、每生恰好 1 份无串扰）。9 项新测试共 347 passed。
+坑：① setup.py 的 import 是 `from ..database import get_db, AppConfig, ...` 多名合并行，往 get_db 后插 import 会拼坏——patch 导入行先看全行；② 纯白 JPEG 会被质量门禁判过曝，测试造图要用随机噪声（亮度居中+对比足）；③ /upload 响应不含 student_id，并发归属校验改从 DB 按 student 分组计数。
+下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则真人 Windows 装机走查清单文档。
