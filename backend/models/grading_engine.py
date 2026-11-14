@@ -32,6 +32,11 @@ PROVIDER_DEFAULTS = {
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
         "model": "glm-4v",
     },
+    "doubao": {
+        # 火山方舟（豆包），OpenAI 兼容接口；Seed 2.1 系列为全模态，支持图片输入
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "model": "doubao-seed-2-1-lite-260915",
+    },
     "custom": {
         "base_url": "",
         "model": "",
@@ -729,6 +734,7 @@ RECOMMENDED_VISION_MODELS = [
     {"provider": "qwen", "model": "qwen-vl-max", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问视觉旗舰，手写识别更准"},
     {"provider": "glm", "model": "glm-4v-flash", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉，有免费额度"},
     {"provider": "glm", "model": "glm-4v-plus", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉旗舰"},
+    {"provider": "doubao", "model": "doubao-seed-2-1-lite-260915", "base_url": "https://ark.cn-beijing.volces.com/api/v3", "note": "豆包 Seed 2.1（火山方舟），全模态支持图片，注意需先在方舟控制台开通服务并填 API Key"},
 ]
 
 # 模型价格预设表（PRD 待办 j）：单价 元/1K tokens，2026-11-11 按官方定价页核实（元/百万tokens 换算）
@@ -739,6 +745,8 @@ MODEL_PRICE_PRESETS = [
     {"model": "qwen3-vl-plus", "input": 0.001, "output": 0.010},
     {"model": "glm-4v-flash", "input": 0.0, "output": 0.0},
     {"model": "glm-4v-plus", "input": 0.004, "output": 0.004},
+    # 豆包 Seed 2.1 Lite（¥0.8 输入 / ¥2.7 输出 每百万 tokens，2026-11 官方定价）
+    {"model": "doubao-seed-2-1-lite-260915", "input": 0.0008, "output": 0.0027},
 ]
 
 # 错误信息中出现这些关键词 → 大概率是模型不支持视觉/图片输入

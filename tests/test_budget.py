@@ -99,6 +99,25 @@ def test_block_mode_not_blocking_when_under(seeded_db):
     assert b["exceeded"] is False and b["budget_action"] == "block", b
 
 
+def test_doubao_provider_supported():
+    """PRD 缺口 2：豆包（火山方舟）作为服务商，出现在默认配置/推荐清单/价格表。"""
+    from backend.models.grading_engine import (PROVIDER_DEFAULTS, RECOMMENDED_VISION_MODELS,
+                                               MODEL_PRICE_PRESETS)
+
+    d = PROVIDER_DEFAULTS["doubao"]
+    assert d["base_url"] == "https://ark.cn-beijing.volces.com/api/v3"
+    assert d["model"].startswith("doubao-seed-")
+    providers = {r["provider"] for r in RECOMMENDED_VISION_MODELS}
+    assert "doubao" in providers
+    doubao_recs = [r for r in RECOMMENDED_VISION_MODELS if r["provider"] == "doubao"]
+    assert all(r["base_url"].startswith("https://ark.") for r in doubao_recs)
+    # 推荐清单里的豆包模型有对应价格预设
+    models = {p["model"] for p in MODEL_PRICE_PRESETS}
+    assert all(r["model"] in models for r in doubao_recs)
+    preset = next(p for p in MODEL_PRICE_PRESETS if p["model"] == "doubao-seed-2-1-lite-260915")
+    assert preset["input"] > 0 and preset["output"] > 0
+
+
 def test_budget_config_roundtrip(budget_env):
     """配置读取/保存往返。"""
     from backend.models.budget import get_budget_config, save_budget_config

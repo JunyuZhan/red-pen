@@ -28,6 +28,7 @@
   <select id="provider" onchange="onProviderChange()">
     <option value="qwen">通义千问（阿里云百炼）</option>
     <option value="glm">智谱 GLM（bigmodel）</option>
+    <option value="doubao">豆包（火山方舟）</option>
     <option value="custom">自定义（OpenAI 兼容接口）</option>
   </select>
 
@@ -211,6 +212,7 @@
     <option value="">不启用备用切换</option>
     <option value="qwen">通义千问（阿里云百炼）</option>
     <option value="glm">智谱 GLM（bigmodel）</option>
+    <option value="doubao">豆包（火山方舟）</option>
     <option value="custom">自定义（OpenAI 兼容接口）</option>
   </select>
 
@@ -311,6 +313,7 @@
 const defaults = {
   qwen:   { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-vl-plus" },
   glm:    { base_url: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4v" },
+  doubao: { base_url: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-seed-2-1-lite-260915" },
   custom: { base_url: "", model: "" }
 };
 
@@ -743,6 +746,7 @@ function loadRecModels() {
   const recs = [
     ["通义千问（阿里云百炼）", "qwen-vl-plus", "性价比高，日常批改首选；qwen-vl-max 识别更准"],
     ["智谱 GLM（bigmodel）", "glm-4v-flash", "有免费额度；glm-4v-plus 为旗舰"],
+    ["豆包（火山方舟）", "doubao-seed-2-1-lite-260915", "Seed 2.1 全模态支持图片，便宜；需先在方舟控制台开通服务"],
   ];
   document.getElementById("rec_models").innerHTML = recs.map(r =>
     `<div>• <b>${r[0]}</b>（服务商选对应项即可）— 推荐模型：<code>${r[1]}</code>，${r[2]}</div>`
