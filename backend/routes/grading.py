@@ -107,6 +107,15 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
 
         questions = result.get("questions", [])
 
+        # 去重先行（回归修复）：引擎可能返回重复题号条目，切题/切带/入库
+        # 都必须基于去重后的题数，否则 CV 按错误题数找区域，一条 bbox 也对不上。
+        # 复用引擎去重（有真实答案的优先于「未作答」）
+        try:
+            from ..models.grading_engine import _dedupe_split_questions
+            questions = _dedupe_split_questions(questions) or questions
+        except Exception:
+            pass
+
         # 重批清旧：删除本次提交的历史逐题结果，避免重复累积
         db.query(QuestionResult).filter(QuestionResult.submission_id == submission.id).delete()
 
@@ -129,30 +138,7 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         except Exception:
             review_stats = None  # 复核链路任何异常都不能影响正常批改结果
 
-        # 保存逐题批改结果
-        first_qr = None
-        for qd in questions:
-            conf = qd.get("confidence")
-            qr = QuestionResult(
-                submission_id=submission.id,
-                question_no=int(qd.get("question_no") or 0) or 1,
-                question_type=qd.get("question_type") or "default",
-                knowledge_point=(qd.get("knowledge_point") or None) or None,
-                student_answer_text=qd.get("student_answer"),
-                correct_answer_text=qd.get("correct_answer"),
-                llm_raw_output=result.get("raw_output"),
-                judgement_raw=qd.get("judgement"),
-                judgement_final=qd.get("judgement"),
-                error_type=qd.get("error_type"),
-                confidence_final=float(conf) if isinstance(conf, (int, float)) else None,
-                bbox_answer=qd.get("bbox"),
-                steps=qd.get("steps"),
-                needs_review=1 if qd.get("needs_review") else 0,
-                review_note=qd.get("review_note"),
-            )
-            db.add(qr)
-            if first_qr is None:
-                first_qr = qr
+        # 保存逐题批改结果移至 bbox 覆盖之后（见下方"标注题数"前）
 
         # 标注坐标以本地 CV 切题为准（PRD 六章：LLM 视觉定位精度不足）：
         # CV 版面分析切出的区域数量与题目数一致时，按顺序用区域 bbox 覆盖引擎返回的坐标
@@ -243,6 +229,32 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
                 get_logger().info("按答案表真实题数切带: %s题/%s带", expected, len(bands2))
             except Exception as e:
                 get_logger().warning("真实题数切带失败: %s", str(e)[:120])
+
+        # CV切题 / 切带覆盖 bbox 之后才保存逐题结果（回归修复：原先入库在
+        # bbox 覆盖之前，DB 里 bbox_answer 永远是引擎原始值甚至为 null）
+        first_qr = None
+        for qd in questions:
+            conf = qd.get("confidence")
+            qr = QuestionResult(
+                submission_id=submission.id,
+                question_no=int(qd.get("question_no") or 0) or 1,
+                question_type=qd.get("question_type") or "default",
+                knowledge_point=(qd.get("knowledge_point") or None) or None,
+                student_answer_text=qd.get("student_answer"),
+                correct_answer_text=qd.get("correct_answer"),
+                llm_raw_output=result.get("raw_output"),
+                judgement_raw=qd.get("judgement"),
+                judgement_final=qd.get("judgement"),
+                error_type=qd.get("error_type"),
+                confidence_final=float(conf) if isinstance(conf, (int, float)) else None,
+                bbox_answer=qd.get("bbox"),
+                steps=qd.get("steps"),
+                needs_review=1 if qd.get("needs_review") else 0,
+                review_note=qd.get("review_note"),
+            )
+            db.add(qr)
+            if first_qr is None:
+                first_qr = qr
 
         get_logger().info("标注题数: 引擎返回%s条/去重%s条/最终%s条", len(questions), len(seen_q), len(uniq_questions))
         annotated = annotate_image(submission.original_image_path, uniq_questions,
