@@ -155,3 +155,7 @@ PRD 审计发现第七章看板第一层要求的「与上次对比、最高/最
 _grade_one 加顶层 except（未捕获异常落 failed，不再卡 processing）；批量 worker 异常捕获 + _TASKS 强引用集（asyncio 弱引用会被 GC）；模型 JSON 解析失败打 parse_failed 标记，摘要顶部警示「判定不可信建议重批」。5 项新测试共 327 passed，CI/Release/官网全同步。
 坑：monkeypatch g.grading_manager.grade 只覆盖引擎层 try；要测顶层兜底需 patch 模块级 annotate_image 之类中段函数。测试里直接调 start_batch 端点必须传 db=SessionLocal()。
 下一候选：真实批改准确率验证（等用户素材）；无素材则第三轮健壮性（工作台/模板路由异常路径）或 PRD 复审。
+
+## 健壮性第三轮 ✅（2026-11-14, v0.5.20）
+manage.py 孤儿防护：删班级检查班级下有作业(400)、删学生检查有提交记录(400)、改学生班级校验目标班级存在(404)。5项新测试共332 passed，CI/Release/官网全同步。
+⚠️ 重大教训：官网 gh-pages 的 download.html 是权威完整版（含全部历史更新日志卡片），main 根目录的 download.html 是过时残缺副本——同步官网时必须先从 gh-pages worktree 取现版再打补丁，绝不能拿 main 的副本整个覆盖（本轮曾误覆盖删掉 24 个版本卡片，靠 git checkout ff96db3 -- download.html 恢复）。已把 main 的 download.html 对齐线上版防再犯。
