@@ -46,6 +46,16 @@ _PAUSE_HINTS = {
 }
 
 
+def _parse_question_no(raw, fallback: int) -> int:
+    """老师答案表题号兼容：口算1 / 1(1) / 2. 等格式取前3位数字，无数字用序号。"""
+    _raw = str(raw or "").strip()
+    # "1(1)" 这类主号(子号)格式只取括号前的主题号，避免拼成 11
+    if "(" in _raw:
+        _raw = _raw.split("(", 1)[0]
+    _digits = "".join(ch for ch in _raw if ch.isdigit())[:3]
+    return int(_digits) if _digits else fallback
+
+
 def classify_pause_error(error: str) -> Optional[str]:
     """把底层报错归类为可自动暂停的原因（key_invalid / no_balance），否则 None"""
     e = (error or "").lower()
@@ -329,12 +339,9 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         first_qr = None
         for idx_q, qd in enumerate(questions, 1):
             conf = qd.get("confidence")
-            # 题号兼容：老师答案表常用「口算1 / 1(1) / 2.」等格式，不能直接 int()
-            _raw_no = str(qd.get("question_no") or "").strip()
-            _digits = "".join(ch for ch in _raw_no if ch.isdigit())[:3]
             qr = QuestionResult(
                 submission_id=submission.id,
-                question_no=int(_digits) if _digits else idx_q,
+                question_no=_parse_question_no(qd.get("question_no"), idx_q),
                 question_type=qd.get("question_type") or "default",
                 knowledge_point=(qd.get("knowledge_point") or None) or None,
                 student_answer_text=qd.get("student_answer"),
