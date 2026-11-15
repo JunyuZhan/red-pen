@@ -5,6 +5,7 @@
 失败重试+队列持久化 / 设置页测试连接。
 """
 import asyncio
+import time
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -190,6 +191,7 @@ def test_retry_and_queue_persistence(tmp_db):
     # 模拟重启：startup 恢复逻辑应把 processing → failed
     from backend.app import startup_event
     asyncio.run(startup_event())
+    import backend.routes.grading as _gr
     db = SessionLocal()
     assert db.query(Submission).get(pid).status == "failed", "中断任务未恢复"
     assert db.query(Submission).get(pid).error_message, "中断任务缺失败原因"
@@ -223,8 +225,19 @@ def test_retry_and_queue_persistence(tmp_db):
     db = SessionLocal()
     db.query(Submission).get(fid).retry_count = 0; db.commit(); db.close()
     c.post(f"/api/grading/retry/{fid}")
-    db = SessionLocal()
-    s = db.query(Submission).get(fid)
+    # 后台任务异步执行，轮询等待其落到终态（最多 10 秒）
+    s = None
+    for _ in range(50):
+        db = SessionLocal()
+        s = db.query(Submission).get(fid)
+        if s.status != "processing":
+            db.close()
+            break
+        db.close()
+        time.sleep(0.2)
+    else:
+        db = SessionLocal()
+        s = db.query(Submission).get(fid)
     assert s.status == "failed" and s.error_message and s.retry_count == 1, (s.status, s.error_message)
     db.close()
 

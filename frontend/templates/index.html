@@ -49,6 +49,7 @@
       <button id="batchBtn" onclick="startBatch()" style="float:right;padding:6px 14px;background:#c0392b;color:#fff;border:none;border-radius:8px;cursor:pointer;">🚀 一键批改全部待批</button>
     </h2>
     <p class="hint" id="queueHint" style="display:none;margin:0 0 8px;"></p>
+    <button id="resumeBtn" onclick="resumeQueue()" style="display:none;float:right;margin-bottom:8px;padding:4px 10px;cursor:pointer;">▶️ 恢复批改</button>
     <table>
       <thead><tr><th>ID</th><th>状态</th><th>总评</th><th>查看</th></tr></thead>
       <tbody id="rows"><tr><td colspan="4" class="hint">加载中…</td></tr></tbody>
@@ -302,23 +303,37 @@ async function pollQueue() {
   const d = await r.json();
   const c = d.counts || {};
   const hint = $("queueHint");
-  if (c.queued + c.processing > 0) {
+  if (d.provider_paused && d.provider_paused.paused) {
     hint.style.display = "block";
-    hint.textContent = `⏳ 批改队列：排队 ${c.queued} 份 · 处理中 ${c.processing} 份（并发 ${d.concurrency} 路）` +
-      (c.completed ? ` · 已完成 ${c.completed} 份` : "") + (c.failed ? ` · 失败 ${c.failed} 份` : "") +
-      (d.avg_duration_seconds ? ` · 平均单份 ${d.avg_duration_seconds}s` : "");
-    clearTimeout(_pollTimer);
-    _pollTimer = setTimeout(pollQueue, 3000);
-    loadRows();
+    hint.textContent = `⛔ 批改已自动暂停：${d.provider_paused.reason}。请到设置页修复后点「测试连接」恢复，或先点下方按钮再修 Key。`;
+    $("resumeBtn").style.display = "inline-block";
   } else {
-    if (hint.style.display === "block") {
+    $("resumeBtn").style.display = "none";
+    if (c.queued + c.processing > 0) {
       hint.style.display = "block";
-      hint.textContent = `✅ 本轮批改完成：成功 ${c.completed} 份` +
-        (c.failed ? ` · 失败 ${c.failed} 份（可在列表中重试）` : "") +
+      hint.textContent = `⏳ 批改队列：排队 ${c.queued} 份 · 处理中 ${c.processing} 份（并发 ${d.concurrency} 路）` +
+        (c.completed ? ` · 已完成 ${c.completed} 份` : "") + (c.failed ? ` · 失败 ${c.failed} 份` : "") +
         (d.avg_duration_seconds ? ` · 平均单份 ${d.avg_duration_seconds}s` : "");
+      clearTimeout(_pollTimer);
+      _pollTimer = setTimeout(pollQueue, 3000);
+      loadRows();
+    } else {
+      if (hint.style.display === "block") {
+        hint.style.display = "block";
+        hint.textContent = `✅ 本轮批改完成：成功 ${c.completed} 份` +
+          (c.failed ? ` · 失败 ${c.failed} 份（可在列表中重试）` : "") +
+          (d.avg_duration_seconds ? ` · 平均单份 ${d.avg_duration_seconds}s` : "");
+      }
+      loadRows(); load();
     }
-    loadRows(); load();
   }
+}
+
+async function resumeQueue() {
+  const r = await fetch("/api/grading/resume", { method: "POST" });
+  if (!r.ok) return alert("恢复失败（需要 PIN 管理员权限）");
+  $("resumeBtn").style.display = "none";
+  pollQueue();
 }
 
 // ---------- 答案模板 ----------

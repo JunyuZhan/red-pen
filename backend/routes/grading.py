@@ -35,6 +35,44 @@ _TASK_BY_SID: dict = {}
 _sem: Optional[asyncio.Semaphore] = None
 _sem_size = 0
 
+# ============ Key 失效/欠费自动暂停（PRD 4.4） ============
+# 连续出现鉴权失败/账户欠费类错误时自动暂停队列，不再烧 token 打无效请求；
+# 设置页"测试连接"成功或手动调用 /resume 恢复。
+_PROVIDER_PAUSED: dict = {"paused": False, "reason": None, "paused_at": None}
+
+_PAUSE_HINTS = {
+    "key_invalid": ("401", "unauthorized", "invalid api key", "api key", "authentication"),
+    "no_balance": ("402", "insufficient", "balance", "欠费", "余额不足", "arrears", "billing"),
+}
+
+
+def classify_pause_error(error: str) -> Optional[str]:
+    """把底层报错归类为可自动暂停的原因（key_invalid / no_balance），否则 None"""
+    e = (error or "").lower()
+    for kind, hints in _PAUSE_HINTS.items():
+        if any(h in e for h in hints):
+            return kind
+    return None
+
+
+def pause_provider(reason: str) -> None:
+    _PROVIDER_PAUSED.update(paused=True, reason=reason,
+                            paused_at=datetime.utcnow().isoformat())
+    get_logger().warning("服务商自动暂停：%s", reason)
+
+
+def resume_provider() -> bool:
+    """恢复队列，返回恢复前是否处于暂停态"""
+    was = _PROVIDER_PAUSED["paused"]
+    _PROVIDER_PAUSED.update(paused=False, reason=None, paused_at=None)
+    if was:
+        get_logger().info("服务商暂停已恢复")
+    return was
+
+
+def get_pause_state() -> dict:
+    return dict(_PROVIDER_PAUSED)
+
 # 第七轮健壮性：单份批改整体超时（秒），存 AppConfig，默认 300，范围 60-900
 def get_grading_timeout() -> int:
     db = SessionLocal()
@@ -86,6 +124,18 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         q["error"] = f"本月已用 {budget['spent']:.2f} 元，已达预算上限 {budget['monthly_budget']:.2f} 元（设置页可调整）"
         db.close()
         return {"success": False, "error": q["error"], "budget": budget}
+    pause = get_pause_state()
+    if pause["paused"]:
+        # PRD 4.4：暂停态直接快速失败，不再发起模型请求烧 token；提交同步落 failed 可重试
+        submission = db.query(Submission).filter(Submission.id == submission_id).first()
+        if submission and submission.status == "processing":
+            submission.status = "failed"
+            submission.error_message = f"已自动暂停批改：{pause['reason']}。请到设置页修复后点「测试连接」恢复。"
+            db.commit()
+        q["state"] = "failed"
+        q["error"] = f"已自动暂停批改：{pause['reason']}。请到设置页修复后点「测试连接」恢复。"
+        db.close()
+        return {"success": False, "error": q["error"], "paused": True}
     try:
         template = None
         if template_id:
@@ -123,19 +173,29 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         except Exception as e:
             submission.status = "failed"
             submission.error_message = str(e)[:500]
+            # PRD 4.4：鉴权/欠费类错误自动暂停队列，防止剩余任务继续烧 token
+            pause_kind = classify_pause_error(str(e))
+            if pause_kind:
+                pause_provider("API Key 无效或已过期" if pause_kind == "key_invalid" else "账户余额不足或已欠费")
+                q["error"] = f"{str(e)[:120]}（已自动暂停队列，请到设置页修复后点「测试连接」恢复）"
             get_logger().error("批改失败 submission=%s: %s", submission.id, str(e)[:300])
             submission.duration_seconds = round(time.monotonic() - t0, 2)
             db.commit()
-            q.update(state="failed", error=str(e)[:200],
+            q.update(state="failed", error=q["error"],
                      duration_seconds=round(time.monotonic() - t0, 2))
             return {"success": False, "error": str(e)}
 
         if not result.get("success"):
             submission.status = "failed"
             submission.error_message = str(result.get("error", "批改失败"))[:500]
+            pause_kind = classify_pause_error(str(result.get("error", "")))
+            err_txt = str(result.get("error", "批改失败"))[:200]
+            if pause_kind:
+                pause_provider("API Key 无效或已过期" if pause_kind == "key_invalid" else "账户余额不足或已欠费")
+                err_txt += "（已自动暂停队列，请到设置页修复后点「测试连接」恢复）"
             submission.duration_seconds = round(time.monotonic() - t0, 2)
             db.commit()
-            q.update(state="failed", error=str(result.get("error", "批改失败"))[:200],
+            q.update(state="failed", error=err_txt,
                      duration_seconds=round(time.monotonic() - t0, 2))
             return {"success": False, "error": result.get("error", "批改失败")}
 
@@ -491,7 +551,16 @@ async def queue_status(db: Session = Depends(get_db)):
         "avg_duration_seconds": round(sum(durations) / len(durations), 2) if durations else None,
         "items": items[-100:],
         "db_processing": processing_db,
+        # PRD 4.4：Key 失效/欠费自动暂停状态，工作台展示横幅
+        "provider_paused": get_pause_state(),
     }
+
+
+@router.post("/resume")
+async def resume_queue(_: None = Depends(require_admin)):
+    """手动恢复被自动暂停的批改队列（PRD 4.4）"""
+    was = resume_provider()
+    return {"success": True, "resumed": was}
 
 
 @router.post("/cancel/{submission_id}")

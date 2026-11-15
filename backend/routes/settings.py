@@ -55,6 +55,10 @@ async def test_llm_connection(config: TestConnectionIn):
     api_key = (config.api_key or "").strip() or saved.get("api_key", "")
     result = await run_test(saved.get("provider", ""), base_url, model, api_key)
     from ..models.grading_engine import RECOMMENDED_VISION_MODELS
+    # PRD 4.4：主引擎测试连接成功 → 自动解除 Key 失效/欠费暂停
+    if result.get("success") and config.target == "main":
+        from .grading import resume_provider
+        resume_provider()
     return {"success": result.get("success", False), **result,
             "recommendations": RECOMMENDED_VISION_MODELS}
 
