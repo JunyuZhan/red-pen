@@ -179,6 +179,11 @@ async def startup_event():
             print(f"♻️ 恢复队列：{len(stuck)} 条中断任务已转回失败状态，可重试")
     finally:
         db.close()
+    # 上传文件目录迁移：旧扁平 uploads/uuid.jpg → 班级/作业/学生 层级（PRD 九）
+    from .storage import migrate_upload_layout
+    m = migrate_upload_layout()
+    if m:
+        print(f"📁 已把 {m} 张旧上传图片迁移到 班级/作业/学生 目录结构")
     # API Key 静态加密：把旧明文 Key 自动迁移为密文（PRD 4.2）
     from .models.secret_box import migrate_plaintext_keys
     n = migrate_plaintext_keys()

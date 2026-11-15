@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ..database import get_db, Submission, Assignment, Class, Student
 from ..config import settings
+from ..storage import upload_rel_path, upload_abs_path
 from ..models.grading_engine import grading_manager
 from ..models.quality_checker import check_image
 from ..models.input_limits import check_name_len, check_title_len
@@ -95,10 +96,14 @@ async def upload_assignment(
     if not db.query(Student).filter(Student.id == student_id).first():
         raise HTTPException(status_code=404, detail="学生不存在，请先在学生管理中添加")
 
-    # 生成文件名
+    # 生成文件名（按 班级/作业/学生 目录组织，PRD 九）
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    class_id = assignment.class_id if assignment else 0
     file_id = str(uuid.uuid4())
     filename = f"{file_id}.{file_extension}"
-    file_path = settings.UPLOAD_DIR / filename
+    rel = upload_rel_path(class_id, assignment_id, student_id, filename)
+    file_path = upload_abs_path(rel)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 保存文件
     try:
@@ -167,15 +172,6 @@ async def upload_mobile(
     _validate_content(data)
     
     try:
-        # 生成文件名
-        file_id = str(uuid.uuid4())
-        filename = f"{file_id}.{file_extension}"
-        file_path = settings.UPLOAD_DIR / filename
-        
-        # 保存文件
-        with open(file_path, "wb") as buffer:
-            buffer.write(data)
-        
         # 获取或创建班级
         class_result = db.query(Class).filter(Class.name == f"{stage}{subject}班级").first()
         if not class_result:
@@ -188,7 +184,7 @@ async def upload_mobile(
             db.add(class_result)
             db.commit()
             db.refresh(class_result)
-        
+
         # 创建作业记录
         assignment = Assignment(
             class_id=class_result.id,
@@ -196,11 +192,20 @@ async def upload_mobile(
             subject_id=1,  # 默认数学
             created_at=datetime.utcnow()
         )
-        
+
         db.add(assignment)
         db.commit()
         db.refresh(assignment)
-        
+
+        # 生成文件名并按 班级/作业/学生 目录保存（PRD 九）
+        file_id = str(uuid.uuid4())
+        filename = f"{file_id}.{file_extension}"
+        rel = upload_rel_path(class_result.id, assignment.id, student_id if student_id else 1, filename)
+        file_path = upload_abs_path(rel)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "wb") as buffer:
+            buffer.write(data)
+
         # 创建提交记录
         flags = check_image(data)
         if flags and not force_quality:
