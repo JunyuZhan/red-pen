@@ -57,9 +57,15 @@ def test_read_capped_empty_raises(monkeypatch):
 def test_upload_endpoint_rejects_empty_file(rx_env):
     """上传端点收到空文件 → 400，不落库不留文件。"""
     client = rx_env["client"]
+    from backend.database import Assignment, Class, SessionLocal
+    db = SessionLocal()
+    cls = Class(name="空文件测试班", teacher_id=1, stage_id=1, subject_id=1)
+    db.add(cls); db.commit()
+    asg = Assignment(class_id=cls.id, title="空文件测试作业", subject_id=1)
+    db.add(asg); db.commit(); aid = asg.id; db.close()
     r = client.post("/api/upload/upload",
                     files={"file": ("a.jpg", b"", "image/jpeg")},
-                    data={"assignment_id": "1", "student_id": "1"})
+                    data={"assignment_id": str(aid), "student_id": "1"})
     assert r.status_code == 400
     assert "为空" in r.json()["detail"]
 

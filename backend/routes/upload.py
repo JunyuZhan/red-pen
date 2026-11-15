@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from ..database import get_db, Submission, Assignment, Class
+from ..database import get_db, Submission, Assignment, Class, Student
 from ..config import settings
 from ..models.grading_engine import grading_manager
 from ..models.quality_checker import check_image
@@ -88,6 +88,12 @@ async def upload_assignment(
     # 验证文件大小（分块读取+上限即停，超大文件不再整体吞进内存）
     data = _read_capped(file)
     _validate_content(data)
+
+    # 外键引用校验：不存在的作业/学生不得静默创建孤儿提交
+    if not db.query(Assignment).filter(Assignment.id == assignment_id).first():
+        raise HTTPException(status_code=404, detail="作业不存在，请返回作业列表刷新后重试")
+    if not db.query(Student).filter(Student.id == student_id).first():
+        raise HTTPException(status_code=404, detail="学生不存在，请先在学生管理中添加")
 
     # 生成文件名
     file_id = str(uuid.uuid4())

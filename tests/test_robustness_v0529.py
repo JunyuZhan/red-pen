@@ -63,7 +63,11 @@ def mx_env(cq_env, monkeypatch):
     students = [client.post("/api/manage/students",
                             json={"name": f"混{i:02d}", "class_id": cls}).json()["id"]
                 for i in range(10)]
-    yield {"client": client, "dbmod": cq_env["dbmod"], "students": students}
+    from backend.database import Assignment, SessionLocal
+    db = SessionLocal()
+    asg = Assignment(class_id=cls, title="混合压测作业", subject_id=1)
+    db.add(asg); db.commit(); aid = asg.id; db.close()
+    yield {"client": client, "dbmod": cq_env["dbmod"], "students": students, "aid": aid}
 
 
 def _jpeg(w=800, h=600):
@@ -78,12 +82,13 @@ def _jpeg(w=800, h=600):
 def test_mixed_upload_and_grading(mx_env):
     """上传线程与批量批改同时跑：互不干扰，全部完成，串扰为零。"""
     client, dbmod, students = mx_env["client"], mx_env["dbmod"], mx_env["students"]
+    aid = mx_env["aid"]
     # 第一批：先收 6 份，立刻发起批量批改
     first_ids = []
     for i in range(6):
         r = client.post("/api/upload/upload",
                         files={"file": (f"f{i}.jpg", _jpeg(), "image/jpeg")},
-                        data={"assignment_id": 1, "student_id": students[i]})
+                        data={"assignment_id": aid, "student_id": students[i]})
         assert r.status_code == 200, r.text
         first_ids.append(r.json()["submission_id"])
 
@@ -93,7 +98,7 @@ def test_mixed_upload_and_grading(mx_env):
     def work(i):
         r = client.post("/api/upload/upload",
                         files={"file": (f"l{i}.jpg", _jpeg(), "image/jpeg")},
-                        data={"assignment_id": 1, "student_id": students[6 + i]})
+                        data={"assignment_id": aid, "student_id": students[6 + i]})
         upload_results[i] = r.status_code
 
     threads = [threading.Thread(target=work, args=(i,)) for i in range(4)]

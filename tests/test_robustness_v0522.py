@@ -124,13 +124,18 @@ def test_concurrent_uploads_isolated(client, tmp_db):
     students = [client.post("/api/manage/students",
                             json={"name": f"生{i:02d}", "class_id": cls}).json()["id"]
                 for i in range(20)]
+    # 上传外键校验要求作业真实存在
+    from backend.database import Assignment, SessionLocal
+    db = SessionLocal()
+    asg = Assignment(class_id=cls, title="并发压测作业", subject_id=1)
+    db.add(asg); db.commit(); aid = asg.id; db.close()
     results = [None] * 20
 
     def work(i):
         files = {"file": (f"h{i}.jpg", _jpeg(), "image/jpeg")}
         r = client.post("/api/upload/upload",
                         files=files,
-                        data={"assignment_id": 1, "student_id": students[i]})
+                        data={"assignment_id": aid, "student_id": students[i]})
         results[i] = (r.status_code, r.json().get("submission_id"))
 
     threads = [threading.Thread(target=work, args=(i,)) for i in range(20)]
