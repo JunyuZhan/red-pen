@@ -124,3 +124,39 @@ def test_markdown_report_empty_engine():
     md = mod.markdown_report({"engines": {"glm": {"success": False, "hit": 0, "total": 0,
                                                   "accuracy": 0.0, "cases": []}}})
     assert "无可用结果" in md
+
+
+def test_error_breakdown_categories():
+    # 1: 漏判(期望wrong判成correct)  2: 误判(期望correct判成wrong)  3: OCR读错  4: 正确
+    cases = [
+        {"success": True,
+         "truth": [{"question_no": 1, "student_answer": "96", "correct": "100"}],
+         "rows": [["1", "96", "correct", "wrong", "✗", "0.9", "96"]]},
+        {"success": True,
+         "truth": [{"question_no": 2, "student_answer": "95", "correct": "95"}],
+         "rows": [["2", "95", "wrong", "correct", "✗", "0.8", "95"]]},
+        {"success": True,
+         "truth": [{"question_no": 3, "student_answer": "100", "correct": "100"}],
+         "rows": [["3", "100", "correct", "correct", "✓", "0.8", "10O"]]},
+        {"success": True,
+         "truth": [{"question_no": 4, "student_answer": "9", "correct": "9"}],
+         "rows": [["4", "9", "correct", "correct", "✓", "0.8", "9"]]},
+        {"success": False, "rows": []},
+    ]
+    assert mod.error_breakdown(cases) == (1, 1, 1, 4)
+
+
+def test_error_breakdown_empty_and_md_warning():
+    assert mod.error_breakdown([]) == (0, 0, 0, 0)
+    md = mod.markdown_report({"engines": {"glm": {"hit": 0, "total": 1, "accuracy": 0.0, "cases": [
+        {"success": True, "truth": [{"question_no": 1, "student_answer": "96", "correct": "100"}],
+         "rows": [["1", "96", "correct", "wrong", "✗", "0.9", "96"]]}]}}})
+    assert "漏判" in md and "不可放心用" in md
+
+
+def test_error_breakdown_ocr_no_readback_falls_back():
+    # 旧格式 rows 只有 6 列时回退用第 2 列（真相学生答案），不算 OCR 错
+    cases = [{"success": True,
+              "truth": [{"question_no": 1, "student_answer": "96", "correct": "100"}],
+              "rows": [["1", "96", "correct", "wrong", "✓", "0.9"]]}]
+    assert mod.error_breakdown(cases) == (0, 0, 0, 1)

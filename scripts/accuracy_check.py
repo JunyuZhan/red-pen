@@ -115,6 +115,12 @@ def markdown_report(report: dict) -> str:
             lines.append(f"- 平均单图耗时：**{avg_s:.1f}s**")
         if conf_n:
             lines.append(f"- 低置信度（<0.7）题占比：**{low_n}/{conf_n} = {low_n / conf_n:.1%}**（建议人工复核）")
+        missed, false_alarm, ocr_err, tot = error_breakdown(eng.get("cases", []))
+        if tot:
+            lines.append(
+                f"- 误判分析：漏判（错判成对）**{missed}**，误判（对判成错）**{false_alarm}**，OCR读错学生答案 **{ocr_err}** / 共 {tot} 题")
+            if missed:
+                lines.append("- ⚠️ 存在漏判：该模型会把学生的错答判成对，**不可放心用**")
         lines += ["", "| 题号 | 命中 | 命中率 |", "|---|---|---|"]
         stat = question_stats(eng.get("cases", []))
         for qno in sorted(stat):
@@ -140,6 +146,37 @@ def engine_reliability(cases):
             total += 1
             low += conf < 0.7
     return avg, low, total
+
+
+
+def error_breakdown(cases):
+    """误判类型统计：漏判(该错判对) / 误判(该对判错) / OCR读错(判对了但读错学生答案)。
+
+    返回 (missed, false_alarm, ocr_error, total_judged)。
+    """
+    missed = false_alarm = ocr_error = total = 0
+    for c in cases:
+        if not c.get("success"):
+            continue
+        truth_by_qno = {int(t["question_no"]): t for t in c.get("truth", [])}
+        for row in c.get("rows", []):
+            total += 1
+            qno, judged, expect = int(row[0]), row[2], row[3]
+            read_back = row[6] if len(row) > 6 else row[1]
+            ok = row[4] == "✓"
+            if not ok:
+                if expect == "wrong" and judged in ("correct",):
+                    missed += 1
+                elif expect in ("correct", "wrong") and judged in ("wrong", "partial"):
+                    false_alarm += 1
+            else:
+                t = truth_by_qno.get(qno)
+                if t and read_back and str(t["student_answer"]):
+                    want = str(t["student_answer"]).replace(" ", "")
+                    got = str(read_back).replace(" ", "")
+                    if want and got and want != got:
+                        ocr_error += 1
+    return missed, false_alarm, ocr_error, total
 
 
 def question_stats(cases):
@@ -211,7 +248,7 @@ async def main():
             print(f"  判定命中 {hit}/{len(truth)}")
             for r in rows:
                 print(f"    题{r[0]} 学生答[{r[1]}] -> 判定={r[2]} 期望={r[3]} {r[4]} 置信度={r[5]} 模型读到[{r[6]}]")
-            report_cases.append({"image": image_path.name, "success": True, "hit": hit,
+            report_cases.append({"image": image_path.name, "success": True, "truth": truth, "hit": hit,
                                  "total": len(truth), "elapsed_s": elapsed_s,
                                  "rows": [list(map(str, r)) for r in rows],
                                  "summary": result.get("summary")})
