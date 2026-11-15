@@ -76,7 +76,7 @@ jobs:
         r = client.post("/api/settings/fallback", json={"provider": "glm", "api_key": "fb-ci-0001"})
         assert r.status_code == 200 and r.json()["success"], r.text
         d = client.get("/api/settings/fallback").json()
-        assert d["provider"] == "glm" and d["base_url"] == "https://open.bigmodel.cn/api/paas/v4" and d["model"] == "glm-4v", d
+        assert d["provider"] == "glm" and d["base_url"] == "https://open.bigmodel.cn/api/paas/v4" and d["model"] == "glm-4.6v-flash", d
         assert d["has_api_key"], d
         r = client.post("/api/settings/fallback", json={"provider": "bad"})
         assert r.status_code == 400, r.text
