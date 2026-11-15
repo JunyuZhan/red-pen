@@ -7,3 +7,7 @@ build/
 dist/
 *.spec.bak
 .venv/
+
+# 准确率评测产物
+scripts/accuracy_sample.png
+scripts/accuracy_report.json
