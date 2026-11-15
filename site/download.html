@@ -44,7 +44,7 @@
 
 <section>
   <div class="dl-card" style="padding:40px 32px">
-    <h2 style="font-size:32px">最新版本 v0.5.18 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
+    <h2 style="font-size:32px">最新版本 v0.5.37 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
     <p style="margin-top:8px;color:rgba(255,255,255,0.7);font-size:14px">⚠️ 内测版：功能仍在完善，遇到问题请加 QQ 群 984644289 反馈</p>
     <a class="btn btn-primary" style="margin-top:20px;font-size:17px;padding:14px 36px" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 RedPen.exe（Windows x64）</a>
     <p style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.6)">请始终从本页或 GitHub Releases 官方渠道下载</p>
@@ -61,13 +61,114 @@
       <li>浏览器自动打开工作台，用默认 PIN <span class="kbd">123456</span> 登录后立即修改</li>
       <li>到设置页配置模型 API Key（详见<a href="guide.html" style="color:var(--notion-blue)">教程第 4 步</a>）</li>
     </ol>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.37</span> 模型清单更新（修复）</h3>
+    <ul class="changelog">
+      <li><b>修复</b>：qwen-vl-plus / qwen-vl-max 已被阿里云百炼于 2026-10 下线，qwen 服务商默认模型改为现役的 <code>qwen3-vl-plus</code></li>
+      <li>智谱默认模型改为完全免费的 <code>glm-4.6v-flash</code>；推荐清单新增 qwen3.5-plus 与 glm-4.6v 旗舰</li>
+      <li>价格预设表同步现役型号，成本估算默认价改为 qwen3-vl-plus 官方价</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.36</span> 上传目录层级化</h3>
+    <ul class="changelog">
+      <li>上传的作业图片改为按 <b>班级 / 作业 / 学生</b> 三级目录存放，不再堆在同一个文件夹里（PRD 九）</li>
+      <li>老数据升级后<b>启动时自动迁移</b>，无需任何手动操作</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.35</span> 更省钱的保护：Key 失效自动暂停</h3>
+    <ul class="changelog">
+      <li><b>API Key 失效或账户欠费时自动暂停批改</b>：不再对无效 Key 反复请求白白等待，剩余任务快速失败并给出中文提示</li>
+      <li>工作台显示暂停横幅与「恢复批改」按钮；设置页「测试连接」成功后自动恢复</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.34</span> 高频错题</h3>
+    <ul class="changelog">
+      <li><b>学情页新增「高频错题」</b>：按错误人数降序列出各作业各题，附错误类型分布与典型错误答案（最多3例），讲评时直接照着讲</li>
+      <li>全对题不出现，只有真错题才进榜单</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.33</span> 上传健壮性修复</h3>
+    <p>修复上传接口传入不存在的作业/学生 ID 时静默创建孤儿记录的问题，现在返回 404 中文提示；新增回归测试。</p>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.32</span> 知识点掌握热力图</h3>
+    <ul class="changelog">
+      <li><b>学情分析新增知识点掌握热力图</b>：每个知识点一个色块，越绿掌握越好、越红越薄弱，悬浮可见题数与错误类型分布（计算/概念等）</li>
+      <li>薄弱知识点自动排前面，老师一眼看出该重点讲什么</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.31</span> 支持豆包大模型（火山方舟）</h3>
+    <ul class="changelog">
+      <li><b>设置页新增「豆包（火山方舟）」服务商</b>：豆包 Seed 2.1 全模态模型支持作业图片识别，价格便宜，选豆包后 Base URL 与模型名自动填充</li>
+      <li>推荐视觉模型清单与成本单价预设同步加入豆包，预算护栏按豆包价格也能自动估算</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.30</span> API Key 加密存储（隐私加固）</h3>
+    <ul class="changelog">
+      <li><b>API Key 不再明文保存</b>：主/备用模型的 API Key 现已加密存储在本地，升级后首次启动自动迁移旧 Key，老师无需任何操作</li>
+      <li>数据库文件即使被拷走，Key 也无法直接读出（密钥存本机 data/secret.key）</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.29</span> 并发更抗压（健壮性加固第十二轮）</h3>
+    <ul class="changelog">
+      <li><b>边收作业边批改压测通过</b>：模拟老师一边用手机收作业、一边批量批改的真实场景（并发上传+批改同时进行），验证互不干扰、结果零串扰、每份耗时正常记录</li>
+      <li>批改并发峰值不超过设置页配置的并发路数</li>
+    </ul>
+    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.28</span> 设置页加固（健壮性加固第十一轮）</h3>
+    <p style="margin-bottom:16px;opacity:.85">设置页模型单价不再接受负数（避免污染成本统计与预算护栏）；「测试连接」参数校验更严格；未配置 API Key 时测试连接给出明确中文提示。</p>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.27</span> 备份恢复更保险（健壮性加固第十轮）</h3>
+    <ul class="changelog">
+      <li><b>恢复备份前自动留底</b>：恢复某个备份前，系统会自动把当前数据先存一份（pre_restore_ 开头的备份），误选错备份也能完整找回，不再一恢复就把现有数据清空</li>
+      <li>备份/恢复的各种异常（文件名非法、备份损坏、缺数据库文件）均有明确中文提示，现有数据不受影响</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.26</span> 数据再脏也不崩（健壮性加固第九轮）</h3>
+    <ul class="changelog">
+      <li><b>工作台不怕脏数据</b>：个别记录的成本/字数统计字段损坏时，工作台汇总照常打开，不再整页报错</li>
+      <li><b>批量批改不再静默</b>：勾选的作业里如有已删除或状态不允许的，会明确提示，不再无声跳过</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.25</span> 上传更稳了（健壮性加固第八轮）</h3>
+    <ul class="changelog">
+      <li><b>超大照片即停</b>：超过 10MB 的照片立即提示换清晰度/压缩，不再卡住浏览器上传</li>
+      <li><b>上传中断有提示</b>：空文件/中断上传会提示「请重新拍照上传」，不再静默失败</li>
+      <li><b>重拍不留垃圾</b>：照片质量不合格退回重拍时，不再留下空作业记录</li>
+      <li><b>设置页新增「批改超时」</b>：可直接在设置页调整单份批改最长等待（1-15 分钟）</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.24</span> 批改可取消 + 批改超时保护（健壮性加固第七轮）</h3>
+    <ul class="changelog">
+      <li><b>批改可取消</b>：排队中/处理中的作业可点「取消」，不再干等；取消后可随时重新发起批改</li>
+      <li><b>批改超时保护</b>：模型/网络卡死时自动中止（默认 5 分钟，可在设置调整 1-15 分钟），不再无限占用并发名额</li>
+      <li>取消/超时后均为中文友好提示，作业可重试，不会卡在"处理中"状态</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.23</span> 全局异常兜底（健壮性加固第六轮）</h3>
+    <ul class="changelog">
+      <li><b>程序内部错误不再显示一屏英文堆栈</b>：统一改为友好中文提示，可放心反馈日志文件</li>
+      <li>页面模板缺失/损坏时显示「页面资源加载失败」提示页，不再白屏</li>
+      <li>所有异常细节自动写入日志文件，方便定位问题</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.22</span> 边界输入加固（健壮性加固第五轮）</h3>
+    <ul class="changelog">
+      <li><b>超长输入限长</b>：班级/学生名字限 50 字、作业标题限 100 字，防止误输入超长文本</li>
+      <li><b>超大图片防护</b>：图像总像素上限 1 亿，超大画布小文件不再拖垮内存</li>
+      <li>通过 20 路并发上传压测，多老师同时拍照不串数据</li>
+    </ul>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.21</span> 备份/恢复加固（健壮性加固第四轮）</h3>
+    <ul class="changelog">
+      <li><b>恢复损坏备份不再报错丢数据</b>：备份文件损坏或库文件无效时明确拒绝恢复，现有数据原封不动</li>
+      <li><b>路径穿越防护</b>：恶意备份中的 ../ 条目被拒绝，文件不会写到数据目录外</li>
+      <li><b>备份更可靠</b>：改用 SQLite 在线备份快照，不再直接拷贝使用中的库文件（Windows 上可能损坏）</li>
+      <li><b>先校验后替换</b>：恢复先在暂存区通过完整性校验才替换数据，半途失败不丢数据</li>
+    </ul>
   </div>
 </section>
 
 <section>
   <div class="ver-card">
-    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.18</span> 上传加固</h3>
-    <p style="margin-bottom:16px;opacity:.85">损坏/空图片文件上传直接拒绝（不可强行上传），避免坏文件流入批改环节；无扩展名或非法类型文件名给出明确提示；修复删除不存在的文件误报「删除失败」的问题。另含 v0.5.17：看板新增「与上次对比」（作业正确率涨跌徽章）与全班最高/最低作业一览。</p>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.20</span> 管理路由孤儿防护（健壮性加固第三轮）</h3>
+    <ul class="changelog">
+      <li>删除班级防护：班级下还有作业时禁止删除，避免历史作业/成绩悬空</li>
+      <li>删除学生防护：学生已有作业记录时禁止删除，避免错题本与学情分析数据失真</li>
+      <li>改学生班级时校验目标班级存在，不再把学生改成无主状态</li>
+    </ul>
+  </div>
+</section>
+<section>
+  <div class="ver-card">
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.19</span> 批改异常兜底</h3>
+    <p style="margin-bottom:16px;opacity:.85">批改中途任何异常会把作业正确落到「失败」状态并写明原因，不再永远卡在「批改中」转圈；并发批改队列异常捕获加固；模型返回无法解析时批改摘要顶部显式提示「本页判定不可信，建议重新批改」。</p>
+    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.18</span> 上传加固</h3>
+    <p style="margin-bottom:16px;opacity:.85">损坏/空图片文件上传直接拒绝（不可强行上传），避免坏文件流入批改环节；无扩展名或非法类型文件名给出明确提示；修复删除不存在的文件误报「删除失败」的问题。</p>
+    <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.17</span> 看板与上次对比</h3>
+    <p style="margin-bottom:16px;opacity:.85">作业等级列表每份作业旁显示与同班上一份作业的正确率涨跌（↑↓，绿升红降），并汇总全班最高/最低作业。</p>
     <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.16</span> 手动改答案归属</h3>
     <p style="margin-bottom:16px;opacity:.85">工作台批改结果里每道有答案的题新增「归属改错？」按钮：切题归属错时，输入实际题号即可把答案（文本+红笔标注框）移过去；目标题判定自动进复核队列。</p>
     <h3 style="font-size:16px;margin-bottom:8px;opacity:.7"><span class="ver-tag">v0.5.15</span> OCR 增强</h3>

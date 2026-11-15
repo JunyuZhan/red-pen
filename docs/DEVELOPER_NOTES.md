@@ -206,3 +206,6 @@ app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获
 2. 推荐视觉模型清单缺豆包（PRD 4.1 点名 Doubao）——补 doubao-vision 系列走 custom provider（OpenAI 兼容），并入价格预设表。
 3. 知识点"热力图"现为列表统计，非热力图视觉形式——cosmetic，排在准确率验证之后。
 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；缺口1 Key 加密存储；缺口2 豆包清单。
+
+## 模型下线跟进轮 ✅（2026-11-15，v0.5.37）
+qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模型会 404），qwen 默认改 qwen3-vl-plus（¥1/¥10 每百万），glm 默认改免费的 glm-4.6v-flash，推荐清单+价格表全换现役型号；豆包 seed 2.1 lite 现役不变。教训：①CI 内联冒烟脚本里也藏着默认模型断言（glm-4v），改默认值必须 grep .github/ 和 tests/ 两处；②改默认单价要同步 get_cost_config 两处默认值（stored.get 与 except 分支）。下轮候选：真实批改准确率验证（等用户素材/API Key，最高优先）；知识点热力图（cosmetic）。
