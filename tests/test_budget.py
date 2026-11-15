@@ -131,18 +131,18 @@ def test_price_presets_cover_recommended():
     from backend.models.grading_engine import MODEL_PRICE_PRESETS
 
     models = {p["model"] for p in MODEL_PRICE_PRESETS}
-    expected = {"qwen-vl-plus", "qwen-vl-max", "qwen3-vl-plus", "glm-4v-flash", "glm-4v-plus"}
+    expected = {"qwen3-vl-plus", "qwen3.5-plus", "glm-4.6v-flash", "glm-4.6v", "doubao-seed-2-1-lite-260915"}
     assert expected <= models, models
     assert all(p["input"] >= 0 and p["output"] >= 0 for p in MODEL_PRICE_PRESETS)
-    flash = next(p for p in MODEL_PRICE_PRESETS if p["model"] == "glm-4v-flash")
+    flash = next(p for p in MODEL_PRICE_PRESETS if p["model"] == "glm-4.6v-flash")
     assert flash["input"] == 0 and flash["output"] == 0
 
 
 def test_default_unit_price_and_estimate():
-    """默认单价修正：qwen-vl-plus 每百万 0.8/2 元 → 每1K 0.0008/0.002；估算费用随之。"""
+    """默认单价：qwen3-vl-plus 每百万 1/10 元 → 每1K 0.001/0.010；估算费用随之。"""
     from backend.models.grading_engine import estimate_cost, get_cost_config
 
     c = get_cost_config()
-    assert abs(c["input"] - 0.0008) < 1e-9 and abs(c["output"] - 0.002) < 1e-9, c
+    assert abs(c["input"] - 0.001) < 1e-9 and abs(c["output"] - 0.010) < 1e-9, c
     est = estimate_cost(1000, 1000)
-    assert abs(est["cost"] - 0.0028) < 1e-6, est
+    assert abs(est["cost"] - 0.011) < 1e-6, est

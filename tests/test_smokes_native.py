@@ -125,7 +125,7 @@ def test_fallback_switch_and_disable(auth_client, monkeypatch):
     d = c.get("/api/settings/fallback").json()
     assert d["provider"] == "glm", d
     assert d["base_url"] == "https://open.bigmodel.cn/api/paas/v4", d
-    assert d["model"] == "glm-4v", d
+    assert d["model"] == "glm-4.6v-flash", d
     assert d["has_api_key"] and d["api_key_masked"].startswith("fb-k"), d
 
     # 非法服务商拒绝

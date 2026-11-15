@@ -315,7 +315,7 @@ async def update_fallback_settings(config: FallbackConfigIn):
     """保存备用引擎配置；provider 为空表示关闭备用切换"""
     provider = (config.provider or "").strip() or None
     if provider and provider not in PROVIDER_DEFAULTS:
-        raise HTTPException(status_code=400, detail=f"不支持的备用服务商: {provider}（可选 qwen/glm/custom）")
+        raise HTTPException(status_code=400, detail=f"不支持的备用服务商: {provider}（可选 qwen/glm/doubao/custom）")
 
     current = get_fallback_config()
     if provider:
@@ -362,7 +362,7 @@ async def get_llm_settings():
 async def update_llm_settings(config: LLMConfigIn):
     """保存 LLM 配置"""
     if config.provider not in PROVIDER_DEFAULTS:
-        raise HTTPException(status_code=400, detail=f"不支持的服务商: {config.provider}（可选 qwen/glm/custom）")
+        raise HTTPException(status_code=400, detail=f"不支持的服务商: {config.provider}（可选 qwen/glm/doubao/custom）")
 
     current = get_llm_config()
     base_url = (config.base_url or "").strip() or PROVIDER_DEFAULTS[config.provider]["base_url"]

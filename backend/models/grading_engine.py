@@ -26,11 +26,12 @@ PROVIDER_DEFAULTS = {
     # OpenAI 兼容 Chat Completions 接口
     "qwen": {
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "model": "qwen-vl-plus",
+        # qwen-vl-plus/qwen-vl-max 已于 2026-10 下线，现役视觉主力为 qwen3-vl-plus
+        "model": "qwen3-vl-plus",
     },
     "glm": {
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
-        "model": "glm-4v",
+        "model": "glm-4.6v-flash",  # 免费视觉模型，现役
     },
     "doubao": {
         # 火山方舟（豆包），OpenAI 兼容接口；Seed 2.1 系列为全模态，支持图片输入
@@ -334,7 +335,7 @@ def _parse_llm_json(text: str) -> Optional[dict]:
 
 
 def get_cost_config() -> Dict[str, float]:
-    """读取单价配置（元/1K tokens），默认 qwen-vl-plus 官方价（¥0.8输入/¥2.0 每百万tokens）"""
+    """读取单价配置（元/1K tokens），默认 qwen3-vl-plus 官方价（¥1输入/¥10 输出 每百万tokens）"""
     db = SessionLocal()
     try:
         rows = db.query(AppConfig).filter(
@@ -343,13 +344,13 @@ def get_cost_config() -> Dict[str, float]:
     finally:
         db.close()
     try:
-        inp = float(stored.get("cost_input_per_1k", 0.0008))
+        inp = float(stored.get("cost_input_per_1k", 0.001))
     except ValueError:
-        inp = 0.0008
+        inp = 0.001
     try:
-        out = float(stored.get("cost_output_per_1k", 0.002))
+        out = float(stored.get("cost_output_per_1k", 0.010))
     except ValueError:
-        out = 0.002
+        out = 0.010
     return {"input": inp, "output": out}
 
 
@@ -730,21 +731,24 @@ grading_manager = GradingManager()
 
 # 推荐视觉模型清单：这些都是 OpenAI 兼容接口、明确支持图片输入的模型
 RECOMMENDED_VISION_MODELS = [
-    {"provider": "qwen", "model": "qwen-vl-plus", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问视觉，性价比高，日常批改首选"},
-    {"provider": "qwen", "model": "qwen-vl-max", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问视觉旗舰，手写识别更准"},
-    {"provider": "glm", "model": "glm-4v-flash", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉，有免费额度"},
-    {"provider": "glm", "model": "glm-4v-plus", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉旗舰"},
+    # 2026-11 按各官方定价/上下架页核实：qwen-vl-plus/max 已下线，换现役型号
+    {"provider": "qwen", "model": "qwen3-vl-plus", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问视觉现役主力，性价比高，日常批改首选"},
+    {"provider": "qwen", "model": "qwen3.5-plus", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "note": "通义千问新一代原生视觉语言模型，识别更准，价格 ¥0.8/¥4.8 每百万"},
+    {"provider": "glm", "model": "glm-4.6v-flash", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉，完全免费，入门首选"},
+    {"provider": "glm", "model": "glm-4.6v", "base_url": "https://open.bigmodel.cn/api/paas/v4", "note": "智谱视觉旗舰，¥1/¥3 每百万"},
     {"provider": "doubao", "model": "doubao-seed-2-1-lite-260915", "base_url": "https://ark.cn-beijing.volces.com/api/v3", "note": "豆包 Seed 2.1（火山方舟），全模态支持图片，注意需先在方舟控制台开通服务并填 API Key"},
 ]
 
-# 模型价格预设表（PRD 待办 j）：单价 元/1K tokens，2026-11-11 按官方定价页核实（元/百万tokens 换算）
-# qwen-vl-plus 国际 $0.115/$0.287 每百万 ≈ ¥0.82/¥2.05；qwen3-vl-plus ¥1/¥10；glm-4v-flash 免费；glm-4v-plus ¥4/¥4
+# 模型价格预设表（PRD 待办 j）：单价 元/1K tokens，2026-11-15 按官方定价页核实（元/百万tokens 换算）
+# qwen3-vl-plus ¥1/¥10；qwen3.5-plus ¥0.8/¥4.8；glm-4.6v-flash 免费；glm-4.6v ¥1/¥3；glm-4.6v-flashx ¥0.15/¥1.5
+# （qwen-vl-plus/max、glm-4v-plus 旧档已下线，从表中移除；glm-4v-flash 仍在售但主推 4.6v-flash，同样免费）
 MODEL_PRICE_PRESETS = [
-    {"model": "qwen-vl-plus", "input": 0.0008, "output": 0.002},
-    {"model": "qwen-vl-max", "input": 0.003, "output": 0.009},
     {"model": "qwen3-vl-plus", "input": 0.001, "output": 0.010},
+    {"model": "qwen3.5-plus", "input": 0.0008, "output": 0.0048},
+    {"model": "glm-4.6v-flash", "input": 0.0, "output": 0.0},
+    {"model": "glm-4.6v", "input": 0.001, "output": 0.003},
+    {"model": "glm-4.6v-flashx", "input": 0.00015, "output": 0.0015},
     {"model": "glm-4v-flash", "input": 0.0, "output": 0.0},
-    {"model": "glm-4v-plus", "input": 0.004, "output": 0.004},
     # 豆包 Seed 2.1 Lite（¥0.8 输入 / ¥2.7 输出 每百万 tokens，2026-11 官方定价）
     {"model": "doubao-seed-2-1-lite-260915", "input": 0.0008, "output": 0.0027},
 ]
@@ -787,7 +791,7 @@ def _explain_error(error: str) -> Dict[str, Any]:
     if "timeout" in e or "timed out" in e or "connect" in e:
         return {"kind": "network", "message": "连不上服务商服务器：请检查网络、Base URL 是否填对（一般以 /v1 结尾）。"}
     if any(h in e for h in _NOT_VISION_HINTS):
-        return {"kind": "not_vision", "message": "当前模型不支持图片输入（纯文本模型）。请改用视觉模型，如 qwen-vl-plus、glm-4v-flash 等。"}
+        return {"kind": "not_vision", "message": "当前模型不支持图片输入（纯文本模型）。请改用视觉模型，如 qwen3-vl-plus、glm-4.6v-flash 等。"}
     return {"kind": "unknown", "message": error}
 
 

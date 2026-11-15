@@ -311,8 +311,8 @@
 
 <script>
 const defaults = {
-  qwen:   { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-vl-plus" },
-  glm:    { base_url: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4v" },
+  qwen:   { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen3-vl-plus" },
+  glm:    { base_url: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4.6v-flash" },
   doubao: { base_url: "https://ark.cn-beijing.volces.com/api/v3", model: "doubao-seed-2-1-lite-260915" },
   custom: { base_url: "", model: "" }
 };
@@ -744,8 +744,8 @@ async function testConn(target) {
 
 function loadRecModels() {
   const recs = [
-    ["通义千问（阿里云百炼）", "qwen-vl-plus", "性价比高，日常批改首选；qwen-vl-max 识别更准"],
-    ["智谱 GLM（bigmodel）", "glm-4v-flash", "有免费额度；glm-4v-plus 为旗舰"],
+    ["通义千问（阿里云百炼）", "qwen3-vl-plus", "性价比高，日常批改首选；qwen3.5-plus 为新一代旗舰视觉模型"],
+    ["智谱 GLM（bigmodel）", "glm-4.6v-flash", "完全免费；glm-4.6v 为旗舰"],
     ["豆包（火山方舟）", "doubao-seed-2-1-lite-260915", "Seed 2.1 全模态支持图片，便宜；需先在方舟控制台开通服务"],
   ];
   document.getElementById("rec_models").innerHTML = recs.map(r =>
