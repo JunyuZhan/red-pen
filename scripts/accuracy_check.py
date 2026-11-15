@@ -109,14 +109,37 @@ def markdown_report(report: dict) -> str:
             continue
         acc = eng["accuracy"]
         lines += [f"## {name}",
-                  f"- 总命中：**{eng['hit']}/{eng['total']} = {acc:.1%}**",
-                  "", "| 题号 | 命中 | 命中率 |", "|---|---|---|"]
+                  f"- 总命中：**{eng['hit']}/{eng['total']} = {acc:.1%}**"]
+        avg_s, low_n, conf_n = engine_reliability(eng.get("cases", []))
+        if avg_s is not None:
+            lines.append(f"- 平均单图耗时：**{avg_s:.1f}s**")
+        if conf_n:
+            lines.append(f"- 低置信度（<0.7）题占比：**{low_n}/{conf_n} = {low_n / conf_n:.1%}**（建议人工复核）")
+        lines += ["", "| 题号 | 命中 | 命中率 |", "|---|---|---|"]
         stat = question_stats(eng.get("cases", []))
         for qno in sorted(stat):
             hit, tot = stat[qno]
             lines.append(f"| {qno} | {hit}/{tot} | {hit / tot:.0%} |")
         lines.append("")
     return "\n".join(lines)
+
+
+def engine_reliability(cases):
+    """可靠性统计：平均单图耗时（成功图）、低置信度(<0.7)题数/总判定题数。"""
+    elapsed = [c["elapsed_s"] for c in cases if c.get("success") and c.get("elapsed_s")]
+    avg = sum(elapsed) / len(elapsed) if elapsed else None
+    low = total = 0
+    for c in cases:
+        if not c.get("success"):
+            continue
+        for row in c.get("rows", []):
+            try:
+                conf = float(row[5])
+            except (TypeError, ValueError, IndexError):
+                continue
+            total += 1
+            low += conf < 0.7
+    return avg, low, total
 
 
 def question_stats(cases):
@@ -169,14 +192,17 @@ async def main():
         report_cases = []
         for image_path, truth, answers in eval_cases:
             print(f"-- {image_path.name} ({len(truth)} 题)")
+            import time
+            t0 = time.monotonic()
             try:
                 _, result = await run_engine(name, key, base_url, model, image_path, answers)
             except Exception as e:
                 result = {"success": False, "error": repr(e)}
+            elapsed_s = round(time.monotonic() - t0, 2)
             if not result.get("success"):
                 print(f"  调用失败: {result.get('error')}")
                 report_cases.append({"image": image_path.name, "success": False,
-                                     "error": str(result.get("error"))})
+                                     "error": str(result.get("error")), "elapsed_s": elapsed_s})
                 engine_ok = False
                 continue
             hit, rows = score(result, truth)
@@ -186,7 +212,7 @@ async def main():
             for r in rows:
                 print(f"    题{r[0]} 学生答[{r[1]}] -> 判定={r[2]} 期望={r[3]} {r[4]} 置信度={r[5]} 模型读到[{r[6]}]")
             report_cases.append({"image": image_path.name, "success": True, "hit": hit,
-                                 "total": len(truth),
+                                 "total": len(truth), "elapsed_s": elapsed_s,
                                  "rows": [list(map(str, r)) for r in rows],
                                  "summary": result.get("summary")})
         acc = total_hit / total_q if total_q else 0.0

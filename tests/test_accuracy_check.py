@@ -93,6 +93,33 @@ def test_question_stats_and_markdown_report():
     assert "75.0%" in md and "| 3 | 1/2 | 50% |" in md
 
 
+def test_engine_reliability_and_md_stats():
+    cases = [
+        {"success": True, "elapsed_s": 10.0,
+         "rows": [["1", "a", "correct", "correct", "✓", "0.9", ""],
+                  ["2", "b", "wrong", "wrong", "✓", "0.5", ""]]},
+        {"success": True, "elapsed_s": 20.0,
+         "rows": [["1", "c", "correct", "correct", "✓", "0.8", ""]]},
+        {"success": False, "error": "boom", "elapsed_s": 3.0},
+    ]
+    avg, low, total = mod.engine_reliability(cases)
+    assert avg == 15.0 and low == 1 and total == 3
+    md = mod.markdown_report({"engines": {"glm": {
+        "hit": 2, "total": 3, "accuracy": 2 / 3, "cases": cases}}})
+    assert "平均单图耗时：**15.0s**" in md and "1/3 = 33.3%" in md
+
+
+def test_engine_reliability_empty_and_bad_conf():
+    assert mod.engine_reliability([]) == (None, 0, 0)
+    assert mod.engine_reliability([{"success": True, "rows": [["1", "a", "correct", "correct", "✓", None, ""]]},
+                                   {"success": True, "rows": [["2", "b", "wrong", "wrong", "✓", "0.6", ""]]}]) \
+        == (None, 1, 1)  # 坏置信度不计入，无耗时则 avg=None
+
+
+def test_engine_reliability_failure_case_timing() -> None:
+    assert mod.engine_reliability([{"success": False, "elapsed_s": 5.0}]) == (None, 0, 0)
+
+
 def test_markdown_report_empty_engine():
     md = mod.markdown_report({"engines": {"glm": {"success": False, "hit": 0, "total": 0,
                                                   "accuracy": 0.0, "cases": []}}})
