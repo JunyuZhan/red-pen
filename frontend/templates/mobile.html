@@ -229,7 +229,9 @@ async function upload(force) {
   $("countdown").textContent = "";
   try {
     const r = await fetch("/api/upload/upload-mobile", { method: "POST", body: fd });
-    const d = await r.json();
+    let d;
+    try { d = await r.json(); }
+    catch (_) { throw new Error("服务响应异常（错误码 " + r.status + "）——请稍后重试，若反复出现请重启软件并检查设置页模型配置"); }
     if (r.status === 422 && d.quality_flags) { showQualityWarning(d.quality_flags); return; }
     if (!d.success) throw new Error(d.detail || d.message);
     if (d.quality_flags && d.quality_flags.length) showQualityWarning(d.quality_flags, true);
