@@ -1,6 +1,6 @@
-"""scripts/accuracy_check.py 评测逻辑（真相比对打分）单元测试——不调真实 API。"""
+"""scripts/accuracy_check.py 评测逻辑（真相比对打分+批量模式）单元测试——不调真实 API。"""
 import importlib.util
-import sys
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,7 +23,7 @@ def test_score_perfect():
          "student_answer": t["student_answer"]}
         for i, t in enumerate(mod.TRUTH)],
         "summary": "全对"}
-    hit, rows = mod.score(result)
+    hit, rows = mod.score(result, mod.TRUTH)
     assert hit == 4
     assert all(r[4] == "✓" for r in rows)
 
@@ -33,7 +33,7 @@ def test_score_wrong_marked_partial_counts():
     qs = [{"question_no": i + 1, "judgement": t["expect"], "confidence": 0.8}
           for i, t in enumerate(mod.TRUTH)]
     qs[2]["judgement"] = "partial"
-    hit, rows = mod.score({"success": True, "questions": qs})
+    hit, rows = mod.score({"success": True, "questions": qs}, mod.TRUTH)
     assert hit == 4
 
 
@@ -41,7 +41,7 @@ def test_score_missing_question_not_hit():
     # 模型漏读第 2 题时不应命中
     qs = [{"question_no": i + 1, "judgement": t["expect"], "confidence": 0.8}
           for i, t in enumerate(mod.TRUTH) if i != 1]
-    hit, _ = mod.score({"success": True, "questions": qs})
+    hit, _ = mod.score({"success": True, "questions": qs}, mod.TRUTH)
     assert hit == 3
 
 
@@ -51,3 +51,28 @@ def test_sample_image_generated(tmp_path):
     from PIL import Image
     img = Image.open(p)
     assert img.size == (720, 560)
+
+
+def test_load_batch(tmp_path):
+    # 批量模式：ground_truth.json + 多张图片 -> [(img, truth, answers)]
+    (tmp_path / "a.jpg").write_bytes(b"x" * 100)
+    (tmp_path / "b.jpg").write_bytes(b"y" * 100)
+    gt = [{"image": "a.jpg", "questions": [
+              {"question_no": 1, "student_answer": "100", "correct": "100", "expect": "correct"}]},
+          {"image": "missing.jpg", "questions": [
+              {"question_no": 1, "correct": "9", "expect": "wrong"}]},
+          {"image": "b.jpg", "questions": [
+              {"question_no": 1, "correct": "9", "expect": "correct"},
+              {"question_no": 2, "correct": "7", "expect": "wrong"}]}]
+    (tmp_path / "ground_truth.json").write_text(json.dumps(gt), encoding="utf-8")
+    cases = mod.load_batch(tmp_path)
+    assert [str(c[0].name) for c in cases] == ["a.jpg", "b.jpg"]  # 缺失图片被跳过
+    assert cases[0][2] == {"1": "100"}
+    assert cases[1][1][1]["expect"] == "wrong"
+    assert cases[1][2] == {"1": "9", "2": "7"}
+
+
+def test_load_batch_requires_truth_file(tmp_path):
+    import pytest
+    with pytest.raises(SystemExit):
+        mod.load_batch(tmp_path)

@@ -58,19 +58,39 @@ def make_sample_image(path: Path) -> Path:
 ANSWERS = {str(t["question_no"]): t["correct"] for t in TRUTH}
 
 
-async def run_engine(name, api_key, base_url, model, image_path):
+def load_batch(batch_dir: Path):
+    """批量模式：目录下照片 + ground_truth.json（用法见 --batch 帮助）。"""
+    gt = batch_dir / "ground_truth.json"
+    if not gt.exists():
+        raise SystemExit(f"批量目录缺少 {gt}")
+    items = json.loads(gt.read_text(encoding="utf-8"))
+    cases = []
+    for item in items:
+        img = batch_dir / item["image"]
+        if not img.exists():
+            print(f"跳过缺失图片: {img}")
+            continue
+        truth = item["questions"]
+        answers = {str(t["question_no"]): t["correct"] for t in truth}
+        cases.append((img, truth, answers))
+    if not cases:
+        raise SystemExit("批量目录没有可用图片")
+    return cases
+
+
+async def run_engine(name, api_key, base_url, model, image_path, answers):
     from backend.models.grading_engine import GradingEngine
     engine = GradingEngine(api_key=api_key, model_name=model, base_url=base_url)
     result = await engine.grade(str(image_path), question_type="math",
-                                subject="数学", answers=ANSWERS)
+                                subject="数学", answers=answers)
     return name, result
 
 
-def score(result):
+def score(result, truth):
     qs = {q.get("question_no"): q for q in result.get("questions", [])}
     rows = []
     hit = 0
-    for t in TRUTH:
+    for t in truth:
         q = qs.get(t["question_no"]) or {}
         j = q.get("judgement")
         ok = (j == t["expect"]) or (t["expect"] == "wrong" and j in ("wrong", "partial"))
@@ -83,15 +103,20 @@ def score(result):
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--image", help="已有作业图片路径（默认生成内置样例）")
+    ap.add_argument("--batch", help="批量模式：目录，内含多张照片 + ground_truth.json")
     ap.add_argument("--out", default=None, help="结果 JSON 输出路径")
     args = ap.parse_args()
 
-    if args.image:
-        image_path = Path(args.image)
+    if args.batch:
+        eval_cases = load_batch(Path(args.batch))
     else:
-        image_path = Path(__file__).parent / "accuracy_sample.png"
-        make_sample_image(image_path)
-    print(f"评测图片: {image_path}")
+        if args.image:
+            image_path = Path(args.image)
+        else:
+            image_path = Path(__file__).parent / "accuracy_sample.png"
+            make_sample_image(image_path)
+        eval_cases = [(image_path, TRUTH, ANSWERS)]
+    print(f"共 {len(eval_cases)} 份待评测图片")
 
     cases = []
     if os.environ.get("DASHSCOPE_API_KEY"):
@@ -104,25 +129,39 @@ async def main():
         print("未设置 DASHSCOPE_API_KEY / ZHIPU_API_KEY，无法实测")
         sys.exit(1)
 
-    report = {"image": str(image_path), "truth": TRUTH, "engines": {}}
+    report = {"mode": "batch" if args.batch else "single", "engines": {}}
     for name, key, base_url, model in cases:
         print(f"\n=== {name} ({model}) ===")
-        try:
-            _, result = await run_engine(name, key, base_url, model, image_path)
-        except Exception as e:
-            result = {"success": False, "error": repr(e)}
-        if not result.get("success"):
-            print(f"  调用失败: {result.get('error')}")
-            report["engines"][name] = {"success": False, "error": result.get("error")}
-            continue
-        hit, rows = score(result)
-        print(f"  判定命中 {hit}/{len(TRUTH)}")
-        for r in rows:
-            print(f"    题{r[0]} 学生答[{r[1]}] -> 判定={r[2]} 期望={r[3]} {r[4]} 置信度={r[5]} 模型读到[{r[6]}]")
-        report["engines"][name] = {"success": True, "hit": hit, "total": len(TRUTH),
-                                   "rows": [list(map(str, r)) for r in rows],
-                                   "summary": result.get("summary")}
-        print(f"  总评: {result.get('summary')}")
+        total_hit = total_q = 0
+        engine_ok = True
+        report_cases = []
+        for image_path, truth, answers in eval_cases:
+            print(f"-- {image_path.name} ({len(truth)} 题)")
+            try:
+                _, result = await run_engine(name, key, base_url, model, image_path, answers)
+            except Exception as e:
+                result = {"success": False, "error": repr(e)}
+            if not result.get("success"):
+                print(f"  调用失败: {result.get('error')}")
+                report_cases.append({"image": image_path.name, "success": False,
+                                     "error": str(result.get("error"))})
+                engine_ok = False
+                continue
+            hit, rows = score(result, truth)
+            total_hit += hit
+            total_q += len(truth)
+            print(f"  判定命中 {hit}/{len(truth)}")
+            for r in rows:
+                print(f"    题{r[0]} 学生答[{r[1]}] -> 判定={r[2]} 期望={r[3]} {r[4]} 置信度={r[5]} 模型读到[{r[6]}]")
+            report_cases.append({"image": image_path.name, "success": True, "hit": hit,
+                                 "total": len(truth),
+                                 "rows": [list(map(str, r)) for r in rows],
+                                 "summary": result.get("summary")})
+        acc = total_hit / total_q if total_q else 0.0
+        print(f"  引擎汇总: {total_hit}/{total_q} = {acc:.1%}")
+        report["engines"][name] = {"success": engine_ok, "hit": total_hit,
+                                   "total": total_q, "accuracy": round(acc, 4),
+                                   "cases": report_cases}
 
     out = args.out or str(Path(__file__).parent / "accuracy_report.json")
     Path(out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
