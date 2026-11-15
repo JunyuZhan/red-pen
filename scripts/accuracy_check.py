@@ -100,6 +100,38 @@ def score(result, truth):
     return hit, rows
 
 
+def markdown_report(report: dict) -> str:
+    """把 JSON 报告转成教师可读的 Markdown：总准确率 + 逐题命中率。"""
+    lines = ["# 批改准确率评测报告", ""]
+    for name, eng in report.get("engines", {}).items():
+        if not eng.get("total"):
+            lines += [f"## {name}", "- 无可用结果（API 调用失败）", ""]
+            continue
+        acc = eng["accuracy"]
+        lines += [f"## {name}",
+                  f"- 总命中：**{eng['hit']}/{eng['total']} = {acc:.1%}**",
+                  "", "| 题号 | 命中 | 命中率 |", "|---|---|---|"]
+        stat = question_stats(eng.get("cases", []))
+        for qno in sorted(stat):
+            hit, tot = stat[qno]
+            lines.append(f"| {qno} | {hit}/{tot} | {hit / tot:.0%} |")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def question_stats(cases):
+    """逐题命中统计：{question_no: (hit, total)}，跨图聚合。"""
+    stat = {}
+    for c in cases:
+        if not c.get("success"):
+            continue
+        for row in c.get("rows", []):
+            qno, ok = row[0], row[4] == "✓"
+            h, t = stat.get(qno, (0, 0))
+            stat[qno] = (h + int(ok), t + 1)
+    return stat
+
+
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--image", help="已有作业图片路径（默认生成内置样例）")
@@ -165,7 +197,9 @@ async def main():
 
     out = args.out or str(Path(__file__).parent / "accuracy_report.json")
     Path(out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n报告已写入 {out}")
+    md_path = str(Path(out).with_suffix(".md"))
+    Path(md_path).write_text(markdown_report(report), encoding="utf-8")
+    print(f"报告已写入 {out} / {md_path}")
 
 
 if __name__ == "__main__":

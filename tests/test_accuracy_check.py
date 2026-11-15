@@ -76,3 +76,24 @@ def test_load_batch_requires_truth_file(tmp_path):
     import pytest
     with pytest.raises(SystemExit):
         mod.load_batch(tmp_path)
+
+
+def test_question_stats_and_markdown_report():
+    report = {"engines": {"qwen3-vl-plus": {
+        "hit": 3, "total": 4, "accuracy": 0.75,
+        "cases": [
+            {"success": True, "rows": [["1", "25×4=100", "correct", "correct", "✓", "0.9", ""],
+                                       ["3", "25×4=96", "correct", "wrong", "✗", "0.5", ""]]},
+            {"success": True, "rows": [["3", "25×4=96", "wrong", "wrong", "✓", "0.8", ""]]},
+            {"success": False, "error": "boom"},
+        ]}}}
+    stat = mod.question_stats(report["engines"]["qwen3-vl-plus"]["cases"])
+    assert stat == {"1": (1, 1), "3": (1, 2)}  # 失败图不计入
+    md = mod.markdown_report(report)
+    assert "75.0%" in md and "| 3 | 1/2 | 50% |" in md
+
+
+def test_markdown_report_empty_engine():
+    md = mod.markdown_report({"engines": {"glm": {"success": False, "hit": 0, "total": 0,
+                                                  "accuracy": 0.0, "cases": []}}})
+    assert "无可用结果" in md
