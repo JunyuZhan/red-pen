@@ -327,11 +327,14 @@ async def _grade_one(submission_id: int, template_id: Optional[int] = None) -> d
         # CV切题 / 切带覆盖 bbox 之后才保存逐题结果（回归修复：原先入库在
         # bbox 覆盖之前，DB 里 bbox_answer 永远是引擎原始值甚至为 null）
         first_qr = None
-        for qd in questions:
+        for idx_q, qd in enumerate(questions, 1):
             conf = qd.get("confidence")
+            # 题号兼容：老师答案表常用「口算1 / 1(1) / 2.」等格式，不能直接 int()
+            _raw_no = str(qd.get("question_no") or "").strip()
+            _digits = "".join(ch for ch in _raw_no if ch.isdigit())[:3]
             qr = QuestionResult(
                 submission_id=submission.id,
-                question_no=int(qd.get("question_no") or 0) or 1,
+                question_no=int(_digits) if _digits else idx_q,
                 question_type=qd.get("question_type") or "default",
                 knowledge_point=(qd.get("knowledge_point") or None) or None,
                 student_answer_text=qd.get("student_answer"),
