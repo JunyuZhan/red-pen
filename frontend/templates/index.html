@@ -668,6 +668,7 @@ async function loadAnalytics() {
       </table>
     </details>
     ${kpBlock}
+    <div id="fwBlock" style="margin:18px 0 0;"><p class="hint">高频错题加载中…</p></div>
     <div id="adviceBlock" style="margin:18px 0 0;">
       <p style="margin:0 0 6px;font-size:14px;"><b>AI 教学建议</b>
         <button id="adviceBtn" style="margin-left:8px;" onclick="generateAdvice()">重新生成</button>
@@ -688,6 +689,33 @@ async function loadAnalytics() {
       <tbody>${reviewRows || `<tr><td colspan="5" class="hint">没有需要复核的题目 🎉</td></tr>`}</tbody>
     </table>`;
   loadAdvice();
+  loadFrequentWrong();
+}
+
+// 高频错题（PRD 七第三层）：按错误人数降序列题，附典型错误答案
+async function loadFrequentWrong() {
+  const box = document.getElementById("fwBlock");
+  if (!box) return;
+  try {
+    const d = await (await fetch("/api/analytics/analytics/frequent-wrong")).json();
+    const items = d.items || [];
+    if (!items.length) { box.innerHTML = `<p style="margin:6px 0;font-size:14px;"><b>高频错题</b></p><p class="hint">暂无错题记录 🎉</p>`; return; }
+    const rows = items.map(it => {
+      const errs = Object.entries(it.error_types || {}).map(([t, n]) => `${t} ${n}次`).join("，");
+      const samples = (it.sample_answers || []).map(s => `"${esc(s)}"`).join("、");
+      return `<tr><td>${esc(it.assignment_title)}</td><td>${it.question_no}</td>` +
+        `<td style="color:#c0392b;font-weight:bold;">${it.wrong_students} 人</td>` +
+        `<td>${errs || "-"}</td><td>${samples || "-"}</td></tr>`;
+    }).join("");
+    box.innerHTML = `
+      <p style="margin:0 0 6px;font-size:14px;"><b>高频错题</b>（按错误人数降序，典型错误答案供讲评参考）</p>
+      <table>
+        <thead><tr><th>作业</th><th>题号</th><th>错误人数</th><th>错误类型</th><th>典型错误答案</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (e) {
+    box.innerHTML = `<p class="hint">高频错题加载失败</p>`;
+  }
 }
 
 // 教师复核修正：改写判定，写入 teacher_override 后刷新面板

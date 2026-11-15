@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from collections import Counter, defaultdict
 
-from ..database import get_db, Class, QuestionResult, Submission, Student
+from ..database import get_db, Assignment, Class, QuestionResult, Submission, Student
 from ..models.grade_scale import get_thresholds, compute_grade
 from ..models.knowledge_norm import canonical_key
 from .auth import require_admin
@@ -178,6 +178,55 @@ async def analytics_trends(db: Session = Depends(get_db)):
     classes.sort(key=lambda x: -(x["accuracy"] if x["accuracy"] is not None else -1))
 
     return {"success": True, "series": series, "classes": classes}
+
+
+@router.get("/analytics/frequent-wrong")
+async def frequent_wrong(db: Session = Depends(get_db)):
+    """PRD 七第三层·高频错题：按（作业, 题号）聚合错误人数降序，附典型错误答案与错误类型分布。"""
+
+    sub_map = {s.id: s for s in db.query(Submission).all()}
+    asg_map = {a.id: a for a in db.query(Assignment).all()}
+    stu_map = {s.id: s.name for s in db.query(Student).all()}
+    results = db.query(QuestionResult).all()
+
+    # (assignment_id, question_no) -> 聚合
+    agg = defaultdict(lambda: {"wrong": 0, "total": 0, "students": set(),
+                               "error_types": Counter(), "samples": []})
+    for r in results:
+        sub = sub_map.get(r.submission_id)
+        if not sub:
+            continue
+        key = (sub.assignment_id, r.question_no)
+        st = agg[key]
+        st["total"] += 1
+        if r.judgement_final == "wrong":
+            st["wrong"] += 1
+            if sub.student_id:
+                st["students"].add(sub.student_id)
+            if r.error_type:
+                st["error_types"][r.error_type] += 1
+            if r.student_answer_text:
+                st["samples"].append(r.student_answer_text)
+
+    items = []
+    for (aid, qno), st in agg.items():
+        if not st["wrong"]:
+            continue
+        asg = asg_map.get(aid)
+        items.append({
+            "assignment_id": aid,
+            "assignment_title": asg.title if asg else f"作业{aid}",
+            "question_no": qno,
+            "wrong_count": st["wrong"],
+            "wrong_students": len(st["students"]),
+            "total": st["total"],
+            "error_types": dict(st["error_types"].most_common()),
+            "sample_answers": st["samples"][:3],  # 典型错误答案（最多3例）
+        })
+    # 错误人数降序，其次题号
+    items.sort(key=lambda x: (-x["wrong_students"], -x["wrong_count"],
+                              x["assignment_title"], x["question_no"]))
+    return {"success": True, "items": items[:30]}
 
 
 VALID_JUDGEMENTS = ("correct", "wrong", "partial")
