@@ -398,6 +398,7 @@ async function view(id) {
           `<span style="color:#b45309">第${s.step_no}步</span> ` + (s.content ? `${s.content} — ` : "")
           + (s.error_reason || "有误")).join("<br>") : "")
       + (q.student_answer ? ` <button style="font-size:12px;margin-left:6px;" onclick="reassignAnswer(${q.id},${d.submission_id},${q.question_no})">归属改错？</button>` : "")
+      + ` <button style="font-size:12px;" onclick="regradeQuestion(${q.id},${d.submission_id})">重批此题</button>`
       + `</p>`;
   });
   $("detailBody").innerHTML = html;
@@ -423,6 +424,20 @@ async function reassignAnswer(sourceId, submissionId, sourceNo) {
   });
   const d = await r.json();
   if (!r.ok || !d.success) return alert(d.detail || "操作失败");
+  view(submissionId);
+}
+
+// 单题重批：对判定不服的题只重批该题（一次请求，省钱），不整页重跑
+async function regradeQuestion(qrId, submissionId) {
+  if (!confirm("对该题重新批改一次？（消耗一次模型请求，其余题目不动）")) return;
+  const tpl = $("gradeTplSel").value;
+  const q = tpl ? `?template_id=${tpl}` : "";
+  const r = await fetch(`/api/grading/regrade-question/${qrId}${q}`, { method: "POST" });
+  const d = await r.json();
+  if (!r.ok || !d.success) return alert(d.detail || "重批失败");
+  alert(d.changed
+    ? `重批完成，判定有变化：现在是 ${d.question.judgement}。请核对。`
+    : "重批完成，判定与之前一致。");
   view(submissionId);
 }
 

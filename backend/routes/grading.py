@@ -787,6 +787,107 @@ async def reassign_answer(submission_id: int, payload: dict, db: Session = Depen
                        "needs_review": target.needs_review}}
 
 
+# ============ 单题重批（教师对个别判定不服时，只重批该题，省钱） ============
+
+@router.post("/regrade-question/{qr_id}")
+async def regrade_question(qr_id: int, template_id: Optional[int] = None,
+                           db: Session = Depends(get_db)):
+    """重新批改单个题目（不整页重批，节省 token）。
+
+    行为：用当前模型对原图重跑一次批改，取返回结果中题号匹配的那一题，
+    覆盖该 QuestionResult 的判定/置信度/答案/步骤/知识点；bbox 与教师改判
+    (teacher_override) 保留不动。原判定写入 review_note 留痕。
+    """
+    qr = db.query(QuestionResult).filter(QuestionResult.id == qr_id).first()
+    if not qr:
+        raise HTTPException(status_code=404, detail="题目结果不存在")
+    submission = db.query(Submission).filter(Submission.id == qr.submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="提交记录不存在")
+    if submission.status != "completed":
+        raise HTTPException(status_code=400, detail=f"提交当前状态为 {submission.status}，仅已完成的批改支持单题重批")
+    if not submission.original_image_path or not os.path.exists(submission.original_image_path):
+        raise HTTPException(status_code=400, detail="原图已丢失，无法重批")
+
+    # 月度预算护栏：block 模式下超预算不允许重批烧钱
+    from ..models.budget import check_budget
+    budget = check_budget()
+    if budget["exceeded"] and budget["budget_action"] == "block":
+        raise HTTPException(status_code=400,
+            detail=f"本月已用 {budget['spent']:.2f} 元，已达预算上限 {budget['monthly_budget']:.2f} 元（设置页可调整）")
+
+    template = None
+    if template_id:
+        template = db.query(AnswerTemplate).filter(AnswerTemplate.id == template_id).first()
+    subject = template.subject if template else "数学"
+
+    try:
+        result = await asyncio.wait_for(
+            grading_manager.grade(
+                image_path=submission.original_image_path,
+                question_type="default",
+                subject=subject,
+                answers=(template.answers if template else None),
+            ),
+            timeout=get_grading_timeout(),
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail=f"重批超时（超过 {get_grading_timeout()} 秒）已中止")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"重批失败: {str(e)[:300]}")
+
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=f"重批失败: {str(result.get('error', ''))[:300]}")
+
+    matched = None
+    for qd in result.get("questions", []):
+        try:
+            if int(str(qd.get("question_no", "")).strip() or -1) == qr.question_no:
+                matched = qd
+                break
+        except (ValueError, TypeError):
+            continue
+    if matched is None:
+        raise HTTPException(status_code=404, detail="本次重批结果里没有该题号，请稍后重试或整页重批")
+
+    old_judgement = qr.judgement_final
+    conf = matched.get("confidence")
+    try:
+        conf = float(conf) if conf is not None else None
+    except (ValueError, TypeError):
+        conf = None  # 模型偶发返回字符串置信度，能转则转，转不了不崩
+    qr.student_answer_text = matched.get("student_answer")
+    qr.correct_answer_text = matched.get("correct_answer")
+    qr.llm_raw_output = result.get("raw_output")
+    qr.judgement_raw = matched.get("judgement")
+    qr.judgement_final = matched.get("judgement")
+    qr.error_type = matched.get("error_type")
+    qr.confidence_final = conf
+    qr.steps = matched.get("steps")
+    qr.knowledge_point = (matched.get("knowledge_point") or None) or None
+    qr.needs_review = 1 if matched.get("needs_review") else 0
+    qr.review_note = f"单题重批 {datetime.utcnow().strftime('%m-%d %H:%M')}，重批前判定: {old_judgement or '无'}"
+    db.commit()
+
+    get_logger().info("单题重批 qr=%s question_no=%s: %s -> %s", qr_id, qr.question_no,
+                      old_judgement, qr.judgement_final)
+    return {
+        "success": True,
+        "question": {
+            "id": qr.id,
+            "question_no": qr.question_no,
+            "judgement": qr.judgement_final,
+            "error_type": qr.error_type,
+            "confidence": qr.confidence_final,
+            "student_answer": qr.student_answer_text,
+            "correct_answer": qr.correct_answer_text,
+            "steps": qr.steps,
+            "review_note": qr.review_note,
+        },
+        "changed": old_judgement != qr.judgement_final,
+    }
+
+
 # ============ 批改结果导出 CSV（老师导入 Excel/成绩单） ============
 
 CSV_HEADERS = ["题号", "题型", "学生答案", "参考答案", "判定", "错误类型",

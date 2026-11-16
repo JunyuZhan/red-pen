@@ -213,3 +213,8 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 ## 新增 v0.5.43）一键自检 diagnose.py ✅（2026-11-16）
 - scripts/diagnose.py：8 项环境检查（Python/依赖/数据目录可写/DB完整性/磁盘/端口/中文字体/API Key 存在性），逐项 ✅⚠️❌ + 修复建议，Windows 排障用；Key 只查存在不显示。12 项离线测试（423→438）。坑：依赖清单要按 requirements.txt 实际写（sandbox 无 aiosqlite/PyYAML，虚列会误报 FAIL）；_load_font 永远有兜底返回值，不能当"有中文字体"的判据。
 - 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）。
+
+## 新增 v0.5.44）单题重批 ✅（2026-11-16）
+- POST /api/grading/regrade-question/{qr_id}（可选 template_id）：对判定不服的题只重批该题（一次模型请求，其余题不动，省钱）。题号匹配覆盖判定/置信度/答案/步骤/知识点；bbox 与 teacher_override 保留；原判定写 review_note 留痕。护栏：仅 completed 状态、原图存在、预算 block 模式拦、超时/失败明确报错。
+- 工作台详情每题新增「重批此题」按钮（regradeQuestion），弹确认提示"消耗一次模型请求"。10 项离线测试（438→448）。坑：引擎偶发返回字符串置信度，需 try float 兜底；别把"遗留候选"当未做——归属改错入口早在 v0.5.16 就已落地，动手前先 grep。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）。
