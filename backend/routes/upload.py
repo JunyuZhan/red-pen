@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from PIL import Image
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..database import get_db, Submission, Assignment, Class, Student
@@ -118,7 +118,7 @@ async def upload_assignment(
             original_image_path=str(file_path),
             status="uploaded",
             quality_flags=flags,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
 
         db.add(submission)
@@ -190,7 +190,7 @@ async def upload_mobile(
             class_id=class_result.id,
             title=assignment_name,
             subject_id=1,  # 默认数学
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
 
         db.add(assignment)
@@ -229,7 +229,7 @@ async def upload_mobile(
             status="uploaded",
             quality_flags=flags,
             quality_override=bool(force_quality),
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         
         db.add(submission)

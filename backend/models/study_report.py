@@ -11,7 +11,7 @@
 
 import json
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from .knowledge_norm import canonical_key
@@ -174,7 +174,7 @@ async def generate_student_report(student_id: int) -> Dict[str, Any]:
             "advice": _lst("advice", 5),
         },
         model=cfg["model"],
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(row)
     db.commit()

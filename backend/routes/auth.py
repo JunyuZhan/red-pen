@@ -5,7 +5,7 @@ API认证路由
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from ..database import get_db
@@ -61,9 +61,9 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     """创建访问令牌"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc).replace(tzinfo=None) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=15)
     
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -110,7 +110,7 @@ class PinLoginIn(BaseModel):
 
 
 def _make_admin_token() -> str:
-    expire = datetime.utcnow() + timedelta(hours=ADMIN_TOKEN_EXPIRE_HOURS)
+    expire = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=ADMIN_TOKEN_EXPIRE_HOURS)
     return jwt.encode(
         {"sub": "admin", "exp": expire},
         settings.SECRET_KEY,

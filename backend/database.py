@@ -5,7 +5,7 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, JSON, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from datetime import timezone, datetime
 from pathlib import Path
 import sqlite3
 
@@ -57,7 +57,7 @@ class Student(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     class_id = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 class Assignment(Base):
     __tablename__ = "assignment"
@@ -66,7 +66,7 @@ class Assignment(Base):
     class_id = Column(Integer, nullable=False)
     title = Column(String(200), nullable=False)
     subject_id = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 class Submission(Base):
     __tablename__ = "submission"
@@ -87,7 +87,7 @@ class Submission(Base):
     status = Column(String(20), default="uploaded")  # uploaded, processing, completed, failed
     error_message = Column(Text, nullable=True)     # 失败原因（PRD 4.4）
     retry_count = Column(Integer, default=0)        # 已重试次数
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 class AnswerTemplate(Base):
     """答案模板（PRD 4.4/M4）：同一练习册答案存一次，之后复用"""
@@ -98,7 +98,7 @@ class AnswerTemplate(Base):
     subject = Column(String(50), nullable=False, default="数学")
     answers = Column(JSON, nullable=False, default=dict)  # {"1": "答案", ...}
     usage_count = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 class QuestionResult(Base):
     __tablename__ = "question_result"
@@ -123,7 +123,7 @@ class QuestionResult(Base):
     bbox_answer = Column(JSON, nullable=True)
     bbox_question = Column(JSON, nullable=True)
     steps = Column(JSON, nullable=True)  # 步骤级批改（v0.5.11 g5）：错误步骤列表 [{step_no, content, error_reason}]
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 class KnowledgePoint(Base):
     __tablename__ = "knowledge_point"
@@ -142,7 +142,7 @@ class TeachingAdvice(Base):
     stats_snapshot = Column(JSON, nullable=True)   # 生成时依据的统计数据
     content = Column(JSON, nullable=False)         # {summary, suggestions, focus_students}
     model = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class StudyReport(Base):
@@ -154,7 +154,7 @@ class StudyReport(Base):
     stats_snapshot = Column(JSON, nullable=True)   # 生成时依据的该生统计数据
     content = Column(JSON, nullable=False)         # {summary, strengths, weaknesses, advice}
     model = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class GradingCache(Base):
@@ -165,7 +165,7 @@ class GradingCache(Base):
     key_hash = Column(String(64), unique=True, nullable=False, index=True)
     result_json = Column(Text, nullable=False)
     model = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class AppConfig(Base):

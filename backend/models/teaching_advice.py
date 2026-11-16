@@ -10,7 +10,7 @@ LLM 失败/未配 Key → 返回明确错误，不影响已有建议展示。
 
 import json
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -158,7 +158,7 @@ async def generate_advice() -> Dict[str, Any]:
             ],
         },
         model=cfg["model"],
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(row)
     db.commit()

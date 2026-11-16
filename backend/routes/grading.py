@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 import asyncio
@@ -67,7 +67,7 @@ def classify_pause_error(error: str) -> Optional[str]:
 
 def pause_provider(reason: str) -> None:
     _PROVIDER_PAUSED.update(paused=True, reason=reason,
-                            paused_at=datetime.utcnow().isoformat())
+                            paused_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat())
     get_logger().warning("服务商自动暂停：%s", reason)
 
 
@@ -866,7 +866,7 @@ async def regrade_question(qr_id: int, template_id: Optional[int] = None,
     qr.steps = matched.get("steps")
     qr.knowledge_point = (matched.get("knowledge_point") or None) or None
     qr.needs_review = 1 if matched.get("needs_review") else 0
-    qr.review_note = f"单题重批 {datetime.utcnow().strftime('%m-%d %H:%M')}，重批前判定: {old_judgement or '无'}"
+    qr.review_note = f"单题重批 {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%m-%d %H:%M')}，重批前判定: {old_judgement or '无'}"
     db.commit()
 
     get_logger().info("单题重批 qr=%s question_no=%s: %s -> %s", qr_id, qr.question_no,
@@ -938,7 +938,7 @@ async def export_student_wrong_csv(
     if not student:
         raise HTTPException(status_code=404, detail="学生不存在")
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     sub_q = db.query(Submission).filter(Submission.student_id == student_id)
     if days and days > 0:
         sub_q = sub_q.filter(Submission.created_at >= now - timedelta(days=days))
@@ -1158,7 +1158,7 @@ async def export_class_all_csv(
     import csv
     import io
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     q = db.query(Assignment)
     if days and days > 0:
         q = q.filter(Assignment.created_at >= now - timedelta(days=days))
@@ -1327,7 +1327,7 @@ async def export_wrong_all_csv(
     import csv
     import io
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     q = db.query(Assignment)
     if days and days > 0:
         q = q.filter(Assignment.created_at >= now - timedelta(days=days))
