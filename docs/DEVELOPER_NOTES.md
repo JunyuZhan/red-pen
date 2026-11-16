@@ -209,3 +209,7 @@ app.py 全局兜底：@app.exception_handler(Exception)——API 路由未捕获
 
 ## 模型下线跟进轮 ✅（2026-11-15，v0.5.37）
 qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模型会 404），qwen 默认改 qwen3-vl-plus（¥1/¥10 每百万），glm 默认改免费的 glm-4.6v-flash，推荐清单+价格表全换现役型号；豆包 seed 2.1 lite 现役不变。教训：①CI 内联冒烟脚本里也藏着默认模型断言（glm-4v），改默认值必须 grep .github/ 和 tests/ 两处；②改默认单价要同步 get_cost_config 两处默认值（stored.get 与 except 分支）。下轮候选：真实批改准确率验证（等用户素材/API Key，最高优先）。注：知识点热力图已于 v0.5.32（40329ff）落地，勿再当缺口。
+
+## 新增 v0.5.43）一键自检 diagnose.py ✅（2026-11-16）
+- scripts/diagnose.py：8 项环境检查（Python/依赖/数据目录可写/DB完整性/磁盘/端口/中文字体/API Key 存在性），逐项 ✅⚠️❌ + 修复建议，Windows 排障用；Key 只查存在不显示。12 项离线测试（423→438）。坑：依赖清单要按 requirements.txt 实际写（sandbox 无 aiosqlite/PyYAML，虚列会误报 FAIL）；_load_font 永远有兜底返回值，不能当"有中文字体"的判据。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）。
