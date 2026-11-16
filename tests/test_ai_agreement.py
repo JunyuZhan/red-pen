@@ -146,7 +146,7 @@ def test_ai_agreement_override_endpoint(client, agreement_env):
                     json={"question_result_id": qr_id, "judgement": "wrong"})
     assert r.status_code == 200
     db = dbmod.SessionLocal()
-    qr = db.query(QuestionResult).get(qr_id)
+    qr = db.get(QuestionResult, qr_id)
     assert qr.judgement_raw is not None
     raw0 = qr.judgement_raw
     db.close()

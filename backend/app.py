@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 import os
 
@@ -22,7 +23,45 @@ from .logging_setup import get_logger, log_path, open_logs_folder, recent_lines
 from .config import settings
 
 # 创建FastAPI应用
+def run_startup_tasks():
+    """启动初始化任务：日志、建库、队列恢复、目录迁移、Key加密迁移"""
+    logger = get_logger()
+    logger.info("红笔启动，日志文件: %s", log_path())
+    init_db()
+    # 队列持久化恢复（PRD 4.4）：服务重启后，卡在 processing 的任务转回 failed，可重试
+    from .database import SessionLocal, Submission
+    db = SessionLocal()
+    try:
+        stuck = db.query(Submission).filter(Submission.status == "processing").all()
+        for s in stuck:
+            s.status = "failed"
+            s.error_message = "服务重启导致批改中断，请重试"
+        if stuck:
+            db.commit()
+            print(f"♻️ 恢复队列：{len(stuck)} 条中断任务已转回失败状态，可重试")
+    finally:
+        db.close()
+    # 上传文件目录迁移：旧扁平 uploads/uuid.jpg → 班级/作业/学生 层级（PRD 九）
+    from .storage import migrate_upload_layout
+    m = migrate_upload_layout()
+    if m:
+        print(f"📁 已把 {m} 张旧上传图片迁移到 班级/作业/学生 目录结构")
+    # API Key 静态加密：把旧明文 Key 自动迁移为密文（PRD 4.2）
+    from .models.secret_box import migrate_plaintext_keys
+    n = migrate_plaintext_keys()
+    if n:
+        print(f"🔐 已把 {n} 条明文 API Key 迁移为加密存储")
+    print("🗄️ 数据库初始化完成")
+
+
+@asynccontextmanager
+async def lifespan(app):
+    run_startup_tasks()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.APP_NAME,
     version=settings.VERSION,
     description="教师单机自用版作业批改系统",
@@ -160,36 +199,6 @@ def api_logs_open_folder():
     d = open_logs_folder()
     return {"success": not str(d).startswith("打开失败"), "path": d}
 
-
-@app.on_event("startup")
-async def startup_event():
-    logger = get_logger()
-    logger.info("红笔启动，日志文件: %s", log_path())
-    init_db()
-    # 队列持久化恢复（PRD 4.4）：服务重启后，卡在 processing 的任务转回 failed，可重试
-    from .database import SessionLocal, Submission
-    db = SessionLocal()
-    try:
-        stuck = db.query(Submission).filter(Submission.status == "processing").all()
-        for s in stuck:
-            s.status = "failed"
-            s.error_message = "服务重启导致批改中断，请重试"
-        if stuck:
-            db.commit()
-            print(f"♻️ 恢复队列：{len(stuck)} 条中断任务已转回失败状态，可重试")
-    finally:
-        db.close()
-    # 上传文件目录迁移：旧扁平 uploads/uuid.jpg → 班级/作业/学生 层级（PRD 九）
-    from .storage import migrate_upload_layout
-    m = migrate_upload_layout()
-    if m:
-        print(f"📁 已把 {m} 张旧上传图片迁移到 班级/作业/学生 目录结构")
-    # API Key 静态加密：把旧明文 Key 自动迁移为密文（PRD 4.2）
-    from .models.secret_box import migrate_plaintext_keys
-    n = migrate_plaintext_keys()
-    if n:
-        print(f"🔐 已把 {n} 条明文 API Key 迁移为加密存储")
-    print("🗄️ 数据库初始化完成")
 
 if __name__ == "__main__":
     uvicorn.run(app, host=settings.HOST, port=settings.PORT, reload=True)

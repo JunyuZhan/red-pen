@@ -189,8 +189,8 @@ def test_retry_and_queue_persistence(tmp_db):
     db.add_all([f, p]); db.commit(); fid, pid = f.id, p.id; db.close()
 
     # 模拟重启：startup 恢复逻辑应把 processing → failed
-    from backend.app import startup_event
-    asyncio.run(startup_event())
+    from backend.app import run_startup_tasks
+    run_startup_tasks()
     import backend.routes.grading as _gr
     db = SessionLocal()
     assert db.query(Submission).get(pid).status == "failed", "中断任务未恢复"

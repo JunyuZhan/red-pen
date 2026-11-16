@@ -88,7 +88,7 @@ def test_frontend_has_class_export():
 
 def test_export_class_all_csv(client, tmp_db):
     from backend.database import SessionLocal, Submission, QuestionResult, Class as Cls, Student, Assignment
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     db = SessionLocal()
     cls = Cls(name="三年二班", teacher_id=1, stage_id=1, subject_id=1)
     db.add(cls); db.flush()
@@ -98,7 +98,7 @@ def test_export_class_all_csv(client, tmp_db):
     a1 = Assignment(class_id=cls.id, title="口算练习", subject_id=1)
     a2 = Assignment(class_id=cls.id, title="单元测", subject_id=1)
     old = Assignment(class_id=cls.id, title="很久以前", subject_id=1,
-                     created_at=datetime.utcnow() - timedelta(days=60))
+                     created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=60))
     db.add_all([a1, a2, old]); db.flush()
     for asg, s, acc_res in ((a1, s1, "wrong"), (a2, s1, "correct"), (a1, s2, "correct")):
         sub = Submission(assignment_id=asg.id, student_id=s.id,

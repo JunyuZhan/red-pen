@@ -70,7 +70,7 @@ def test_export_wrong_all_basic(client, tmp_db):
 
 def test_export_wrong_all_days_filter(client, tmp_db):
     from backend.database import SessionLocal, Submission, QuestionResult, Class as Cls, Student, Assignment
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     db = SessionLocal()
     cls = Cls(name="三年二班", teacher_id=1, stage_id=1, subject_id=1)
     db.add(cls); db.flush()
@@ -78,7 +78,7 @@ def test_export_wrong_all_days_filter(client, tmp_db):
     db.add(s1); db.flush()
     new_a = Assignment(class_id=cls.id, title="新作业", subject_id=1)
     old_a = Assignment(class_id=cls.id, title="旧作业", subject_id=1,
-                       created_at=datetime.utcnow() - timedelta(days=60))
+                       created_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=60))
     db.add_all([new_a, old_a]); db.flush()
     for asg in (new_a, old_a):
         sub = Submission(assignment_id=asg.id, student_id=s1.id,
