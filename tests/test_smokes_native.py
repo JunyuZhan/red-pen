@@ -193,8 +193,8 @@ def test_retry_and_queue_persistence(tmp_db):
     run_startup_tasks()
     import backend.routes.grading as _gr
     db = SessionLocal()
-    assert db.query(Submission).get(pid).status == "failed", "中断任务未恢复"
-    assert db.query(Submission).get(pid).error_message, "中断任务缺失败原因"
+    assert db.get(Submission, pid).status == "failed", "中断任务未恢复"
+    assert db.get(Submission, pid).error_message, "中断任务缺失败原因"
     db.close()
 
     from fastapi.testclient import TestClient
@@ -217,19 +217,19 @@ def test_retry_and_queue_persistence(tmp_db):
 
     # 重试达上限应拒绝
     db = SessionLocal()
-    db.query(Submission).get(fid).retry_count = 3; db.commit(); db.close()
+    db.get(Submission, fid).retry_count = 3; db.commit(); db.close()
     r = c.post(f"/api/grading/retry/{fid}")
     assert r.status_code == 400 and "重试次数已达上限" in r.json()["detail"], r.text
 
     # 上限内：应走批改流程并失败落原因（无有效 Key，批改必然失败）
     db = SessionLocal()
-    db.query(Submission).get(fid).retry_count = 0; db.commit(); db.close()
+    db.get(Submission, fid).retry_count = 0; db.commit(); db.close()
     c.post(f"/api/grading/retry/{fid}")
     # 后台任务异步执行，轮询等待其落到终态（最多 10 秒）
     s = None
     for _ in range(50):
         db = SessionLocal()
-        s = db.query(Submission).get(fid)
+        s = db.get(Submission, fid)
         if s.status != "processing":
             db.close()
             break
@@ -237,13 +237,13 @@ def test_retry_and_queue_persistence(tmp_db):
         time.sleep(0.2)
     else:
         db = SessionLocal()
-        s = db.query(Submission).get(fid)
+        s = db.get(Submission, fid)
     assert s.status == "failed" and s.error_message and s.retry_count == 1, (s.status, s.error_message)
     db.close()
 
     # retry 仅限 failed 状态
     db = SessionLocal()
-    s = db.query(Submission).get(fid); s.status = "completed"; db.commit(); db.close()
+    s = db.get(Submission, fid); s.status = "completed"; db.commit(); db.close()
     r = c.post(f"/api/grading/retry/{fid}")
     assert r.status_code == 400 and "仅失败状态可重试" in r.json()["detail"], r.text
 

@@ -2,7 +2,7 @@
 系统配置管理
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 import os
 import sys
@@ -52,9 +52,7 @@ class Settings(BaseSettings):
     DEFAULT_STAGE: str = "小学"
     DEFAULT_SUBJECT: str = "数学"
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
 # 创建数据目录
 def create_directories():

@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from ..database import get_db
 from ..config import settings
 import bcrypt
@@ -34,8 +34,7 @@ class User(BaseModel):
     name: str
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # 简化版认证，实际使用时需要实现完整的用户管理
 @router.post("/token", response_model=Token)
