@@ -44,7 +44,7 @@
 
 <section>
   <div class="dl-card" style="padding:40px 32px">
-    <h2 style="font-size:32px">最新版本 v0.5.50 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
+    <h2 style="font-size:32px">最新版本 v0.5.51 <span style="font-size:14px;font-weight:400;opacity:.8">（内测）</span></h2>
     <p style="margin-top:8px;color:rgba(255,255,255,0.7);font-size:14px">⚠️ 内测版：功能仍在完善，遇到问题请加 QQ 群 984644289 反馈</p>
     <a class="btn btn-primary" style="margin-top:20px;font-size:17px;padding:14px 36px" href="https://github.com/JunyuZhan/red-pen/releases/latest" target="_blank">⬇️ 下载 RedPen.exe（Windows x64）</a>
     <p style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.6)">请始终从本页或 GitHub Releases 官方渠道下载</p>
@@ -61,6 +61,12 @@
       <li>浏览器自动打开工作台，用默认 PIN <span class="kbd">123456</span> 登录后立即修改</li>
       <li>到设置页配置模型 API Key（详见<a href="guide.html" style="color:var(--notion-blue)">教程第 4 步</a>）</li>
     </ol>
+    <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.51</span> 工作台加载失败友好降级</h3>
+    <ul class="changelog">
+      <li>异常路径走查发现：答案模板/班级学生/学情分析/AI教学建议/学生报告五条加载链在服务未响应时无兜底——页面永远停在"加载中…"，现已全部改为渲染"加载失败，请刷新页面重试"</li>
+      <li>补一处学生等级显示转义（工作台 XSS 加固漏网点）</li>
+      <li>新增 4 项回归测试（共 480 项全部通过）</li>
+    </ul>
     <h3 style="font-size:20px;margin-bottom:12px"><span class="ver-tag">v0.5.50</span> 手机端安全加固</h3>
     <ul class="changelog">
       <li>手机端批改结果页此前把 AI 识别的学生答案/参考答案/错误类型未转义直接显示——学生手写内容含特殊字符时可能在手机页面执行脚本或破坏布局，现已全部转义（电脑端上一版已加固，本轮补齐手机端）</li>
