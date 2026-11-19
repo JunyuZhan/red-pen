@@ -2,7 +2,8 @@
 数据库初始化和模型定义
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, JSON, Float
+from sqlalchemy import create_engine, event, Column, Integer, String, Text, DateTime, Boolean, JSON, Float
+from sqlalchemy.exc import DatabaseError as SADatabaseError
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import timezone, datetime
@@ -14,8 +15,19 @@ from .config import settings
 # 创建数据库引擎
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False, "timeout": 15},
 )
+
+
+@event.listens_for(engine, "connect")
+def _sqlite_pragma(dbapi_conn, _record):
+    """每个新连接启用 WAL + busy_timeout：并发批改/多线程访问不再 'database is locked'。"""
+    cur = dbapi_conn.cursor()
+    try:
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+    finally:
+        cur.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -181,6 +193,38 @@ def init_db():
     
     # 创建数据库目录
     settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# 启动自愈：库文件损坏(断电/杀进程/磁盘满)时不再崩溃循环，
+# 把损坏文件改名留档后重建空库（用户数据仍保留在 .corrupt-* 文件里可手工找回）
+def selfheal_corrupt_db(db_file: Path, eng) -> Path | None:
+    """探测 db_file 是否损坏；损坏则留档改名并返回留档路径，完好返回 None。"""
+    try:
+        with eng.connect() as conn:
+            conn.exec_driver_sql("PRAGMA quick_check")
+        return None
+    except (sqlite3.DatabaseError, SADatabaseError) as e:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        saved = db_file.parent / f"{db_file.name}.corrupt-{stamp}"
+        eng.dispose()  # 释放持有旧文件的连接池
+        try:
+            db_file.rename(saved)
+        except OSError:
+            saved.write_text(f"corrupted, could not rename original: {e}")
+        print(f"⚠️ 数据库文件损坏({e})，已留档为 {saved.name} 并重建空库")
+        # WAL 残留一并清掉
+        for suffix in ("-wal", "-shm"):
+            p = db_file.parent / (db_file.name + suffix)
+            p.unlink(missing_ok=True)
+        return saved
+
+# 初始化数据库
+def init_db():
+    print("🗄️ 开始初始化数据库...")
+    
+    # 创建数据库目录
+    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    selfheal_corrupt_db(settings.DATA_DIR / "red_pen.db", engine)
     
     # 创建所有表
     Base.metadata.create_all(bind=engine)
