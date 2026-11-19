@@ -73,7 +73,7 @@
       <button class="secondary" onclick="cancelShot()">撤销重拍</button>
       <button onclick="upload()">立即上传</button>
     </div>
-    <div class="pick-zone" onclick="document.getElementById('file').click()">
+    <div class="pick-zone" id="pick_btn" onclick="document.getElementById('file').click()">
       <div class="cam">📷</div>
       <div class="t1">拍照 / 选图</div>
       <div class="t2">对准作业整页，光线充足效果更好</div>
@@ -239,19 +239,31 @@ async function upload(force) {
     setStatus("已上传，AI 批改中…（约 10-30 秒）");
     $("uploadForm").style.display = "none";
     timer = setInterval(poll, 3000);
-  } catch (e) { setStatus("❌ " + e.message); }
+  } catch (e) {
+    setStatus("❌ " + e.message + "（照片已保留，可点「立即上传」重试）");
+    if ($("file").files[0]) $("preview_ctl").style.display = "block";
+  }
 }
 
+let pollFails = 0;
 async function poll() {
   try {
     const r = await fetch("/api/grading/result/" + submissionId);
     const d = await r.json();
+    pollFails = 0;
     if (d.status === "completed") { clearInterval(timer); show(d); }
     else if (d.status === "failed") {
       clearInterval(timer);
       setStatus("❌ 批改失败" + (d.error_message ? `：${friendlyError(d.error_message)}` : "，请检查设置页的 API Key")
         + "，请联系教师在电脑端重试"); }
-  } catch (e) { /* 忽略瞬时错误 */ }
+  } catch (e) {
+    pollFails++;
+    if (pollFails === 3) setStatus("网络不稳定，正在重试…");
+    if (pollFails >= 20) { // 约 1 分钟仍失败才放弃
+      clearInterval(timer);
+      setStatus("❌ 长时间无法获取结果——请检查电脑端软件是否在运行、手机与电脑是否同一网络，然后重新上传");
+    }
+  }
 }
 
 function show(d) {
