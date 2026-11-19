@@ -255,3 +255,7 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 ## 工作台失败原因 XSS 补漏（健壮性第十七轮）✅（2026-11-19，v0.5.53）
 - index.html loadRows：friendlyError 不命中已知模式时原文回显 error_message，可能携带 HTML——现 escapeHtml 后插入；grade 徽章同步补转义。教训：走查 innerHTML 注入点时要盯"函数返回值"路径（friendlyError fallback 返回原文），不只盯字段直插。新增 tests/test_xss_fix_v0553.py 3 项。
 - 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则继续详情页/导出异常路径走查。
+
+## 上传异常路径加固（健壮性第二十轮）✅（2026-11-19）
+- upload-mobile 的 except 引用 try 内才赋值的 file_path：建班级/建作业阶段先抛错时二次 NameError，老师只见无解释 500。修法：try 前预置 file_path/assignment/class_result=None，except 里守卫清理 + db.rollback() + 删除本轮误建作业（不留孤儿），500 详情改人话不泄漏原始异常（真因进 redpen 日志）。桌面端 /upload 同步补人话详情。
+- 教训：except 块里引用的变量必须在 try 之前就绑定；写 except 清理逻辑时先问"到这里时哪些变量可能还没赋值"。新增 tests/test_upload_except_robust.py 3 项（492→495）。bug 修复不升版本，随下个功能版本带上。
