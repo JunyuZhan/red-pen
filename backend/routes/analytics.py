@@ -5,6 +5,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 
 from ..database import get_db, Assignment, Class, QuestionResult, Submission, Student
 from ..models.grade_scale import get_thresholds, compute_grade
@@ -63,8 +64,10 @@ async def analytics(db: Session = Depends(get_db)):
          "judgement": r.judgement_final, "confidence": r.confidence_final,
          "note": r.review_note}
         for r in results
-        if (r.needs_review and int(r.needs_review)) or
-           (r.confidence_final is not None and r.confidence_final < 0.6)
+        if not r.teacher_override and (  # 教师已复核过的不再进队列（含历史遗留 needs_review=1）
+            (r.needs_review and int(r.needs_review)) or
+            (r.confidence_final is not None and r.confidence_final < 0.6)
+        )
     ]
 
     # 知识点掌握统计（待办 i）：按知识点聚合正确率，薄弱的排前面
@@ -251,10 +254,15 @@ async def teacher_override(payload: dict, db: Session = Depends(get_db)):
 
     qr.judgement_final = judgement
     qr.teacher_override = judgement
+    # 教师已复核：清掉 needs_review 标记，否则复核队列里同一题永远留着，
+    # 且置信度<0.6 的题改判后依然反复出现、needs_review_count 虚高。
+    qr.needs_review = 0
     if error_type is not None:
         if error_type not in ("concept", "calculation", "reading", "format", ""):
             raise HTTPException(status_code=400, detail="error_type 取值非法")
         qr.error_type = error_type or None
+    stamp = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%m-%d %H:%M")
+    qr.review_note = f"教师复核 {stamp}：判定改为 {judgement}"
     db.commit()
 
     return {"success": True, "id": qr.id, "judgement_final": qr.judgement_final,
