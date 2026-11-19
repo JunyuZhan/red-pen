@@ -273,16 +273,17 @@ function show(d) {
     $("annotated").src = d.annotated_image_url + "?t=" + Date.now();
     $("annotated").style.display = "block";
   }
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   const box = $("questions");
   box.innerHTML = "";
   (d.results || []).forEach(q => {
     const div = document.createElement("div");
     div.className = "q " + (q.judgement || "");
     const tag = { correct: "✓ 正确", wrong: "✗ 错误", partial: "◐ 部分", unclear: "? 待定" }[q.judgement] || "?";
-    let html = `<div class="tag">第${q.question_no}题 · ${tag}</div>`;
-    if (q.error_type) html += `<div>错误类型：${q.error_type}</div>`;
-    if (q.student_answer) html += `<div>学生答案：${q.student_answer}</div>`;
-    if (q.correct_answer) html += `<div>参考答案：${q.correct_answer}</div>`;
+    let html = `<div class="tag">第${esc(q.question_no)}题 · ${tag}</div>`;
+    if (q.error_type) html += `<div>错误类型：${esc(q.error_type)}</div>`;
+    if (q.student_answer) html += `<div>学生答案：${esc(q.student_answer)}</div>`;
+    if (q.correct_answer) html += `<div>参考答案：${esc(q.correct_answer)}</div>`;
     div.innerHTML = html;
     box.appendChild(div);
   });
