@@ -93,6 +93,11 @@ async def create_student(data: StudentIn, db: Session = Depends(get_db)):
     check_name_len(name, "学生姓名")
     if not db.query(Class).filter(Class.id == data.class_id).first():
         raise HTTPException(status_code=404, detail="班级不存在")
+    # 同班重名防护：两个"张三"会让工作台选人/成绩单/学情分析混淆且无法区分
+    dup = db.query(Student).filter(Student.class_id == data.class_id,
+                                   Student.name == name).first()
+    if dup:
+        raise HTTPException(status_code=400, detail=f"班级里已有名为「{name}」的学生，请换一个名字或加后缀区分")
     s = Student(name=name, class_id=data.class_id)
     db.add(s)
     db.commit()
@@ -107,10 +112,25 @@ async def update_student(student_id: int, data: StudentUpdate, db: Session = Dep
         raise HTTPException(status_code=404, detail="学生不存在")
     if data.name and data.name.strip():
         check_name_len(data.name.strip(), "学生姓名")
-        s.name = data.name.strip()
+        new_name = data.name.strip()
+        # 同班重名防护（改名同理）：目标班内不能出现第二个同名学生
+        target_cid = data.class_id if data.class_id else s.class_id
+        dup = db.query(Student).filter(Student.class_id == target_cid,
+                                       Student.name == new_name,
+                                       Student.id != student_id).first()
+        if dup:
+            raise HTTPException(status_code=400, detail=f"班级里已有名为「{new_name}」的学生，请换一个名字或加后缀区分")
+        s.name = new_name
     if data.class_id:
         if not db.query(Class).filter(Class.id == data.class_id).first():
             raise HTTPException(status_code=404, detail="目标班级不存在")
+        if data.name is None or not data.name.strip():
+            # 只转班：目标班里也不能已有同名学生
+            dup = db.query(Student).filter(Student.class_id == data.class_id,
+                                           Student.name == s.name,
+                                           Student.id != student_id).first()
+            if dup:
+                raise HTTPException(status_code=400, detail=f"目标班级已有名为「{s.name}」的学生，请先改名或加后缀区分")
         s.class_id = data.class_id
     db.commit()
     return {"success": True}
