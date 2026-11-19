@@ -8,8 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 import asyncio
+import csv
 import json
 import os
+import re
 import time
 from ..config import settings
 from ..logging_setup import get_logger
@@ -54,6 +56,32 @@ def _parse_question_no(raw, fallback: int) -> int:
         _raw = _raw.split("(", 1)[0]
     _digits = "".join(ch for ch in _raw if ch.isdigit())[:3]
     return int(_digits) if _digits else fallback
+
+
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_cell(v):
+    """CSV 防公式注入（OWASP 建议）：= / + / - / @ 开头的单元格加前导单引号，
+    防止 Excel/WPS 打开导出文件时被当公式执行（学生名/AI识别答案均可能以
+    这些字符开头）。统计数字列为数值类型不受影响。"""
+    if isinstance(v, str) and v != "-" and v.startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + v
+    return v
+
+
+class _SafeCsvWriter:
+    """包装 csv.writer，writerow 时对每个单元格做 _csv_cell 处理。"""
+
+    def __init__(self, f, *args, **kwargs):
+        self._w = csv.writer(f, *args, **kwargs)
+
+    def writerow(self, row):
+        self._w.writerow([_csv_cell(c) for c in row])
+
+    def writerows(self, rows):
+        for row in rows:
+            self.writerow(row)
 
 
 def classify_pause_error(error: str) -> Optional[str]:
@@ -972,7 +1000,7 @@ async def export_student_wrong_csv(
         ])
 
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow([f"学生：{student.name}"] +
                     ["作业", "题号", "题干", "学生答案", "参考答案",
                      "判定", "错因", "知识点(原始)", "需复核"])
@@ -1012,7 +1040,7 @@ async def export_class_csv(assignment_id: int, db: Session = Depends(get_db)):
 
     thresholds = get_thresholds(db)
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow([f"作业：{assignment.title}"] + CLASS_HEADERS)
 
     subs = (db.query(Submission, StudentModel.name)
@@ -1113,7 +1141,7 @@ async def export_question_matrix_csv(assignment_id: int, db: Session = Depends(g
     judged_counts = {i: 0 for i in range(1, max_no + 1)}
 
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow([f"得分矩阵：{assignment.title}"] + header[1:])
     writer.writerow(header)
     for label, cells in rows:
@@ -1227,7 +1255,7 @@ async def export_class_all_csv(
                 .order_by(StudentModel.id).all())
 
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow(["班级", "学生"] + [a.title or f"作业{a.id}" for a in assignments]
                     + ["平均正确率", "平均等级"] + [f"知识点:{kp}" for kp in kp_columns])
     for st, class_name in students:
@@ -1280,7 +1308,7 @@ async def export_result_csv(submission_id: int, db: Session = Depends(get_db)):
     import csv
     import io
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow(CSV_HEADERS)
     results = (db.query(QuestionResult)
                .filter(QuestionResult.submission_id == submission_id)
@@ -1405,7 +1433,7 @@ async def export_wrong_all_csv(
         ])
 
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow(["作业", "班级", "学生", "题号", "题干", "学生答案", "参考答案",
                      "判定", "错因", "知识点(原始)", "需复核"])
     for kp in sorted(rows_by_kp, key=_kp_sort_key):
