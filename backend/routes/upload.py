@@ -183,6 +183,14 @@ async def upload_mobile(
     assignment = None
     class_result = None
 
+    # 学生归属校验：submission 表无外键约束，不存在的学生 ID 会静默建孤儿提交，
+    # 之后批改/学情分析都查无此人；未选学生时的默认学生 1 也必须真实存在
+    if student_id is not None:
+        if not db.query(Student).filter(Student.id == student_id).first():
+            raise HTTPException(status_code=404, detail="学生不存在，请返回手机端重新选择学生后再上传")
+    elif not db.query(Student).filter(Student.id == 1).first():
+        raise HTTPException(status_code=400, detail="未选择学生，请先在手机端选择学生后再上传")
+
     try:
         # 获取或创建班级
         class_result = db.query(Class).filter(Class.name == f"{stage}{subject}班级").first()

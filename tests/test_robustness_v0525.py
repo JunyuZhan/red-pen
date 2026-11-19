@@ -73,6 +73,11 @@ def test_upload_endpoint_rejects_empty_file(rx_env):
 def test_mobile_quality_reject_cleans_orphan_assignment(rx_env, monkeypatch):
     """移动端质量退回时，本轮误建的作业记录被删除，不留空作业。"""
     import backend.routes.upload as up
+    from backend.database import SessionLocal, Student
+    db = SessionLocal()
+    if not db.query(Student).filter(Student.id == 1).first():
+        db.add(Student(name="默认学生", class_id=1)); db.commit()
+    db.close()
     from backend.database import Assignment
 
     monkeypatch.setattr(up, "check_image", lambda data: ["照片模糊"])

@@ -27,6 +27,7 @@ def client(tmp_db, monkeypatch):
     c = TestClient(app, raise_server_exceptions=False)
     r = c.post("/api/auth/pin-login", json={"pin": settings.ADMIN_PIN})
     assert r.status_code == 200 and r.json()["success"], r.text
+    _seed_default_student()
     yield c
 
 
@@ -51,9 +52,21 @@ def _post_mobile(client, force_quality=0):
     )
 
 
+def _seed_default_student():
+    """upload-mobile 要求默认学生 1 存在（无外键，防孤儿提交）。"""
+    from backend.database import SessionLocal, Student
+    db = SessionLocal()
+    if not db.query(Student).filter(Student.id == 1).first():
+        db.add(Student(name="默认学生", class_id=1))
+        db.commit()
+    db.close()
+
+
 def test_mobile_upload_failure_before_file_path(monkeypatch, client, tmp_db):
     """保存路径计算先抛错：不得 NameError，500 详情人话，无孤儿作业。"""
     from backend.routes import upload as up
+
+    _seed_default_student()
 
     def boom(rel):
         raise OSError("disk full simulated")

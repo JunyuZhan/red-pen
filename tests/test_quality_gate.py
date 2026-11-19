@@ -78,6 +78,11 @@ class TestUploadQualityGate(unittest.TestCase):
         if not db.query(Class).first():
             db.add(Class(name="测试班", teacher_id=1, stage_id=1, subject_id=1))
             db.commit()
+        # upload-mobile 现在要求默认学生存在（无外键，防孤儿提交）
+        from backend.database import Student
+        if not db.query(Student).filter(Student.id == 1).first():
+            db.add(Student(name="默认学生", class_id=1))
+            db.commit()
         cls.class_id = db.query(Class).first().id
 
     def test_gate_and_force(self):

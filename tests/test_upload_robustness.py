@@ -31,7 +31,8 @@ def _valid_ids(client):
 
 
 def _png_bytes():
-    img = Image.new("RGB", (600, 400), "white")
+    # 灰色纸面（纯白会触发过曝质量门禁 422）
+    img = Image.new("RGB", (600, 400), (224, 224, 224))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
@@ -117,3 +118,66 @@ def test_upload_accepts_valid_image(client):
 def test_delete_nonexistent_returns_404_not_500(client):
     r = client.delete("/api/file/definitely-missing-id")
     assert r.status_code == 404
+
+
+def test_upload_mobile_rejects_nonexistent_student(client):
+    """移动端上传传不存在的学生 ID：404，不留孤儿提交（submission 无外键约束）。"""
+    from backend.database import SessionLocal, Submission
+    r = client.post(
+        "/api/upload/upload-mobile",
+        files={"file": ("good.png", _png_bytes(), "image/png")},
+        data={
+            "assignment_name": "孤儿学生测试",
+            "stage": "小学", "subject": "数学", "teacher_id": 1,
+            "student_id": 99999,
+        },
+    )
+    assert r.status_code == 404, r.text
+    db = SessionLocal()
+    try:
+        assert db.query(Submission).filter(Submission.student_id == 99999).count() == 0
+    finally:
+        db.close()
+
+
+def test_upload_mobile_requires_default_student_when_unselected(client):
+    """未选学生且默认学生 1 不存在：400 明确提示，不留孤儿提交。"""
+    from backend.database import SessionLocal, Submission
+    r = client.post(
+        "/api/upload/upload-mobile",
+        files={"file": ("good.png", _png_bytes(), "image/png")},
+        data={
+            "assignment_name": "无学生测试",
+            "stage": "小学", "subject": "数学", "teacher_id": 1,
+        },
+    )
+    assert r.status_code == 400, r.text
+    assert "学生" in r.json()["detail"]
+    db = SessionLocal()
+    try:
+        assert db.query(Submission).count() == 0
+    finally:
+        db.close()
+
+
+def test_upload_mobile_accepts_existing_student(client):
+    """传真实存在的学生 ID：正常上传成功。"""
+    from backend.database import Class, SessionLocal, Student
+    db = SessionLocal()
+    cls = Class(name="移动端学生班级", teacher_id=1, stage_id=1, subject_id=1)
+    db.add(cls); db.commit()
+    stu = Student(name="真实学生", class_id=cls.id)
+    db.add(stu); db.commit()
+    sid = stu.id
+    db.close()
+    r = client.post(
+        "/api/upload/upload-mobile",
+        files={"file": ("good.png", _png_bytes(), "image/png")},
+        data={
+            "assignment_name": "存在学生测试",
+            "stage": "小学", "subject": "数学", "teacher_id": 1,
+            "student_id": sid,
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["success"] is True
