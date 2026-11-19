@@ -269,11 +269,11 @@ async function loadRows() {
   const rows = d.submissions || [];
   $("emptyHint").style.display = rows.length ? "none" : "block";
   $("rows").innerHTML = rows.map(x => {
-    const gradeBadge = x.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;margin-right:6px;">${x.grade}</span>` : "";
+    const gradeBadge = x.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;margin-right:6px;">${escapeHtml(x.grade)}</span>` : "";
     return `
   <tr>
     <td>${x.id}</td>
-    <td><span class="pill ${x.status}">${x.status}</span>${x.status === "failed" ? `<br><span class="hint">${friendlyError((x.error_message || "")).slice(0, 80) || "未知原因"}${(x.retry_count || 0) ? ` · 已重试 ${x.retry_count} 次` : ""}</span>` : ""}</td>
+    <td><span class="pill ${x.status}">${x.status}</span>${x.status === "failed" ? `<br><span class="hint">${escapeHtml(friendlyError(x.error_message || "").slice(0, 80)) || "未知原因"}${(x.retry_count || 0) ? ` · 已重试 ${x.retry_count} 次` : ""}</span>` : ""}</td>
     <td>${gradeBadge}${escapeHtml(x.summary || "-")}</td>
       <td>${x.status === "completed" ? `<a href="#" onclick="view(${x.id});return false;">查看详情</a>`
         : x.status === "uploaded" ? `<a href="#" onclick="startGrading(${x.id});return false;">开始批改</a>`

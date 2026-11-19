@@ -251,3 +251,7 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 - 严重 bug：settings.html 用 `$()` 却从未定义（index/mobile 各自定义，settings 漏）——ensureAdmin() 一执行就 ReferenceError，PIN 弹层不出、整页加载链全挂。教训：前端帮助函数（$、esc）跨模板复制会漂移，静态测试已加"settings 必须定义 $"锚点；新模板抄 JS 时先查帮助函数定义齐全。
 - 设置页所有加载链统一 loadFail 横幅兜底；ensureAdmin 失败关闭。新增 tests/test_settings_front_v0552.py 6 项。
 - 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则继续手机端/详情页异常路径走查。
+
+## 工作台失败原因 XSS 补漏（健壮性第十七轮）✅（2026-11-19，v0.5.53）
+- index.html loadRows：friendlyError 不命中已知模式时原文回显 error_message，可能携带 HTML——现 escapeHtml 后插入；grade 徽章同步补转义。教训：走查 innerHTML 注入点时要盯"函数返回值"路径（friendlyError fallback 返回原文），不只盯字段直插。新增 tests/test_xss_fix_v0553.py 3 项。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则继续详情页/导出异常路径走查。

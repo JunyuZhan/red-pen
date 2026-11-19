@@ -1,3 +1,9 @@
+## [v0.5.53] - 2026-11-19
+### 修复（工作台失败原因 XSS 补漏，健壮性第十七轮）
+- index.html loadRows 把 `friendlyError(error_message)` 结果直接 innerHTML 插入且未转义——错误信息不命中任何已知模式时原文回显，API/上游错误文本可能携带 HTML/JS 注入失败提示区；现统一经 escapeHtml 后插入
+- grade 徽章同步补转义（`${x.grade}` 裸插 → escapeHtml）
+- 新增 3 项静态回归测试（486→489）
+
 ## [v0.5.52] - 2026-11-19
 ### 修复（设置页整页崩溃 + 加载失败友好降级，健壮性第十六轮）
 - **严重 bug**：settings.html 使用 `$()` 帮助函数却从未定义（index/mobile 各自定义了，settings 漏掉）——`ensureAdmin()` 一执行就 ReferenceError，PIN 解锁弹层不出现、整页设置加载链全挂。现补上 `const $ = id => document.getElementById(id)`
