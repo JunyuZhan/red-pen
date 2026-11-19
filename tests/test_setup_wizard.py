@@ -159,6 +159,22 @@ def test_recomplete_no_duplicate_class(client, setup_env):
     assert setup_env.SessionLocal().query(Class).count() == n_before
 
 
+def test_context_switch_resyncs_class_stage_subject(client, setup_env):
+    """回归：同名班级在切换学段/学科后归属应同步，不能停在旧归属（健壮性第二十二轮）"""
+    _reset(setup_env)
+    client.post("/api/setup/complete", json={"stage": "小学", "subject": "数学", "class_name": "三年二班"})
+    r = client.post("/api/setup/context", json={"stage": "中学", "subject": "物理", "class_name": "三年二班"})
+    assert r.status_code == 200
+    from backend.database import Class, SubjectConfig, StageConfig
+    db = setup_env.SessionLocal()
+    cls = db.query(Class).filter_by(name="三年二班").one()
+    su = db.query(SubjectConfig).filter_by(name="物理").one()
+    st = db.query(StageConfig).filter_by(name="中学").one()
+    assert cls.subject_id == su.id
+    assert cls.stage_id == st.id
+    db.close()
+
+
 def test_workbench_page_has_wizard_elements(client, setup_env):
     _reset(setup_env)
     r = client.get("/")

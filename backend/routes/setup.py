@@ -121,6 +121,12 @@ def _apply(db: Session, stage: str, subject: str, class_name: str,
                     stage_id=stage_id, subject_id=subject_id)
         db.add(cls)
         db.flush()
+    elif cls.stage_id != stage_id or cls.subject_id != subject_id:
+        # 同名班级已存在但归属学段/学科与本次选择不一致：同步班级归属，
+        # 否则引导/切换器显示新学段学科，班级详情仍按旧归属，两处矛盾。
+        # 历史作业的 subject_id 是建作业时快照，不受影响。
+        cls.stage_id = stage_id
+        cls.subject_id = subject_id
     _set_cfg(db, "default_stage", stage)
     _set_cfg(db, "default_subject", subject)
     _set_cfg(db, "default_class", class_name)
