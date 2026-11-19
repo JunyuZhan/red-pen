@@ -556,11 +556,20 @@ async def start_batch(data: BatchIn, db: Session = Depends(get_db)):
 
     queued_ids = []
     for s in eligible:
+        # 第二十四轮健壮性：入队即落 processing（与 /start 口径一致）。此前 /batch
+        # 不改状态，快速双击「批量批改」会把同一份提交重复入队——并发双重批改、
+        # 双倍烧 token、两个 worker 互删对方刚写入的 question_result。
+        # failed 提交重试同样递增 retry_count，防止批量路径绕过 MAX_RETRY 无限重试。
+        if s.status == "failed":
+            s.retry_count = (s.retry_count or 0) + 1
+        s.status = "processing"
+        s.error_message = None
         QUEUE[s.id] = {"state": "queued", "duration_seconds": None, "error": None}
         t = asyncio.create_task(_batch_worker(s.id, sem, data.template_id))
         _TASKS.add(t)
         _TASK_BY_SID[s.id] = t
         queued_ids.append(s.id)
+    db.commit()
 
     # 第九轮健壮性：明确上报被跳过/不存在的提交，不让老师对着 queued:[] 猜
     asked = set(data.submission_ids or [])
