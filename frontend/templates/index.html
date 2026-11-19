@@ -372,9 +372,15 @@ async function resumeQueue() {
 
 // ---------- 答案模板 ----------
 async function loadTemplates() {
-  const r = await fetch("/api/grading/answer-templates");
-  if (r.status === 401) { $("tplList").innerHTML = '<p class="hint">🔒 输入 PIN 解锁后可管理答案模板</p>'; return; }
-  const d = await r.json();
+  let r;
+  try {
+    r = await fetch("/api/grading/answer-templates");
+    if (r.status === 401) { $("tplList").innerHTML = '<p class="hint">🔒 输入 PIN 解锁后可管理答案模板</p>'; return; }
+    var d = await r.json();
+  } catch (e) {
+    $("tplList").innerHTML = `<p class="hint">模板加载失败：服务未响应，请刷新页面重试。</p>`;
+    return;
+  }
   const list = d.templates || [];
   const sel = $("gradeTplSel");
   sel.innerHTML = '<option value="">不使用（AI 自行读题）</option>' +
@@ -482,10 +488,16 @@ async function regradeQuestion(qrId, submissionId) {
 
 // ---------- 班级/学生管理 ----------
 async function loadManage() {
-  const d = await (await fetch("/api/manage/classes")).json();
-  const classes = d.classes || [];
-  const sd = await (await fetch("/api/manage/students")).json();
-  const students = sd.students || [];
+  let classes = [], students = [];
+  try {
+    const d = await (await fetch("/api/manage/classes")).json();
+    classes = d.classes || [];
+    const sd = await (await fetch("/api/manage/students")).json();
+    students = sd.students || [];
+  } catch (e) {
+    $("classList").innerHTML = `<p class="hint">班级/学生数据加载失败：服务未响应，请刷新页面重试。</p>`;
+    return;
+  }
   $("classList").innerHTML = classes.length ? classes.map(c => {
     const names = students.filter(s => s.class_id === c.id).map(s => s.name).join("、");
     return `<div class="cls-item">
@@ -531,8 +543,14 @@ async function addStudent() {
 
 // ---------- 学情分析 ----------
 async function loadAnalytics() {
-  const d = await (await fetch("/api/analytics/analytics")).json();
   const body = $("analyticsBody");
+  let d;
+  try {
+    d = await (await fetch("/api/analytics/analytics")).json();
+  } catch (e) {
+    body.innerHTML = `<p class="hint">学情分析加载失败：服务未响应，请刷新页面重试。</p>`;
+    return;
+  }
   if (!d.total_questions) {
     body.innerHTML = `<p class="hint">暂无批改数据，批改完成后这里会展示学情分析</p>`;
     return;
@@ -543,7 +561,7 @@ async function loadAnalytics() {
   const stuRows = (d.students || []).map(s => {
     _stuNameMap[s.student_id] = s.name;
     const acc = s.accuracy == null ? "-" : (s.accuracy * 100).toFixed(0) + "%";
-    const grade = s.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;">${s.grade}</span>` : "-";
+    const grade = s.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;">${esc(s.grade)}</span>` : "-";
     return `<tr><td>${esc(s.name)}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td><td>${grade}</td>` +
       `<td><button onclick="openStudentReport(${s.student_id})">AI报告</button></td></tr>`;
   }).join("");
@@ -803,8 +821,13 @@ async function overrideQuestion(qrId, judgement) {
 
 // ---------- AI 教学建议 ----------
 async function loadAdvice() {
-  const d = await (await fetch("/api/analytics/teaching-advice")).json();
-  renderAdvice(d.advice);
+  const body = document.getElementById("adviceBody");
+  try {
+    const d = await (await fetch("/api/analytics/teaching-advice")).json();
+    renderAdvice(d.advice);
+  } catch (e) {
+    body.innerHTML = `<p class="hint">教学建议加载失败：服务未响应，请刷新页面重试。</p>`;
+  }
 }
 function renderAdvice(a) {
   const body = document.getElementById("adviceBody");
@@ -849,7 +872,11 @@ async function openStudentReport(studentId, name) {
   panel.style.display = "block";
   body.innerHTML = `<p class="hint">加载中…</p>`;
   panel.scrollIntoView({ behavior: "smooth", block: "center" });
-  const d = await (await fetch(`/api/analytics/student-report/${studentId}`)).json();
+  const d = await (async () => {
+    try { return await (await fetch(`/api/analytics/student-report/${studentId}`)).json(); }
+    catch (e) { body.innerHTML = `<p class="hint">学情报告加载失败：服务未响应，请稍后重试。</p>`; return null; }
+  })();
+  if (!d) return;
   renderStudentReport(d.report, name, studentId);
 }
 function renderStudentReport(rep, name, studentId) {
