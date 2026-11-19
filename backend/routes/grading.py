@@ -823,8 +823,7 @@ async def regrade_question(qr_id: int, template_id: Optional[int] = None,
     """重新批改单个题目（不整页重批，节省 token）。
 
     行为：用当前模型对原图重跑一次批改，取返回结果中题号匹配的那一题，
-    覆盖该 QuestionResult 的判定/置信度/答案/步骤/知识点；bbox 与教师改判
-    (teacher_override) 保留不动。原判定写入 review_note 留痕。
+    覆盖该 QuestionResult 的判定/置信度/答案/步骤/知识点；bbox 保留不动；teacher_override（旧教师改判）清空并留痕。原判定写入 review_note 留痕。
     """
     qr = db.query(QuestionResult).filter(QuestionResult.id == qr_id).first()
     if not qr:
@@ -879,6 +878,7 @@ async def regrade_question(qr_id: int, template_id: Optional[int] = None,
         raise HTTPException(status_code=404, detail="本次重批结果里没有该题号，请稍后重试或整页重批")
 
     old_judgement = qr.judgement_final
+    old_override = qr.teacher_override
     conf = matched.get("confidence")
     try:
         conf = float(conf) if conf is not None else None
@@ -894,7 +894,14 @@ async def regrade_question(qr_id: int, template_id: Optional[int] = None,
     qr.steps = matched.get("steps")
     qr.knowledge_point = (matched.get("knowledge_point") or None) or None
     qr.needs_review = 1 if matched.get("needs_review") else 0
-    qr.review_note = f"单题重批 {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%m-%d %H:%M')}，重批前判定: {old_judgement or '无'}"
+    # 重批视为重新复核：清空旧的教师改判。否则详情页显示新 AI 判定，
+    # 而学情分析/置信度融合/成绩单仍按旧 teacher_override 计算，两处互相矛盾。
+    # 原改判与原判定一起写入 review_note 留痕。
+    qr.teacher_override = None
+    qr.review_note = (
+        f"单题重批 {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%m-%d %H:%M')}，"
+        f"重批前判定: {old_judgement or '无'}"
+        + (f"，原教师改判: {old_override}（已清空）" if old_override else ""))
     db.commit()
 
     get_logger().info("单题重批 qr=%s question_no=%s: %s -> %s", qr_id, qr.question_no,

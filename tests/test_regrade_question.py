@@ -80,8 +80,9 @@ def test_regrade_updates_target_only(auth_client, seeded, monkeypatch):
     assert qr.judgement_final == "correct"
     assert qr.student_answer_text == "3x+3"
     assert qr.bbox_answer == [[1, 2, 3, 4]]          # bbox 保留
-    assert qr.teacher_override == "correct"          # 教师改判保留
+    assert qr.teacher_override is None               # 旧教师改判清空（否则统计口径与详情页矛盾）
     assert "重批前判定: wrong" in qr.review_note      # 留痕
+    assert "原教师改判: correct（已清空）" in qr.review_note
     s.close()
 
 
@@ -163,3 +164,22 @@ def test_regrade_bad_question_no_formats(auth_client, seeded, monkeypatch):
     d = auth_client.post(f"/api/grading/regrade-question/{qr_id}").json()
     assert d["success"] and d["question"]["judgement"] == "partial"
     assert d["question"]["confidence"] == pytest.approx(0.6)
+
+
+def test_regrade_clears_override_so_stats_match_detail(auth_client, seeded, monkeypatch):
+    """回归：重批前有教师改判 → 重批后置信度融合/统计口径必须跟随新判定，
+    不能再按旧 teacher_override 计算（否则与详情页显示矛盾）。"""
+    SessionLocal, sid, qr_id, _ = seeded
+    _mock_engine(monkeypatch, [dict(Q1_OK, judgement="wrong")])
+    d = auth_client.post(f"/api/grading/regrade-question/{qr_id}").json()
+    assert d["success"]
+
+    s = SessionLocal()
+    qr = s.get(QuestionResult, qr_id)
+    assert qr.teacher_override is None
+    # 下游统计（知识点历史先验按 teacher_override or judgement_final 取值）：
+    # 旧改判是 correct，新判定是 wrong——若 override 未清空，这里会误计成 correct。
+    from backend.models.confidence_fusion import knowledge_point_history
+    hist = knowledge_point_history(s, exclude_submission_id=-1)   # -1 = 不排除任何提交
+    assert hist["一次方程"] == {"correct": 0, "total": 1}         # 按新判定 wrong 计
+    s.close()
