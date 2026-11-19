@@ -69,18 +69,24 @@ def _snapshot_into(zf: zipfile.ZipFile) -> None:
     upload_dir = settings.UPLOAD_DIR
     if db_file.exists():
         # 在线备份 API 生成一致性快照，避免拷到打开中的库文件导致损坏
-        src = sqlite3.connect(str(db_file))
         try:
-            with tempfile.TemporaryDirectory() as td:
-                snap = Path(td) / DB_NAME
-                dst = sqlite3.connect(str(snap))
-                try:
-                    src.backup(dst)
-                finally:
-                    dst.close()
-                zf.write(snap, DB_NAME)
-        finally:
-            src.close()
+            src = sqlite3.connect(str(db_file))
+            try:
+                with tempfile.TemporaryDirectory() as td:
+                    snap = Path(td) / DB_NAME
+                    dst = sqlite3.connect(str(snap))
+                    try:
+                        src.backup(dst)
+                    finally:
+                        dst.close()
+                    zf.write(snap, DB_NAME)
+            finally:
+                src.close()
+        except sqlite3.DatabaseError:
+            # 库文件损坏（合法头部但内容损坏等）时 connect/backup 才会抛错：
+            # 明确 400 提示，而不是让老师看到无解释的 500
+            raise HTTPException(status_code=400,
+                                detail="当前数据库文件损坏，无法生成备份快照；请先运行软件的修复/重建功能或联系技术支持")
     if upload_dir.exists():
         for f in upload_dir.rglob("*"):
             if f.is_file():
@@ -100,8 +106,13 @@ async def create_backup():
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = _backups_dir() / f"backup_{ts}.zip"
-    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        _snapshot_into(zf)
+    try:
+        with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            _snapshot_into(zf)
+    except HTTPException:
+        # 快照失败不留半截 zip（列表里会出现无法恢复的坏备份）
+        out_path.unlink(missing_ok=True)
+        raise
     return {
         "success": True,
         "message": f"备份已创建: {out_path.name}",
@@ -142,7 +153,11 @@ async def restore_backup(payload: RestoreIn):
                 raise sqlite3.DatabaseError("bad header")
             chk = sqlite3.connect(str(db_snap))
             try:
-                chk.execute("PRAGMA integrity_check").fetchone()
+                # integrity_check 返回行：结果错误时首行是错误描述而非异常，
+                # 必须检查结果值，否则合法头部但内容损坏的库会被放行
+                row = chk.execute("PRAGMA integrity_check").fetchone()
+                if not row or row[0] != "ok":
+                    raise sqlite3.DatabaseError(f"integrity_check failed: {row}")
             finally:
                 chk.close()
         except Exception:
@@ -177,7 +192,7 @@ async def restore_backup(payload: RestoreIn):
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(status_code=500, detail="恢复过程出错，原数据未受影响，请重试或换备份文件")
+        raise HTTPException(status_code=500, detail="恢复过程出错。恢复前的数据已自动存为 pre_restore_*.zip 快照，可从备份列表找回；请重试或换备份文件")
     finally:
         shutil.rmtree(staging, ignore_errors=True)
 

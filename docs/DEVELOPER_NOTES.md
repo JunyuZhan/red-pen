@@ -259,3 +259,8 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 ## 上传异常路径加固（健壮性第二十轮）✅（2026-11-19）
 - upload-mobile 的 except 引用 try 内才赋值的 file_path：建班级/建作业阶段先抛错时二次 NameError，老师只见无解释 500。修法：try 前预置 file_path/assignment/class_result=None，except 里守卫清理 + db.rollback() + 删除本轮误建作业（不留孤儿），500 详情改人话不泄漏原始异常（真因进 redpen 日志）。桌面端 /upload 同步补人话详情。
 - 教训：except 块里引用的变量必须在 try 之前就绑定；写 except 清理逻辑时先问"到这里时哪些变量可能还没赋值"。新增 tests/test_upload_except_robust.py 3 项（492→495）。bug 修复不升版本，随下个功能版本带上。
+
+## 备份/恢复脏数据加固（健壮性第二十八轮）✅（2026-11-20）
+- 两个真实 bug：① restore 的 PRAGMA integrity_check 只执行不查结果值——错误时首行是错误描述而非异常，合法头部但内容损坏的库被放行恢复；现校验结果必须 "ok"。② /create 对损坏库文件 sqlite3.connect().backup() 抛 DatabaseError 未捕获 500；现 400 人话提示，并删除半截 zip（否则列表出现无法恢复的坏备份）。restore 失败 500 详情改为如实指引 pre_restore 快照（原文案谎称"原数据未受影响"，中途 unlink 后并不成立）。
+- 测试技巧：构造"合法头部+垃圾内容"的假 SQLite = b"SQLite format 3\x00" + 垃圾，专测这类只查头部不查内容的校验。新增 tests/test_backup_v0554.py 3 项（525→528）。
+- 下一候选：① 单题重批后 queue/needs_review 联动状态测试；② 上传接口畸形文件（损坏图片/超大/错误后缀）边界；③ 真实批改准确率验证（等用户素材/API Key，最高优先）。
