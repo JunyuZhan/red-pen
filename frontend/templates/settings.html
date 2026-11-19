@@ -309,7 +309,10 @@
   </div>
 </div>
 
+<div id="loadErrBanner" style="display:none;background:#fdecea;color:#c0392b;padding:10px 14px;border-radius:8px;margin:12px 0;font-size:14px;">加载失败：服务未响应，请刷新页面重试。</div>
+
 <script>
+const $ = id => document.getElementById(id);
 const defaults = {
   qwen:   { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen3-vl-plus" },
   glm:    { base_url: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4.6v-flash" },
@@ -321,6 +324,12 @@ function onProviderChange() {
   const p = document.getElementById("provider").value;
   document.getElementById("base_url").value = defaults[p].base_url;
   document.getElementById("model").value = defaults[p].model;
+}
+
+// 任一加载链 fetch 失败时统一亮起顶部横幅，不再静默卡死/Unhandled Rejection
+function loadFail() {
+  const b = document.getElementById("loadErrBanner");
+  if (b) b.style.display = "block";
 }
 
 async function load() {
@@ -349,7 +358,7 @@ async function save() {
     if (!r.ok || !d.success) throw new Error(d.detail || d.error || "保存失败");
     msg.className = "msg ok"; msg.textContent = "✅ " + d.message;
     document.getElementById("api_key").value = "";
-    load();
+    load().catch(loadFail);
   } catch (e) {
     msg.className = "msg err"; msg.textContent = "❌ " + e.message;
   }
@@ -415,7 +424,7 @@ async function saveBudget() {
     const d = await r.json();
     if (!r.ok || !d.success) throw new Error(d.detail || d.error || "保存失败");
     msg.className = "msg ok"; msg.textContent = "✅ " + d.message;
-    loadBudget();
+    loadBudget().catch(loadFail);
   } catch (e) {
     msg.className = "msg err"; msg.textContent = "❌ " + e.message;
   }
@@ -692,7 +701,7 @@ async function saveFallback() {
     if (!r.ok || !d.success) throw new Error(d.detail || d.error || "保存失败");
     msg.className = "msg ok"; msg.textContent = "✅ " + d.message;
     document.getElementById("fb_api_key").value = "";
-    loadFallback();
+    loadFallback().catch(loadFail);
   } catch (e) {
     msg.className = "msg err"; msg.textContent = "❌ " + e.message;
   }
@@ -732,7 +741,15 @@ function loadRecModels() {
 
 // ---------- 管理员 PIN 解锁 ----------
 async function ensureAdmin() {
-  const s = await (await fetch("/api/auth/pin-status")).json();
+  let s;
+  try {
+    s = await (await fetch("/api/auth/pin-status")).json();
+  } catch (e) {
+    // pin-status 拉取失败按未解锁处理（失败关闭），并给出提示而非静默崩溃
+    $("pinGate").style.display = "flex";
+    $("pinMsg").textContent = "服务状态检查失败，请刷新页面重试";
+    return false;
+  }
   if (s.unlocked) return true;
   $("pinGate").style.display = "flex";
   setTimeout(() => $("pinInput").focus(), 50);
@@ -791,15 +808,19 @@ async function pinUnlock() {
   const msg = $("pinMsg");
   const pin = $("pinInput").value;
   if (!pin) { msg.textContent = "请输入 PIN"; return; }
-  const r = await fetch("/api/auth/pin-login", {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ pin })
-  });
-  if (r.ok) {
-    $("pinGate").style.display = "none";
-    location.reload();
-  } else {
-    msg.textContent = (await r.json()).detail || "PIN 错误";
+  try {
+    const r = await fetch("/api/auth/pin-login", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ pin })
+    });
+    if (r.ok) {
+      $("pinGate").style.display = "none";
+      location.reload();
+    } else {
+      msg.textContent = (await r.json()).detail || "PIN 错误";
+    }
+  } catch (e) {
+    msg.textContent = "解锁请求失败：服务未响应，请刷新页面重试";
   }
 }
 
@@ -815,35 +836,49 @@ async function loadGrade() {
 
 async function saveGrade() {
   const msg = document.getElementById("grade_msg");
-  const body = {
-    a: parseInt(document.getElementById("grade_a").value),
-    b: parseInt(document.getElementById("grade_b").value),
-    c: parseInt(document.getElementById("grade_c").value),
-  };
-  const r = await fetch("/api/settings/grade", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
-  });
-  const d = await r.json();
-  msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
+  try {
+    const body = {
+      a: parseInt(document.getElementById("grade_a").value),
+      b: parseInt(document.getElementById("grade_b").value),
+      c: parseInt(document.getElementById("grade_c").value),
+    };
+    const r = await fetch("/api/settings/grade", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    msg.textContent = r.ok && d.success ? "✅ 已保存" : (d.detail || "保存失败");
+  } catch (e) {
+    msg.textContent = "保存失败：服务未响应，请刷新页面重试";
+  }
 }
 
-ensureAdmin().then(ok => { if (ok) { load(); loadFallback(); loadCost().then(loadEstimateInputs); loadBudget(); loadRecModels(); loadConcurrency(); loadTimeout(); loadSplit(); loadOcrEnhanced(); loadCache(); loadMaxTokens(); loadPreprocess(); loadReview(); loadGrade(); } });
+ensureAdmin().then(ok => { if (ok) { [load, loadFallback, () => loadCost().then(loadEstimateInputs), loadBudget, loadRecModels, loadConcurrency, loadTimeout, loadSplit, loadOcrEnhanced, loadCache, loadMaxTokens, loadPreprocess, loadReview, loadGrade].forEach(f => { try { Promise.resolve(f()).catch(loadFail); } catch (e) { loadFail(); } }); } }).catch(loadFail);
 </script>
 <script>
 fetch("/health").then(r=>r.json()).then(d=>{ if(d.version) document.getElementById("appVersion").textContent = d.version + "（内测）"; }).catch(()=>{ document.getElementById("appVersion").textContent = "未知"; });
 </script>
 <script>
 async function loadLogs(){
-  const r = await fetch("/api/logs/recent?n=150");
-  const d = await r.json();
-  const el = document.getElementById("logView");
-  el.style.display = "block";
-  el.textContent = (d.lines || []).join("\n") || "暂无日志";
+  try {
+    const r = await fetch("/api/logs/recent?n=150");
+    const d = await r.json();
+    const el = document.getElementById("logView");
+    el.style.display = "block";
+    el.textContent = (d.lines || []).join("\n") || "暂无日志";
+  } catch (e) {
+    const el = document.getElementById("logView");
+    el.style.display = "block";
+    el.textContent = "日志加载失败：服务未响应，请刷新页面重试";
+  }
 }
 async function openLogFolder(){
-  const r = await fetch("/api/logs/open-folder", {method:"POST"});
-  const d = await r.json();
-  if(!d.success) alert(d.path);
+  try {
+    const r = await fetch("/api/logs/open-folder", {method:"POST"});
+    const d = await r.json();
+    if(!d.success) alert(d.path);
+  } catch (e) {
+    alert("打开日志目录失败：服务未响应，可手动查看 data/logs/redpen.log");
+  }
 }
 </script>
 </body>

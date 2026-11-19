@@ -246,3 +246,8 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 - 推送故障定位：~/.ssh/config 指向 red_pen_deploy_v2，偶发 Permission denied 抖动；用 GIT_SSH_COMMAND="ssh -F /dev/null -i ~/.ssh/red_pen_deploy_v2 -o IdentitiesOnly=yes" 重推即稳。main 推送成功≠tag/gh-pages 也会成功，三条都要单独验证（ls-remote + curl 线上）。
 - 本轮产物：472 passed；CI #276 全绿（含 Windows）；Release v0.5.49 挂 RedPen.exe；官网 download.html 已同步（线上 curl 验证）。
 - 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则继续设置页/详情页异常路径走查。
+
+## 设置页整页崩溃修复（健壮性第十六轮）✅（2026-11-19，v0.5.52）
+- 严重 bug：settings.html 用 `$()` 却从未定义（index/mobile 各自定义，settings 漏）——ensureAdmin() 一执行就 ReferenceError，PIN 弹层不出、整页加载链全挂。教训：前端帮助函数（$、esc）跨模板复制会漂移，静态测试已加"settings 必须定义 $"锚点；新模板抄 JS 时先查帮助函数定义齐全。
+- 设置页所有加载链统一 loadFail 横幅兜底；ensureAdmin 失败关闭。新增 tests/test_settings_front_v0552.py 6 项。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则继续手机端/详情页异常路径走查。

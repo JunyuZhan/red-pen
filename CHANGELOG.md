@@ -1,3 +1,10 @@
+## [v0.5.52] - 2026-11-19
+### 修复（设置页整页崩溃 + 加载失败友好降级，健壮性第十六轮）
+- **严重 bug**：settings.html 使用 `$()` 帮助函数却从未定义（index/mobile 各自定义了，settings 漏掉）——`ensureAdmin()` 一执行就 ReferenceError，PIN 解锁弹层不出现、整页设置加载链全挂。现补上 `const $ = id => document.getElementById(id)`
+- 设置页全部加载链（模型配置/成本/预算/并发/超时/切题/OCR增强/缓存/上限/预处理/复核/等级/备用模型/日志）fetch 异常时统一亮起顶部"加载失败，请刷新页面重试"横幅，不再静默卡死或 Unhandled Rejection
+- `ensureAdmin` pin-status 拉取失败按未解锁处理（失败关闭）并给出提示；`pinUnlock`/`saveGrade`/`loadLogs`/`openLogFolder` 补 try/catch 人话提示
+- 新增 6 项静态回归测试（480→486）
+
 ## [v0.5.51] - 2026-11-19
 ### 修复（工作台加载失败友好降级，健壮性第十五轮）
 - 异常路径走查发现：工作台 loadTemplates（答案模板）/ loadManage（班级学生）/ loadAnalytics（学情分析）/ loadAdvice（AI教学建议）/ openStudentReport（学生报告）五条加载链 fetch 抛异常时无兜底——页面永远停在"加载中…"且控制台 Unhandled Rejection，现已全部 catch 后渲染"加载失败，请刷新页面重试"
