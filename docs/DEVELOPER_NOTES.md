@@ -239,3 +239,10 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 - 教训：局部复制的 esc 帮助函数会漂移——凡内插进属性或 onclick 的，一律用全量转义或按索引/ id 传值。
 - 7 项前端静态回归测试（460→467 passed）。本轮推送多次 deploy key denied（瞬时抖动，重试/加 -v 后即成功；tag 推送连续失败后重试也成功）——勿当权限故障排查过深。
 - 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则 PRD 复审遗留项或导出文件异常路径。
+
+## 导出文件防公式注入（健壮性第十三轮）✅（2026-11-19，v0.5.49）
+- 6 个 CSV 导出全部改经 _SafeCsvWriter（backend/routes/grading.py 顶部）：=/+/-/@/制表符开头单元格加前导单引号（OWASP 建议），"-"占位符豁免。学生名/作业标题/AI识别答案都可能以这些字符开头，Excel/WPS 打开导出会被当公式执行。
+- 坑：_SafeCsvWriter 定义在模块顶部时 csv 需模块级 import（各导出函数内局部 import csv 不够）；测试断言单元格时要考虑 csv 引号包裹形态（"'= 而非行首 '=）。上轮漏写 CHANGELOG/VERSION，本轮一并补记。
+- 推送故障定位：~/.ssh/config 指向 red_pen_deploy_v2，偶发 Permission denied 抖动；用 GIT_SSH_COMMAND="ssh -F /dev/null -i ~/.ssh/red_pen_deploy_v2 -o IdentitiesOnly=yes" 重推即稳。main 推送成功≠tag/gh-pages 也会成功，三条都要单独验证（ls-remote + curl 线上）。
+- 本轮产物：472 passed；CI #276 全绿（含 Windows）；Release v0.5.49 挂 RedPen.exe；官网 download.html 已同步（线上 curl 验证）。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则继续设置页/详情页异常路径走查。
