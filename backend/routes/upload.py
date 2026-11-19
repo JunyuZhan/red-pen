@@ -135,13 +135,19 @@ async def upload_assignment(
         }
         
     except Exception as e:
+        import logging
+        logging.getLogger("redpen").exception("上传失败: %s", e)
+        db.rollback()
         # 清理已上传的文件
         if os.path.exists(file_path):
-            os.remove(file_path)
-        
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
         raise HTTPException(
             status_code=500,
-            detail=f"文件上传失败: {str(e)}"
+            detail="文件上传失败（服务内部错误），请重试；若反复失败请到设置页查看运行日志"
         )
 
 @router.post("/upload-mobile")
@@ -170,7 +176,13 @@ async def upload_mobile(
     # 验证文件大小与内容完整性（损坏图片硬拒绝，不可强行上传）
     data = _read_capped(file)
     _validate_content(data)
-    
+
+    # 异常路径预置：file_path/assignment 在 try 内才赋值，若前置步骤（建班级/建作业）先抛错，
+    # except 里引用未定义变量会二次 NameError，老师只会看到无解释的 500（v0.5.56 教训）
+    file_path = None
+    assignment = None
+    class_result = None
+
     try:
         # 获取或创建班级
         class_result = db.query(Class).filter(Class.name == f"{stage}{subject}班级").first()
@@ -246,14 +258,34 @@ async def upload_mobile(
             "grading_url": f"http://{settings.HOST}:{settings.PORT}/api/grading/start/{submission.id}"
         }
         
+    except HTTPException:
+        # 质量门禁 422 等业务响应不是故障，直接透传；但此前已提交的作业记录要清理，不留孤儿
+        if assignment is not None and assignment.id:
+            try:
+                db.delete(assignment)
+                db.commit()
+            except Exception:
+                db.rollback()
+        raise
     except Exception as e:
-        # 清理已上传的文件
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        
+        import logging
+        logging.getLogger("redpen").exception("移动端上传失败: %s", e)
+        # 回滚未提交的会话，清理已落盘的文件与本轮误建的作业记录（避免孤儿数据）
+        db.rollback()
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+        if assignment is not None and assignment.id:
+            try:
+                db.delete(assignment)
+                db.commit()
+            except Exception:
+                db.rollback()
         raise HTTPException(
             status_code=500,
-            detail=f"上传失败: {str(e)}"
+            detail="上传失败（服务内部错误），照片已保留，请重试；若反复失败请到设置页查看运行日志"
         )
 
 @router.get("/file/{file_id}")
