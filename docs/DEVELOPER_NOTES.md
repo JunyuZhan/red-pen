@@ -224,3 +224,11 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 - 防线：tests/test_mobile_front_v0546.py 静态检查三个模板 JS 中所有 $("id")/getElementById 引用必须在 HTML 中存在（含 JS 动态 .id= 赋值），加 node --check 全部内联脚本。改模板 JS 前后跑它。
 - 上传失败后保留照片恢复按钮可重试；轮询断线自愈 pollFails 计数（3 次提示重试，20 次约 1 分钟才放弃）。
 - 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则 PRD 缺口复查或工作台可用性走查。
+
+## 工作台异常路径加固（健壮性第十一轮）✅（2026-11-19，v0.5.47）
+- 修复注入隐患：index.html wizChip 把班级名直接拼进 onclick 字符串（引号会破坏按钮甚至注入）——改为 _wizChipValues 数组按索引传值 + escapeHtml 转义 label；注意文件里曾有新旧两份 wizChip，我新增后忘删旧份被静态测试抓住。
+- 更重要：批改详情/列表渲染的 AI 识别文本（学生答案/总评/错因/步骤）此前未转义——学生手写字符进 OCR 结果就能在老师页面注入 HTML。现在全部 escapeHtml。
+- ensureAdmin 的 pin-status 拉取失败吞异常返回 false（此前未处理 Promise 拒绝中断 loadManage/loadAnalytics 调用链）；调用点改 .catch()；view() 非 200 明确提示；pinUnlock 容错非 JSON；startBatch 报错走 friendlyError。
+- 7 项前端静态测试（453→460）。坑：测试断言 "wizPick('" 不出现，正好防了重复定义的旧 wizChip 残留。
+- 推送首次报 deploy key denied，重试即成功（瞬时抖动，勿当权限故障）。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则继续走查设置页/详情页异常路径。
