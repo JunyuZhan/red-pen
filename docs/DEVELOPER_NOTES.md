@@ -264,3 +264,11 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 - 两个真实 bug：① restore 的 PRAGMA integrity_check 只执行不查结果值——错误时首行是错误描述而非异常，合法头部但内容损坏的库被放行恢复；现校验结果必须 "ok"。② /create 对损坏库文件 sqlite3.connect().backup() 抛 DatabaseError 未捕获 500；现 400 人话提示，并删除半截 zip（否则列表出现无法恢复的坏备份）。restore 失败 500 详情改为如实指引 pre_restore 快照（原文案谎称"原数据未受影响"，中途 unlink 后并不成立）。
 - 测试技巧：构造"合法头部+垃圾内容"的假 SQLite = b"SQLite format 3\x00" + 垃圾，专测这类只查头部不查内容的校验。新增 tests/test_backup_v0554.py 3 项（525→528）。
 - 下一候选：① 单题重批后 queue/needs_review 联动状态测试；② 上传接口畸形文件（损坏图片/超大/错误后缀）边界；③ 真实批改准确率验证（等用户素材/API Key，最高优先）。
+
+## 敏感写接口补管理员鉴权（健壮性第三十三轮）✅（2026-11-20）
+- 真实安全漏洞：保存 API Key 的 /api/settings/llm、/fallback、/cost、发起任意外呼的 /test-connection、备份/恢复 /api/backup/create、/restore 均未挂 require_admin——局域网内任何人可改写 Key、借测试连接做内网探测、覆盖整个数据库。此前只给部分设置接口（split/privacy/grade 等）加了鉴权，属逐轮补漏的漂移。
+- 修复：上述 6 个写接口全部补 Depends(require_admin)；前端 settings.html 本就整页 PIN 门禁，cookie 自动随同源请求携带，UI 无感。
+- 注意：手机端 upload/grading/manage 不加鉴权是刻意设计（免 PIN 使用），勿顺手全加。
+- 测试教训：settings 路由的 SessionLocal 在导入时绑定真实 data/red_pen.db，测试里 POST /cost 会污染共享测试库的默认单价（test_budget 随机挂）——涉及写单价的测试用完必须恢复默认值；app_config 表名（无 s）。
+- 新增 tests/test_settings_auth_v0563.py 13 项（591→604）。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；或 /admin 类 GET 脱敏面复查。

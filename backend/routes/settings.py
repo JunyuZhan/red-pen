@@ -41,7 +41,7 @@ class TestConnectionIn(BaseModel):
 
 
 @router.post("/test-connection")
-async def test_llm_connection(config: TestConnectionIn):
+async def test_llm_connection(config: TestConnectionIn, _: None = Depends(require_admin)):
     """设置页"测试连接"按钮：用内置测试图实测当前引擎是否支持视觉输入、Key 是否有效"""
     if config.target not in ("main", "fallback"):
         raise HTTPException(status_code=400, detail="target 须为 main 或 fallback")
@@ -248,7 +248,7 @@ async def get_cost_settings():
 
 
 @router.post("/cost")
-async def update_cost_settings(config: CostConfigIn):
+async def update_cost_settings(config: CostConfigIn, _: None = Depends(require_admin)):
     import math
     if not (math.isfinite(config.cost_input_per_1k) and config.cost_input_per_1k >= 0
             and math.isfinite(config.cost_output_per_1k) and config.cost_output_per_1k >= 0):
@@ -311,7 +311,7 @@ async def get_fallback_settings():
 
 
 @router.post("/fallback")
-async def update_fallback_settings(config: FallbackConfigIn):
+async def update_fallback_settings(config: FallbackConfigIn, _: None = Depends(require_admin)):
     """保存备用引擎配置；provider 为空表示关闭备用切换"""
     provider = (config.provider or "").strip() or None
     if provider and provider not in PROVIDER_DEFAULTS:
@@ -359,7 +359,7 @@ async def get_llm_settings():
 
 
 @router.post("/llm")
-async def update_llm_settings(config: LLMConfigIn):
+async def update_llm_settings(config: LLMConfigIn, _: None = Depends(require_admin)):
     """保存 LLM 配置"""
     if config.provider not in PROVIDER_DEFAULTS:
         raise HTTPException(status_code=400, detail=f"不支持的服务商: {config.provider}（可选 qwen/glm/doubao/custom）")

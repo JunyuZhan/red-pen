@@ -18,10 +18,12 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..config import settings
+
+from .auth import require_admin
 
 router = APIRouter()
 
@@ -100,7 +102,7 @@ def _has_data() -> bool:
 
 
 @router.post("/create")
-async def create_backup():
+async def create_backup(_: None = Depends(require_admin)):
     if not _has_data():
         raise HTTPException(status_code=400, detail="暂无数据可备份（数据库与上传目录均为空）")
 
@@ -126,7 +128,7 @@ class RestoreIn(BaseModel):
 
 
 @router.post("/restore")
-async def restore_backup(payload: RestoreIn):
+async def restore_backup(payload: RestoreIn, _: None = Depends(require_admin)):
     name = _validate_name(payload.filename)
     path = _backups_dir() / name
     if not path.exists():
