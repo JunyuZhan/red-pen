@@ -177,7 +177,7 @@ async function load() {
   const bw = s.best_worst;
   let bwHtml = "";
   if (bw && bw.best && bw.worst) {
-    bwHtml = `<div style="margin-top:6px;font-size:13px;color:#555;">📈 最高：${bw.best.title}（${(bw.best.accuracy*100).toFixed(0)}%）　最低：${bw.worst.title}（${(bw.worst.accuracy*100).toFixed(0)}%）</div>`;
+    bwHtml = `<div style="margin-top:6px;font-size:13px;color:#555;">📈 最高：${escapeHtml(bw.best.title)}（${(bw.best.accuracy*100).toFixed(0)}%）　最低：${escapeHtml(bw.worst.title)}（${(bw.worst.accuracy*100).toFixed(0)}%）</div>`;
   }
   const ag = (s.assignment_grades || []).filter(a => a.grade);
   if (ag.length) {
@@ -192,7 +192,7 @@ async function load() {
         const up = a.delta >= 0;
         delta = ` <span style="color:${up ? "#2e7d32" : "#c62828"};">${up ? "↑" : "↓"}${Math.abs(a.delta*100).toFixed(0)}%</span>`;
       }
-      return `<span style="display:inline-block;margin:2px 8px 2px 0;padding:2px 10px;border-radius:8px;background:#f0ead8;color:#6b5b2e;">${a.title || ("作业"+a.assignment_id)} <b>${a.grade}</b>（${(a.accuracy*100).toFixed(0)}%）${delta}</span>`;
+      return `<span style="display:inline-block;margin:2px 8px 2px 0;padding:2px 10px;border-radius:8px;background:#f0ead8;color:#6b5b2e;">${escapeHtml(a.title || ("作业"+a.assignment_id))} <b>${a.grade}</b>（${(a.accuracy*100).toFixed(0)}%）${delta}</span>`;
     }).join("") + bwHtml;
     $("stats").after(div);
   }
@@ -210,14 +210,14 @@ async function load() {
       + `<button style="margin:2px 8px 2px 0;" onclick="window.location.href='/api/grading/export-wrong-all?days=0'">错题讲评清单</button>`
       + `<select id="studentWrongSel" style="margin:2px 4px 2px 0;padding:2px 4px;">`
       + `<option value="">选学生</option>`
-      + (s.students || []).map(st => `<option value="${st.id}">${st.name}</option>`).join("")
+      + (s.students || []).map(st => `<option value="${st.id}">${escapeHtml(st.name)}</option>`).join("")
       + `</select>`
       + `<button style="margin:2px 8px 2px 0;" onclick="exportStudentWrong()">学生错题本</button>`
       + (s.classes || []).map(c =>
-      `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class-all?days=30&class_id=${c.id}'">近30天·${c.name}</button>`).join("")
+      `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class-all?days=30&class_id=${c.id}'">近30天·${escapeHtml(c.name)}</button>`).join("")
       + allAsg.map(a =>
-      `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class/${a.assignment_id}'">成绩单:${a.title || ("作业"+a.assignment_id)}</button>`
-      + `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-question-matrix/${a.assignment_id}'">得分矩阵:${a.title || ("作业"+a.assignment_id)}</button>`).join("");
+      `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-class/${a.assignment_id}'">成绩单:${escapeHtml(a.title || ("作业"+a.assignment_id))}</button>`
+      + `<button style="margin:2px 6px 2px 0;" onclick="window.location.href='/api/grading/export-question-matrix/${a.assignment_id}'">得分矩阵:${escapeHtml(a.title || ("作业"+a.assignment_id))}</button>`).join("");
     (document.getElementById("assignmentGrades") || $("stats")).after(bar);
   }
 }
@@ -378,9 +378,9 @@ async function loadTemplates() {
   const list = d.templates || [];
   const sel = $("gradeTplSel");
   sel.innerHTML = '<option value="">不使用（AI 自行读题）</option>' +
-    list.map(t => `<option value="${t.id}">${t.title}（已用 ${t.usage_count} 次）</option>`).join("");
+    list.map(t => `<option value="${t.id}">${escapeHtml(t.title)}（已用 ${t.usage_count} 次）</option>`).join("");
   $("tplList").innerHTML = list.length ? list.map(t =>
-    `<div class="cls-item"><span><b>${t.title}</b> · [${t.subject}] ${Object.keys(t.answers).length} 题 · 已用 ${t.usage_count} 次</span>
+    `<div class="cls-item"><span><b>${escapeHtml(t.title)}</b> · [${escapeHtml(t.subject)}] ${Object.keys(t.answers).length} 题 · 已用 ${t.usage_count} 次</span>
      <button onclick="delTemplate(${t.id})">删除</button></div>`).join("")
     : '<p class="hint">暂无模板</p>';
 }
@@ -489,11 +489,11 @@ async function loadManage() {
   $("classList").innerHTML = classes.length ? classes.map(c => {
     const names = students.filter(s => s.class_id === c.id).map(s => s.name).join("、");
     return `<div class="cls-item">
-      <span><b>${c.name}</b> <span class="hint">（${c.student_count} 人）${names ? "：" + names : ""}</span></span>
+      <span><b>${escapeHtml(c.name)}</b> <span class="hint">（${c.student_count} 人）${names ? "：" + escapeHtml(names) : ""}</span></span>
       <button onclick="delClass(${c.id})">删除班级</button>
     </div>`;
   }).join("") : `<p class="hint">暂无班级，先添加一个</p>`;
-  $("studentClassSel").innerHTML = classes.map(c => `<option value="${c.id}">${c.name}</option>`).join("")
+  $("studentClassSel").innerHTML = classes.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")
     || `<option value="">请先建班级</option>`;
 }
 
@@ -538,13 +538,14 @@ async function loadAnalytics() {
     return;
   }
   const errTags = Object.entries(d.error_type_distribution || {})
-    .map(([k, v]) => `<span class="tag">${k} × ${v}</span>`).join("") || `<span class="hint">暂无错误记录</span>`;
-  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+    .map(([k, v]) => `<span class="tag">${escapeHtml(k)} × ${v}</span>`).join("") || `<span class="hint">暂无错误记录</span>`;
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   const stuRows = (d.students || []).map(s => {
+    _stuNameMap[s.student_id] = s.name;
     const acc = s.accuracy == null ? "-" : (s.accuracy * 100).toFixed(0) + "%";
     const grade = s.grade ? `<span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#f0ead8;color:#6b5b2e;font-weight:bold;">${s.grade}</span>` : "-";
     return `<tr><td>${esc(s.name)}</td><td>${s.total}</td><td>${s.correct}</td><td>${acc}</td><td>${grade}</td>` +
-      `<td><button onclick="openStudentReport(${s.student_id},'${esc(s.name)}')">AI报告</button></td></tr>`;
+      `<td><button onclick="openStudentReport(${s.student_id})">AI报告</button></td></tr>`;
   }).join("");
   const review = d.needs_review || [];
   const reviewRows = review.map(r => {
@@ -686,7 +687,7 @@ async function loadAnalytics() {
         const acc = k.accuracy == null ? null : k.accuracy;
         const bg = acc == null ? "#dfe6e9" : acc >= 0.85 ? "#c8e6c9" : acc >= 0.7 ? "#ffe0b2" : "#f8d0d0";
         const border = acc == null ? "#b2bec3" : acc >= 0.85 ? "#27ae60" : acc >= 0.7 ? "#e67e22" : "#e74c3c";
-        const errs = Object.entries(k.error_types || {}).map(([t, n]) => `${t} ${n}次`).join("，");
+        const errs = Object.entries(k.error_types || {}).map(([t, n]) => `${esc(t)} ${n}次`).join("，");
         const tip = `${k.name}：掌握率 ${acc == null ? "-" : Math.round(acc*100) + "%"}（${k.correct}/${k.total}）${errs ? " · 错误类型：" + errs : ""}`;
         return `<div title="${esc(tip)}" style="width:150px;min-height:74px;box-sizing:border-box;padding:8px;border-radius:10px;background:${bg};border:2px solid ${border};cursor:default;">
           <div style="font-size:12px;color:#2d3436;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(k.name)}</div>
@@ -770,7 +771,7 @@ async function loadFrequentWrong() {
     const items = d.items || [];
     if (!items.length) { box.innerHTML = `<p style="margin:6px 0;font-size:14px;"><b>高频错题</b></p><p class="hint">暂无错题记录 🎉</p>`; return; }
     const rows = items.map(it => {
-      const errs = Object.entries(it.error_types || {}).map(([t, n]) => `${t} ${n}次`).join("，");
+      const errs = Object.entries(it.error_types || {}).map(([t, n]) => `${esc(t)} ${n}次`).join("，");
       const samples = (it.sample_answers || []).map(s => `"${esc(s)}"`).join("、");
       return `<tr><td>${esc(it.assignment_title)}</td><td>${it.question_no}</td>` +
         `<td style="color:#c0392b;font-weight:bold;">${it.wrong_students} 人</td>` +
@@ -808,7 +809,7 @@ async function loadAdvice() {
 function renderAdvice(a) {
   const body = document.getElementById("adviceBody");
   if (!a) { body.innerHTML = `<p class="hint">尚未生成。点击"重新生成"让 AI 基于批改数据给出教学建议。</p>`; return; }
-  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   const sug = (a.advice.suggestions || []).map(s => `<li>${esc(s)}</li>`).join("");
   const focus = (a.advice.focus_students || []).map(f =>
     `<span class="tag" title="${esc(f.reason)}">关注: ${esc(f.name)}</span>`).join(" ");
@@ -839,7 +840,10 @@ async function generateAdvice() {
 }
 
 // ---------- AI 学生学情报告（待办 k） ----------
+// 学生名按 id 存全局表，onclick 只传 id——名字含引号也不会破坏 HTML/JS
+const _stuNameMap = {};
 async function openStudentReport(studentId, name) {
+  name = name || _stuNameMap[studentId] || "";
   const panel = document.getElementById("stuReportPanel");
   const body = document.getElementById("stuReportBody");
   panel.style.display = "block";
@@ -853,7 +857,7 @@ function renderStudentReport(rep, name, studentId) {
   const title = document.getElementById("stuReportTitle");
   title.textContent = name ? `${name} · AI 学情报告` : "AI 学情报告";
   if (!rep) { body.innerHTML = `<p class="hint">尚未生成。点击\"生成\"让 AI 基于该生的历史批改数据写学情报告。</p>`; return; }
-  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   const lst = (label, items, icon) => (items || []).length
     ? `<p style="margin:6px 0 2px;font-size:14px;"><b>${icon} ${label}</b></p><ul style="margin:2px 0;font-size:14px;">` +
       items.map(s => `<li>${esc(s)}</li>`).join("") + `</ul>` : "";
