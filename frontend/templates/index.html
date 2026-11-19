@@ -144,6 +144,24 @@
 <script>
 const $ = id => document.getElementById(id);
 
+// 把任意字符串安全转义后插入 HTML（班级名等用户输入可能含引号/尖括号）
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// 引导选项值按索引传递（不用字符串拼 onclick，班级名含引号/特殊字符也不会破坏按钮）
+let _wizChipValues = [];
+function wizChip(label, value, selected) {
+  const idx = _wizChipValues.length;
+  _wizChipValues.push(String(value));
+  return `<button onclick="wizPick(${idx}, this)"` +
+    ` style="padding:9px 16px;border:1.5px solid ${selected ? "#c0392b" : "#ddd"};` +
+    `background:${selected ? "#fdf3f2" : "#fff"};color:${selected ? "#c0392b" : "#333"};` +
+    `border-radius:8px;font-size:14px;cursor:pointer;">${escapeHtml(label)}</button>`;
+}
+
 async function load() {
   let s;
   try {
@@ -256,7 +274,7 @@ async function loadRows() {
   <tr>
     <td>${x.id}</td>
     <td><span class="pill ${x.status}">${x.status}</span>${x.status === "failed" ? `<br><span class="hint">${friendlyError((x.error_message || "")).slice(0, 80) || "未知原因"}${(x.retry_count || 0) ? ` · 已重试 ${x.retry_count} 次` : ""}</span>` : ""}</td>
-    <td>${gradeBadge}${x.summary || "-"}</td>
+    <td>${gradeBadge}${escapeHtml(x.summary || "-")}</td>
       <td>${x.status === "completed" ? `<a href="#" onclick="view(${x.id});return false;">查看详情</a>`
         : x.status === "uploaded" ? `<a href="#" onclick="startGrading(${x.id});return false;">开始批改</a>`
         : x.status === "failed" ? `<a href="#" onclick="retry(${x.id});return false;">重试</a>`
@@ -298,7 +316,7 @@ async function startBatch() {
     body: JSON.stringify(body) });
   const d = await r.json();
   $("batchBtn").disabled = false;
-  if (!r.ok || d.success === false) return alert(d.detail || d.error || "批量批改启动失败");
+  if (!r.ok || d.success === false) return alert(friendlyError(d.detail || d.error) || "批量批改启动失败");
   if (!d.count) { alert("当前没有待批改的提交"); return; }
   pollQueue();
 }
@@ -394,28 +412,30 @@ loadTemplates();
 let currentResults = [];
 
 async function view(id) {
-  let d;
+  let r, d;
   try {
-    d = await (await fetch("/api/grading/result/" + id)).json();
+    r = await fetch("/api/grading/result/" + id);
+    d = await r.json();
   } catch (e) { alert("加载批改详情失败：服务未响应或返回异常，请稍后重试。"); return; }
+  if (!r.ok) { alert(friendlyError(d.detail || "") || "加载批改详情失败（记录可能已被删除），请刷新页面后重试。"); return; }
   $("detail").style.display = "block";  $("exportCsvBtn").style.display = (d.results && d.results.length) ? "inline-block" : "none";
   $("exportCsvBtn").onclick = () => exportCsv(id);
   if (d.annotated_image_url) {
     $("detailImg").src = d.annotated_image_url + "?t=" + Date.now();
     $("detailImg").style.display = "block";
   } else $("detailImg").style.display = "none";
-  let html = `<p>📌 ${d.summary || "无总评"}</p>`;
+  let html = `<p>📌 ${escapeHtml(d.summary || "无总评")}</p>`;
   currentResults = d.results || [];
   currentResults.forEach(q => {
     const tag = { correct:"✓", wrong:"✗", partial:"◐", unclear:"?" }[q.judgement] || "?";
-    html += `<p><b>${tag} 第${q.question_no}题</b>`
-      + (q.error_type ? ` · 错误类型：${q.error_type}` : "")
+    html += `<p><b>${tag} 第${escapeHtml(q.question_no)}题</b>`
+      + (q.error_type ? ` · 错误类型：${escapeHtml(q.error_type)}` : "")
       + (q.confidence != null ? ` · 置信度 ${(q.confidence*100).toFixed(0)}%` : "")
-      + (q.student_answer ? `<br>学生答案：${q.student_answer}` : "")
-      + (q.correct_answer ? `<br>参考答案：${q.correct_answer}` : "")
+      + (q.student_answer ? `<br>学生答案：${escapeHtml(q.student_answer)}` : "")
+      + (q.correct_answer ? `<br>参考答案：${escapeHtml(q.correct_answer)}` : "")
       + (Array.isArray(q.steps) && q.steps.length ? `<br>🔍 步骤批改：` + q.steps.map(s =>
-          `<span style="color:#b45309">第${s.step_no}步</span> ` + (s.content ? `${s.content} — ` : "")
-          + (s.error_reason || "有误")).join("<br>") : "")
+          `<span style="color:#b45309">第${escapeHtml(s.step_no)}步</span> ` + (s.content ? `${escapeHtml(s.content)} — ` : "")
+          + escapeHtml(s.error_reason || "有误")).join("<br>") : "")
       + (q.student_answer ? ` <button style="font-size:12px;margin-left:6px;" onclick="reassignAnswer(${q.id},${d.submission_id},${q.question_no})">归属改错？</button>` : "")
       + ` <button style="font-size:12px;" onclick="regradeQuestion(${q.id},${d.submission_id})">重批此题</button>`
       + `</p>`;
@@ -869,7 +889,10 @@ async function generateStudentReport() {
 
 // ---------- 管理员 PIN 解锁 ----------
 async function ensureAdmin(autoShow = true) {
-  const s = await (await fetch("/api/auth/pin-status")).json();
+  let s;
+  try {
+    s = await (await fetch("/api/auth/pin-status")).json();
+  } catch (e) { return false; }   // 网络异常按未解锁处理，不让页面加载链中断
   if (s.unlocked) return true;
   if (!autoShow) return false;   // 静默检查：不自动弹 PIN（首次引导优先）
   const gate = $("pinGate");
@@ -890,7 +913,8 @@ async function pinUnlock() {
     $("pinGate").style.display = "none";
     location.reload();
   } else {
-    msg.textContent = (await r.json()).detail || "PIN 错误";
+    const d = await r.json().catch(() => ({}));
+    msg.textContent = d.detail || "PIN 错误，请重试";
   }
 }
 
@@ -900,14 +924,8 @@ let _wizStep = 0;         // 0学段 1学科 2班级
 let _wizSel = { stage: null, subject: null, class_name: null };
 let _wizData = null;      // /api/setup/status 结果
 
-function wizChip(label, value, selected) {
-  return `<button onclick="wizPick('${value.replace(/'/g, "\\'")}', this)"` +
-    ` style="padding:9px 16px;border:1.5px solid ${selected ? "#c0392b" : "#ddd"};` +
-    `background:${selected ? "#fdf3f2" : "#fff"};color:${selected ? "#c0392b" : "#333"};` +
-    `border-radius:8px;font-size:14px;cursor:pointer;">${label}</button>`;
-}
-
 function wizRender() {
+  _wizChipValues = [];
   const labels = ["第 1/3 步：选择学段", "第 2/3 步：选择学科", "第 3/3 步：选择班级"];
   $("wizStepLabel").textContent = labels[_wizStep];
   const box = $("wizOptions");
@@ -933,7 +951,9 @@ function wizRender() {
   }
 }
 
-function wizPick(value, btn) {
+function wizPick(idx, btn) {
+  const value = _wizChipValues[idx];
+  if (value === undefined) return;
   if (_wizStep === 0) _wizSel.stage = value;
   if (_wizStep === 1) _wizSel.subject = value;
   if (_wizStep === 2) { _wizSel.class_name = value; $("wizCustomInput").value = ""; }
@@ -995,7 +1015,7 @@ async function initSetup() {
 }
 
 load(); loadRows(); initSetup();
-ensureAdmin(false).then(ok => { if (ok) { loadManage(); loadAnalytics(); } });
+ensureAdmin(false).then(ok => { if (ok) { loadManage().catch(() => {}); loadAnalytics().catch(() => {}); } });
 
 // 把技术报错翻译成老师能看懂的话
 function friendlyError(msg){
