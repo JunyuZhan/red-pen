@@ -145,7 +145,10 @@
 const $ = id => document.getElementById(id);
 
 async function load() {
-  const s = await (await fetch("/api/dashboard/summary")).json();
+  let s;
+  try {
+    s = await (await fetch("/api/dashboard/summary")).json();
+  } catch (e) { $("stats").innerHTML = '<div class="stat"><b>-</b><span>数据加载失败，稍后自动重试</span></div>'; return; }
   $("stats").innerHTML = `
     <div class="stat"><b>${s.total_submissions}</b><span>总提交数</span></div>
     <div class="stat"><b>${s.completed}</b><span>已批改</span></div>
@@ -239,8 +242,12 @@ async function demoClear() {
 }
 
 async function loadRows() {
-  const r = await fetch("/api/mobile/list");
-  const d = await r.json();
+  let r, d;
+  try {
+    r = await fetch("/api/mobile/list");
+    if (!r.ok) return;
+    d = await r.json();
+  } catch (e) { return; }
   const rows = d.submissions || [];
   $("emptyHint").style.display = rows.length ? "none" : "block";
   $("rows").innerHTML = rows.map(x => {
@@ -297,10 +304,12 @@ async function startBatch() {
 }
 
 let _pollTimer = null;
+// 健壮性第九轮：断线自愈——查询失败(网络抖动/后端重启)不再让轮询链静默死掉，显示提示并持续重试
 async function pollQueue() {
-  const r = await fetch("/api/grading/queue-status");
-  if (!r.ok) return;
-  const d = await r.json();
+  try {
+    const r = await fetch("/api/grading/queue-status");
+    if (!r.ok) return;
+    const d = await r.json();
   const c = d.counts || {};
   const hint = $("queueHint");
   if (d.provider_paused && d.provider_paused.paused) {
@@ -326,6 +335,13 @@ async function pollQueue() {
       }
       loadRows(); load();
     }
+  }
+  } catch (e) {
+    const hint = $("queueHint");
+    hint.style.display = "block";
+    hint.textContent = "⚠️ 队列状态查询失败（服务未响应？正在重试…），批改不受影响。";
+    clearTimeout(_pollTimer);
+    _pollTimer = setTimeout(pollQueue, 3000);
   }
 }
 
@@ -378,7 +394,10 @@ loadTemplates();
 let currentResults = [];
 
 async function view(id) {
-  const d = await (await fetch("/api/grading/result/" + id)).json();
+  let d;
+  try {
+    d = await (await fetch("/api/grading/result/" + id)).json();
+  } catch (e) { alert("加载批改详情失败：服务未响应或返回异常，请稍后重试。"); return; }
   $("detail").style.display = "block";  $("exportCsvBtn").style.display = (d.results && d.results.length) ? "inline-block" : "none";
   $("exportCsvBtn").onclick = () => exportCsv(id);
   if (d.annotated_image_url) {
