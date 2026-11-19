@@ -1,3 +1,8 @@
+## [v0.5.54] - 2026-11-19
+### 修复（详情页 onclick 注入修复，健壮性第十八轮）
+- **注入隐患**：批改详情"归属改错？"按钮把 `q.question_no`（模型输出，可能含非数字/引号字符）未加引号直接内插进 onclick——含引号会破坏甚至注入 JS，含非数字会抛 ReferenceError 按钮失效。现 onclick 只传 id，题号经 `_qrNoMap` 全局映射按 id 读取（与学情页 _stuNameMap 同一模式）
+- 新增 3 项静态回归测试（489→492）
+
 ## [v0.5.53] - 2026-11-19
 ### 修复（工作台失败原因 XSS 补漏，健壮性第十七轮）
 - index.html loadRows 把 `friendlyError(error_message)` 结果直接 innerHTML 插入且未转义——错误信息不命中任何已知模式时原文回显，API/上游错误文本可能携带 HTML/JS 注入失败提示区；现统一经 escapeHtml 后插入

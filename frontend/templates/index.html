@@ -416,6 +416,9 @@ async function delTemplate(id) {
 loadTemplates();
 
 let currentResults = [];
+// 题号按 q.id 存全局表，onclick 只传 id——题号是模型输出，可能含非数字/引号字符，
+// 直接内插进 onclick 会破坏 JS 甚至注入（与 _stuNameMap 同一教训）
+const _qrNoMap = {};
 
 async function view(id) {
   let r, d;
@@ -433,6 +436,7 @@ async function view(id) {
   let html = `<p>📌 ${escapeHtml(d.summary || "无总评")}</p>`;
   currentResults = d.results || [];
   currentResults.forEach(q => {
+    _qrNoMap[q.id] = q.question_no;
     const tag = { correct:"✓", wrong:"✗", partial:"◐", unclear:"?" }[q.judgement] || "?";
     html += `<p><b>${tag} 第${escapeHtml(q.question_no)}题</b>`
       + (q.error_type ? ` · 错误类型：${escapeHtml(q.error_type)}` : "")
@@ -442,7 +446,7 @@ async function view(id) {
       + (Array.isArray(q.steps) && q.steps.length ? `<br>🔍 步骤批改：` + q.steps.map(s =>
           `<span style="color:#b45309">第${escapeHtml(s.step_no)}步</span> ` + (s.content ? `${escapeHtml(s.content)} — ` : "")
           + escapeHtml(s.error_reason || "有误")).join("<br>") : "")
-      + (q.student_answer ? ` <button style="font-size:12px;margin-left:6px;" onclick="reassignAnswer(${q.id},${d.submission_id},${q.question_no})">归属改错？</button>` : "")
+      + (q.student_answer ? ` <button style="font-size:12px;margin-left:6px;" onclick="reassignAnswer(${q.id},${d.submission_id})">归属改错？</button>` : "")
       + ` <button style="font-size:12px;" onclick="regradeQuestion(${q.id},${d.submission_id})">重批此题</button>`
       + `</p>`;
   });
@@ -455,7 +459,8 @@ function exportCsv(id) {
 }
 
 // 手动改答案归属（切题/归属错时兜底）：把该题答案移到教师指定的题号
-async function reassignAnswer(sourceId, submissionId, sourceNo) {
+async function reassignAnswer(sourceId, submissionId) {
+  const sourceNo = _qrNoMap[sourceId] != null ? _qrNoMap[sourceId] : "?";
   const no = prompt(`这份答案实际属于第几题？输入题号（当前记在第${sourceNo}题）`);
   if (!no) return;
   const target = (currentResults || []).find(q => q.question_no === parseInt(no, 10));
