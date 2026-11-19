@@ -58,7 +58,6 @@ def test_matrix_cells_and_rates(client, seeded):
     assert len(lines) == 6
     assert lines[0].startswith("得分矩阵：口算练习")
     assert lines[1] == "学生,题1,题2,题3"
-    # 小明：题1√ 题2× 题3复核
     assert "小明,√,×,复核" in lines[2]
     # 小红：题1√ 题2△ 题3空
     assert "小红,√,△," in lines[3]

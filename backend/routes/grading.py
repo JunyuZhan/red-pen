@@ -1001,8 +1001,9 @@ async def export_student_wrong_csv(
 
     buf = io.StringIO()
     writer = _SafeCsvWriter(buf)
-    writer.writerow([f"学生：{student.name}"] +
-                    ["作业", "题号", "题干", "学生答案", "参考答案",
+    # 标题独立成行，表头行与数据列严格对齐（标题若并入表头行会占掉首列导致列名错位）
+    writer.writerow([f"学生：{student.name}"])
+    writer.writerow(["作业", "题号", "题干", "学生答案", "参考答案",
                      "判定", "错因", "知识点(原始)", "需复核"])
     for kp in sorted(rows_by_kp, key=lambda k: (-kp_errors[k], k)):
         writer.writerow([f"【{kp}】"])
@@ -1041,7 +1042,8 @@ async def export_class_csv(assignment_id: int, db: Session = Depends(get_db)):
     thresholds = get_thresholds(db)
     buf = io.StringIO()
     writer = _SafeCsvWriter(buf)
-    writer.writerow([f"作业：{assignment.title}"] + CLASS_HEADERS)
+    writer.writerow([f"作业：{assignment.title}"])
+    writer.writerow(CLASS_HEADERS)
 
     subs = (db.query(Submission, StudentModel.name)
             .outerjoin(StudentModel, StudentModel.id == Submission.student_id)
@@ -1142,7 +1144,7 @@ async def export_question_matrix_csv(assignment_id: int, db: Session = Depends(g
 
     buf = io.StringIO()
     writer = _SafeCsvWriter(buf)
-    writer.writerow([f"得分矩阵：{assignment.title}"] + header[1:])
+    writer.writerow([f"得分矩阵：{assignment.title}"])
     writer.writerow(header)
     for label, cells in rows:
         writer.writerow([label] + [cells.get(i, "") for i in range(1, max_no + 1)])

@@ -56,10 +56,12 @@ def test_export_student_basic(client, tmp_db):
     assert "filename*=UTF-8''" in r.headers["content-disposition"]
     body = r.content.decode("utf-8-sig")
     lines = [l for l in body.strip().split("\r\n") if l]
-    # 表头 + 2 个知识点分组行 + 3 行错题
+    # 标题行独立 + 表头行 + 2 个知识点分组行 + 3 行错题
     assert lines[0].startswith("学生：小明")
-    assert lines[1] == "【退位减法】" and lines[4] == "【进位加法】"
-    assert len(lines) == 6
+    # v0.5.55：标题独立成行后表头与数据列对齐（表头含 9 列）
+    assert lines[1].startswith("作业,题号,题干") and len(lines[1].split(",")) == 9
+    assert lines[2] == "【退位减法】" and lines[5] == "【进位加法】"
+    assert len(lines) == 7
     assert body.count("口算练习") == 3  # correct 的退位减法行不在
 
 
@@ -107,7 +109,9 @@ def test_export_student_all_correct(client, tmp_db):
     db2.commit(); db2.close()
     body = client.get(f"/api/grading/export-student/{sid}").content.decode("utf-8-sig")
     lines = [l for l in body.strip().split("\r\n") if l]
-    assert len(lines) == 1 and lines[0].startswith("学生：小明")
+    assert len(lines) == 2 and lines[0].startswith("学生：小明")  # 标题行 + 表头行
+    body2 = body
+    assert "作业,题号" in body2  # 无错题时表头行仍输出且与数据列对齐
 
 
 def test_dashboard_summary_includes_students(client, tmp_db):

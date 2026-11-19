@@ -53,12 +53,13 @@ def test_export_class_csv(client, seeded):
     body = r.content.decode("utf-8-sig")
     assert body.startswith("作业：口算练习")
     lines = [l for l in body.strip().split("\r\n") if l]
-    assert len(lines) == 3  # 表头 + 2 名学生
-    assert lines[1].startswith("小明") and lines[2].startswith("小红")
+    assert len(lines) == 4  # 标题行 + 表头行 + 2 名学生
+    assert lines[1].startswith("学生,")  # 表头行独占一行，与数据列对齐
+    assert lines[2].startswith("小明") and lines[3].startswith("小红")
     # 小明：3 题对 2 错 1、正确率 67%、等级 C、需复核 1
-    assert ",3,2,1,0,0,67%,C,1,12.3," in lines[1]
+    assert ",3,2,1,0,0,67%,C,1,12.3," in lines[2]
     # 小红：1 题对 1、正确率 100%、等级 A
-    assert ",1,1,0,0,0,100%,A,," in lines[2]
+    assert ",1,1,0,0,0,100%,A,," in lines[3]
 
 
 def test_export_class_csv_404(client):
@@ -76,7 +77,7 @@ def test_export_class_csv_empty(client, tmp_db):
     assert r.status_code == 200
     body = r.content.decode("utf-8-sig")
     lines = [l for l in body.strip().split("\r\n") if l]
-    assert len(lines) == 1  # 只有表头
+    assert len(lines) == 2  # 标题行 + 表头
 
 
 def test_frontend_has_class_export():
