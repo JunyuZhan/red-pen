@@ -218,3 +218,9 @@ qwen-vl-plus/qwen-vl-max 已被百炼于 2026-10-10 下线（原默认 qwen 模�
 - POST /api/grading/regrade-question/{qr_id}（可选 template_id）：对判定不服的题只重批该题（一次模型请求，其余题不动，省钱）。题号匹配覆盖判定/置信度/答案/步骤/知识点；bbox 与 teacher_override 保留；原判定写 review_note 留痕。护栏：仅 completed 状态、原图存在、预算 block 模式拦、超时/失败明确报错。
 - 工作台详情每题新增「重批此题」按钮（regradeQuestion），弹确认提示"消耗一次模型请求"。10 项离线测试（438→448）。坑：引擎偶发返回字符串置信度，需 try float 兜底；别把"遗留候选"当未做——归属改错入口早在 v0.5.16 就已落地，动手前先 grep。
 - 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）。
+
+## 新增 v0.5.46）手机端异常路径加固（健壮性第十轮）✅（2026-11-19）
+- 修复严重 bug：mobile.html JS 引用不存在的 pick_btn 元素，选照片后 file change 处理器即抛 TypeError——预览显示但"立即上传"按钮与倒计时不出现。起因：pick-zone div 无 id。同类：settings.html 残留已删功能的 privacy_* 引用（loadPrivacy 每次打开设置页打无效请求）。
+- 防线：tests/test_mobile_front_v0546.py 静态检查三个模板 JS 中所有 $("id")/getElementById 引用必须在 HTML 中存在（含 JS 动态 .id= 赋值），加 node --check 全部内联脚本。改模板 JS 前后跑它。
+- 上传失败后保留照片恢复按钮可重试；轮询断线自愈 pollFails 计数（3 次提示重试，20 次约 1 分钟才放弃）。
+- 下一候选：真实批改准确率验证（等用户素材/API Key，最高优先）；无素材则 PRD 缺口复查或工作台可用性走查。
